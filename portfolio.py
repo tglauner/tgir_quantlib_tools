@@ -1,22 +1,30 @@
 import QuantLib as ql
 import pandas as pd
 
+SOFR_CURVE_TENORS_YEARS = (1, 2, 3, 5, 10)
+SOFR_CURVE_TENOR_LABELS = tuple(f"{tenor}Y" for tenor in SOFR_CURVE_TENORS_YEARS)
+
 
 def build_sofr_curve(today, sofr_rates):
-    helpers = [
-        ql.DepositRateHelper(
-            ql.QuoteHandle(ql.SimpleQuote(rate / 100)),
-            ql.Period(i + 1, ql.Years),
-            2,
-            ql.UnitedStates(ql.UnitedStates.Settlement),
-            ql.ModifiedFollowing,
-            False,
-            ql.Actual360(),
+    if len(sofr_rates) != len(SOFR_CURVE_TENORS_YEARS):
+        raise ValueError(
+            "Expected "
+            f"{len(SOFR_CURVE_TENORS_YEARS)} SOFR quotes for "
+            f"{', '.join(SOFR_CURVE_TENOR_LABELS)}."
         )
-        for i, rate in enumerate(sofr_rates)
+
+    helpers = [
+        ql.OISRateHelper(
+            2,
+            ql.Period(tenor_years, ql.Years),
+            ql.QuoteHandle(ql.SimpleQuote(rate / 100)),
+            ql.Sofr(),
+        )
+        for tenor_years, rate in zip(SOFR_CURVE_TENORS_YEARS, sofr_rates)
     ]
-    curve = ql.PiecewiseLinearZero(today, helpers, ql.Actual360())
+    curve = ql.PiecewiseLogCubicDiscount(today, helpers, ql.Actual360())
     return curve
+
 
 def create_swap(start, maturity, rate, curve):
     fixed_leg_tenor = ql.Period('1Y')
@@ -49,6 +57,34 @@ def create_bermudan_swaption(swap, curve, exercise_dates):
     engine = ql.TreeSwaptionEngine(model, 50)
     swaption.setPricingEngine(engine)
     return swaption
+
+
+def reprice_sofr_calibration_swaps(curve, sofr_rates, tenors_years=(2, 5, 10)):
+    curve_handle = ql.YieldTermStructureHandle(curve)
+    engine = ql.DiscountingSwapEngine(curve_handle)
+    overnight_index = ql.Sofr(curve_handle)
+    market_quotes = dict(zip(SOFR_CURVE_TENORS_YEARS, sofr_rates))
+    repriced_swaps = []
+
+    for tenor_years in tenors_years:
+        fixed_rate = market_quotes[tenor_years]
+        swap = ql.MakeOIS(
+            ql.Period(tenor_years, ql.Years),
+            overnight_index,
+            fixed_rate / 100,
+            ql.Period(0, ql.Days),
+        )
+        swap.setPricingEngine(engine)
+        repriced_swaps.append(
+            {
+                "Tenor": f"{tenor_years}Y",
+                "Market Quote (%)": fixed_rate,
+                "Fair Rate (%)": swap.fairRate() * 100,
+                "NPV": swap.NPV(),
+            }
+        )
+
+    return pd.DataFrame(repriced_swaps)
 
 
 def price_portfolio(sofr_rates):

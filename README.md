@@ -7,8 +7,8 @@ This repository showcases small examples of using [QuantLib](https://www.quantli
 | Path | Description |
 | --- | --- |
 | `app.py` | Flask application that displays a valuation blotter and lets users edit SOFR curve rates through a form. It uses the `price_portfolio` helper to compute NPVs. |
-| `portfolio.py` | Functions for building a SOFR zero curve, creating interest‑rate swaps and swaptions, and pricing a small portfolio consisting of a swap, a European swaption, and a Bermudan swaption. |
-| `build_SOFR_curve.py` | Script that constructs a SOFR term structure from OIS swap quotes and prints discount factors for select maturities along with a DataFrame of daily factors. |
+| `portfolio.py` | Functions for bootstrapping a SOFR OIS curve, repricing calibration swaps, creating interest‑rate swaps and swaptions, and pricing a small portfolio consisting of a swap, a European swaption, and a Bermudan swaption. |
+| `build_SOFR_curve.py` | Script that constructs a SOFR OIS term structure from market quotes, prints discount factors for select maturities, and shows a repricing table for calibration swaps. |
 | `price_bermudan_swaption.py` | Demonstrates pricing a Bermudan swaption using the Hull–White short‑rate model and a tree swaption engine. |
 | `read_rates_vols_from_Excel.py` | Placeholder for future functionality to load market data from Excel. |
 | `today.py` | Minimal example showing how to set QuantLib's evaluation date. |
@@ -43,7 +43,7 @@ Run the Flask app and open `http://localhost:5000` in a browser:
 python app.py
 ```
 
-The page displays the NPVs of a swap, a European swaption, and a Bermudan swaption.  You can adjust the SOFR zero‑curve rates in the form and reprice the portfolio.
+The page displays the NPVs of a swap, a European swaption, and a Bermudan swaption. You can adjust the SOFR OIS curve quotes for `1Y`, `2Y`, `3Y`, `5Y`, and `10Y` in the form and reprice the portfolio.
 
 ### Stand‑alone Scripts
 

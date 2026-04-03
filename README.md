@@ -13,6 +13,10 @@ This repository showcases small examples of using [QuantLib](https://www.quantli
 | `read_rates_vols_from_Excel.py` | Placeholder for future functionality to load market data from Excel. |
 | `today.py` | Minimal example showing how to set QuantLib's evaluation date. |
 | `templates/` | HTML templates used by the web app. `blotter.html` renders the portfolio table and a rate‑editing form, while `index.html` is an alternate view showing instrument NPVs. |
+| `tests/` | Smoke tests for the Flask route and portfolio plus OIS curve repricing checks. |
+| `docs/` | Architecture notes and a local runbook aligned to the sibling `app_architecture` guidance, with explicit repo-specific deviations. |
+| `AGENTS.md` | Repo-specific Codex guidance for working in this codebase. |
+| `.codex/config.toml` | Codex workspace defaults for this repository. |
 | `requirements.txt` | Python dependencies. |
 | `LICENSE` | Apache 2.0 license. |
 
@@ -83,3 +87,7 @@ Run the smoke tests with:
 ```bash
 python -m unittest discover -s tests
 ```
+
+## Deviations From `app_architecture`
+
+This repository selectively adopts the documentation and workflow guidance from the sibling `app_architecture` template. It intentionally remains a compact Flask + QuantLib repo instead of being restructured into `frontend/` and `backend/`, and it does not add a database or production-only services that are irrelevant to this sandbox.

@@ -1,8 +1,8 @@
 import QuantLib as ql
 import pandas as pd
 
+
 def build_sofr_curve(today, sofr_rates):
-    dates = [today + ql.Period(i+1, ql.Years) for i in range(len(sofr_rates))]
     helpers = [
         ql.DepositRateHelper(
             ql.QuoteHandle(ql.SimpleQuote(rate / 100)),
@@ -50,23 +50,37 @@ def create_bermudan_swaption(swap, curve, exercise_dates):
     swaption.setPricingEngine(engine)
     return swaption
 
+
 def price_portfolio(sofr_rates):
     today = ql.Date.todaysDate()
     ql.Settings.instance().evaluationDate = today
     curve = build_sofr_curve(today, sofr_rates)
+    calendar = ql.UnitedStates(ql.UnitedStates.Settlement)
 
-    # Underlying swap starting today
-    swap = create_swap(today, today + ql.Period(5, ql.Years), 3.0, curve)
+    # Start the live swap on a business-day spot date so the first coupon
+    # does not require historical SOFR fixings that this demo app does not load.
+    swap_start = calendar.advance(today, 2, ql.Days)
+    swap = create_swap(
+        swap_start,
+        calendar.advance(swap_start, 5, ql.Years),
+        3.0,
+        curve,
+    )
 
     # Forward-starting swap used for swaptions
-    swaption_start = today + ql.Period(1, ql.Years)
+    swaption_start = calendar.advance(swap_start, 1, ql.Years)
     swaption_swap = create_swap(
-        swaption_start, swaption_start + ql.Period(4, ql.Years), 3.0, curve
+        swaption_start,
+        calendar.advance(swaption_start, 4, ql.Years),
+        3.0,
+        curve,
     )
 
     european_swaption = create_european_swaption(
         swaption_swap, curve, swaption_start)
-    bermudan_dates = [swaption_start + ql.Period(i, ql.Years) for i in range(1, 4)]
+    bermudan_dates = [
+        calendar.advance(swaption_start, i, ql.Years) for i in range(1, 4)
+    ]
     bermudan_swaption = create_bermudan_swaption(swaption_swap, curve, bermudan_dates)
 
     securities = [

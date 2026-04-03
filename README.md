@@ -28,8 +28,10 @@ This repository showcases small examples of using [QuantLib](https://www.quantli
 2. Install dependencies:
 
    ```bash
-   pip install -r requirements.txt
+   python -m pip install -r requirements.txt
    ```
+
+If the repository is moved or renamed, recreate `.venv` instead of reusing an older one. Python entrypoints inside a virtualenv can contain absolute paths.
 
 ## Usage
 
@@ -76,9 +78,8 @@ Issues and pull requests are welcome.  The repository is intended as a lightweig
 
 ## Testing
 
-Run the test suite (none are included yet) with:
+Run the smoke tests with:
 
 ```bash
-python -m pytest
+python -m unittest discover -s tests
 ```
-

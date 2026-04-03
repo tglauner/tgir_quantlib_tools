@@ -1,4 +1,3 @@
 Flask
 QuantLib
 pandas
-QuantLib-Python

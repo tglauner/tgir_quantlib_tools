@@ -11,19 +11,31 @@
 - Stand-alone scripts for curve inspection and isolated pricing checks
 
 ## Data Flow
-Browser -> Flask route -> `price_portfolio()` -> SOFR OIS curve bootstrap -> QuantLib pricing engines -> HTML table response
+Browser -> Flask route -> shared portfolio state -> SOFR OIS curve bootstrap and swaption-vol inputs -> QuantLib pricing engines -> HTML workstation response
 
 Script -> shared QuantLib helpers -> stdout tables and diagnostics
 
 ## SOFR Curve Conventions
-- The curve is bootstrapped from `1Y`, `2Y`, `3Y`, `5Y`, and `10Y` SOFR OIS quotes.
-- Calibration checks require `2Y`, `5Y`, and `10Y` OIS swaps to reprice to near-zero NPV.
+- The curve is bootstrapped from `ON`, `1Y`, `2Y`, `3Y`, `5Y`, `7Y`, `10Y`, and `12Y` SOFR quotes.
+- The front-end `ON` point is modeled as an overnight deposit helper and the rest of the curve as SOFR OIS helpers.
+- Calibration checks reprice each quoted OIS pillar to near-zero NPV.
 - The live demo swap starts on a spot business date so the app does not depend on loading historical SOFR fixings.
+
+## Volatility Conventions
+- European swaptions are priced from a full ATM normal-vol matrix with annual expiries `1Y..10Y` and annual underlying swap tenors `1Y..10Y`.
+- Bermudan swaptions are intentionally simpler: they use a flat callable normal-vol input as a Hull-White sigma proxy, not a full Bermudan calibration.
+- The UI shows both concepts separately so the market surface and the callable proxy are not conflated.
+
+## Bermudan Grid
+- The workstation shows a Bermudan pricing grid with columns for final maturity `2Y`, `3Y`, `5Y`, `7Y`, and `10Y`.
+- Rows are non-call periods `1Y..9Y`.
+- For a valid cell, the underlying swap tenor is computed as `maturity - noncall`, and annual call dates are generated through the remaining life of the deal.
 
 ## Testing Strategy
 - Route smoke test for the Flask homepage
 - Portfolio smoke test for returned instruments and NPVs
-- Curve calibration test for `2Y`, `5Y`, and `10Y` SOFR OIS repricing
+- Curve calibration test for all quoted SOFR OIS pillars
+- Shape test for the `10x10` ATM normal-vol matrix and the Bermudan grid
 
 ## Deviations From app_architecture
 - No `frontend/` and `backend/` split: the repo is intentionally a compact Flask + QuantLib codebase.

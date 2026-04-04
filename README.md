@@ -6,13 +6,13 @@ This repository showcases small examples of using [QuantLib](https://www.quantli
 
 | Path | Description |
 | --- | --- |
-| `app.py` | Flask application that displays a valuation blotter and lets users edit SOFR curve rates through a form. It uses the `price_portfolio` helper to compute NPVs. |
-| `portfolio.py` | Functions for bootstrapping a SOFR OIS curve, repricing calibration swaps, creating interest‑rate swaps and swaptions, and pricing a small portfolio consisting of a swap, a European swaption, and a Bermudan swaption. |
+| `app.py` | Flask application that displays a compact rates workstation with a live blotter, SOFR curve monitor, ATM swaption normal-vol matrix, and Bermudan pricing grid. |
+| `portfolio.py` | Functions for bootstrapping a SOFR OIS curve, repricing quoted OIS swaps, storing the ATM swaption vol matrix, creating interest-rate swaps and swaptions, and pricing the three-trade portfolio. |
 | `build_SOFR_curve.py` | Script that constructs a SOFR OIS term structure from market quotes, prints discount factors for select maturities, and shows a repricing table for calibration swaps. |
 | `price_bermudan_swaption.py` | Demonstrates pricing a Bermudan swaption using the Hull–White short‑rate model and a tree swaption engine. |
 | `read_rates_vols_from_Excel.py` | Placeholder for future functionality to load market data from Excel. |
 | `today.py` | Minimal example showing how to set QuantLib's evaluation date. |
-| `templates/` | HTML templates used by the web app. `blotter.html` renders the portfolio table and a rate‑editing form, while `index.html` is an alternate view showing instrument NPVs. |
+| `templates/` | HTML templates used by the web app. `dashboard.html` renders the workstation, `trade_form.html` renders the detailed trade editors, and `base.html` holds the shared styling. |
 | `tests/` | Smoke tests for the Flask route and portfolio plus OIS curve repricing checks. |
 | `docs/` | Architecture notes and a local runbook aligned to the sibling `app_architecture` guidance, with explicit repo-specific deviations. |
 | `AGENTS.md` | Repo-specific Codex guidance for working in this codebase. |
@@ -41,13 +41,19 @@ If the repository is moved or renamed, recreate `.venv` instead of reusing an ol
 
 ### Web Application
 
-Run the Flask app and open `http://localhost:5000` in a browser:
+Run the Flask app and open `http://127.0.0.1:5050` in a browser:
 
 ```bash
-python app.py
+./.venv/bin/python app.py
 ```
 
-The page displays the NPVs of a swap, a European swaption, and a Bermudan swaption. You can adjust the SOFR OIS curve quotes for `1Y`, `2Y`, `3Y`, `5Y`, and `10Y` in the form and reprice the portfolio.
+The page displays the marks of a swap, a European swaption, and a Bermudan swaption. You can adjust:
+
+- Overnight SOFR plus `1Y`, `2Y`, `3Y`, `5Y`, `7Y`, `10Y`, and `12Y` OIS quotes
+- A full ATM normal-vol matrix with annual expiries `1Y..10Y` and annual swap tenors `1Y..10Y`
+- A separate flat callable normal vol used for Bermudan pricing
+
+The app defaults to port `5050` because port `5000` is often occupied by macOS services on local machines.
 
 ### Stand‑alone Scripts
 
@@ -87,6 +93,20 @@ Run the smoke tests with:
 ```bash
 python -m unittest discover -s tests
 ```
+
+## Market Data Note
+
+The workstation exposes a full ATM swaption normal-vol matrix because the pricing surface is naturally organized by swaption expiry and underlying swap length. The implementation documentation references ICE SDX help pages because they explicitly describe:
+
+- A swaption volatility surface with mid implied volatilities and normal vols, with market data obtained from multiple data sources and initially displayed as real-time market data
+- A swaption forward-rates page that shows forward rate, straddle price, ATM volatility, and ATM normal volatility for each expiry and swap length
+
+Source references:
+
+- https://idd.ice.com/IRHelp/Content/FM/Swaption_Volatility_Surf.htm
+- https://idd.ice.com/IRHelp/Content/FM/Swaption_Forward_Rates.htm
+
+This repository does not auto-download live ICE data. The matrix is an editable demo surface laid out on those same annual ATM pillars so the QuantLib examples remain self-contained.
 
 ## Deviations From `app_architecture`
 

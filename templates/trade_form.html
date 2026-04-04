@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}{{ trade_title }}{% endblock %}
+
+{% block content %}
+  <section class="hero">
+    <div>
+      <span class="section-kicker">Trade Editor</span>
+      <h1>{{ trade_title }}</h1>
+      <p>{{ trade_description }}</p>
+    </div>
+    <div class="hero-meta">
+      <a class="btn btn-secondary" href="{{ url_for('dashboard') }}">Back to dashboard</a>
+    </div>
+  </section>
+
+  <div class="editor-layout">
+    <section class="panel">
+      <div class="panel-inner">
+        <div class="panel-header">
+          <div>
+            <span class="section-kicker">Detailed entry</span>
+            <h2>Deal terms</h2>
+            <p>Only the fields that materially drive the QuantLib instrument are shown here. The dashboard stays intentionally compressed.</p>
+          </div>
+        </div>
+
+        <form method="post">
+          <div class="form-grid">
+            {% for field in trade_fields %}
+              <div class="field">
+                <label for="{{ field.name }}">{{ field.label }}</label>
+                {% if field.type == "select" %}
+                  <select id="{{ field.name }}" name="{{ field.name }}">
+                    {% for option in field.options %}
+                      <option value="{{ option.value }}" {% if option.selected %}selected{% endif %}>{{ option.label }}</option>
+                    {% endfor %}
+                  </select>
+                {% else %}
+                  <input id="{{ field.name }}" name="{{ field.name }}" type="{{ field.type }}" step="{{ field.step }}" value="{{ field.value }}">
+                {% endif %}
+              </div>
+            {% endfor %}
+          </div>
+          <div class="btn-row" style="margin-top: 20px;">
+            <button class="btn btn-warm" type="submit">Save trade</button>
+            <a class="btn btn-secondary" href="{{ url_for('dashboard') }}">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <div class="stack">
+      <section class="panel">
+        <div class="panel-inner">
+          <div class="summary-block">
+            <span class="section-kicker">Summary</span>
+            <h3>{{ trade_headline }}</h3>
+            <p>{{ trade_detail }}</p>
+          </div>
+          <div class="summary-list">
+            {% for row in market_snapshot.curve_rows %}
+              <div class="summary-list-item">
+                <span>{{ row.label }} SOFR quote</span>
+                <strong>{{ row.quote|pct }}</strong>
+              </div>
+            {% endfor %}
+            <div class="summary-list-item">
+              <span>Callable flat vol</span>
+              <strong>{{ "%.1f"|format(market_snapshot.callable_normal_vol_bp) }} bp</strong>
+            </div>
+            {% if selected_matrix_vol_bp is not none %}
+              <div class="summary-list-item">
+                <span>Selected ATM matrix vol</span>
+                <strong>{{ "%.1f"|format(selected_matrix_vol_bp) }} bp</strong>
+              </div>
+            {% endif %}
+          </div>
+          <p class="table-note">Curve, ATM matrix vols, and callable flat vol are shared across all three deals from the dashboard market panels.</p>
+        </div>
+      </section>
+    </div>
+  </div>
+{% endblock %}

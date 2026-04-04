@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}Sign In{% endblock %}
+
+{% block content %}
+  <div class="login-layout">
+    <section class="panel login-panel">
+      <div class="panel-inner login-card">
+        <div class="hero" style="margin-bottom: 0;">
+          <div>
+            <span class="section-kicker">Protected Access</span>
+            <h1>Sign in to the rates workstation.</h1>
+            <p>
+              This repo keeps the compact Flask architecture from its local sandbox design, but follows the
+              `app_architecture` security guidance by gating the workstation behind a session login instead of
+              leaving pricing tools open.
+            </p>
+          </div>
+        </div>
+
+        <form class="login-grid" method="post" action="{{ url_for('workbench.login') }}">
+          <input type="hidden" name="next" value="{{ next_path }}">
+          <div class="field">
+            <label for="username">Username</label>
+            <input
+              autocomplete="username"
+              id="username"
+              name="username"
+              type="text"
+              value="{{ username }}"
+              required
+            >
+          </div>
+          <div class="field">
+            <label for="password">Password</label>
+            <input
+              autocomplete="current-password"
+              id="password"
+              name="password"
+              type="password"
+              required
+            >
+          </div>
+          <p class="field-note">
+            Configure `APP_LOGIN_USERNAME` and `APP_LOGIN_PASSWORD` in `.env` for local use. In stricter
+            deployments you can set `APP_LOGIN_PASSWORD_HASH` instead and disable debug mode.
+          </p>
+          <div class="btn-row">
+            <button class="btn btn-warm" type="submit">Open workstation</button>
+            <a class="btn btn-secondary" href="{{ url_for('workbench.health') }}">Health check</a>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-inner">
+        <div class="summary-block">
+          <span class="section-kicker">Architecture Fit</span>
+          <h3>Low-cost auth without a stack rewrite</h3>
+          <p>
+            The broader app standard prefers Clerk, React, and FastAPI. This sandbox intentionally stays
+            single-app Flask, so the lowest-cost compliant move is a server-side login gate with strong env
+            secrets, protected sessions, and a public health endpoint.
+          </p>
+        </div>
+
+        <div class="mini-list">
+          <div class="mini-list-item">
+            <strong>Protected routes</strong>
+            Dashboard, trade editors, reset, and realtime pricing calls all require authentication.
+          </div>
+          <div class="mini-list-item">
+            <strong>Centralized config</strong>
+            `.env` values are loaded once and mapped into the Flask app factory for cleaner growth.
+          </div>
+          <div class="mini-list-item">
+            <strong>Stable pricing core</strong>
+            QuantLib portfolio logic remains in `portfolio.py`, separate from view and session concerns.
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+{% endblock %}

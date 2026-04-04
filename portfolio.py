@@ -32,6 +32,17 @@ TRADE_TITLES = {
 }
 
 
+def _safe_float(value, default):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return float(default)
+
+
+def _direction_or_default(value, default="payer"):
+    return value if value in {"payer", "receiver"} else default
+
+
 def _default_swaption_normal_vol_matrix_bp(base_vol_bp=62.0):
     matrix = []
     for expiry_years in SWAPTION_MATRIX_EXPIRY_YEARS:
@@ -53,14 +64,28 @@ def _normalize_curve_quotes(quotes):
         return list(SOFR_DEFAULT_CURVE_QUOTES_PCT)
 
     if len(quotes) == len(SOFR_DEFAULT_CURVE_QUOTES_PCT):
-        return [float(quote) for quote in quotes]
+        return [_safe_float(quote, default) for quote, default in zip(quotes, SOFR_DEFAULT_CURVE_QUOTES_PCT)]
 
     if len(quotes) == len(SOFR_OIS_TENORS_YEARS):
-        return [SOFR_OVERNIGHT_DEFAULT_PCT] + [float(quote) for quote in quotes]
+        return [SOFR_OVERNIGHT_DEFAULT_PCT] + [
+            _safe_float(quote, default)
+            for quote, default in zip(quotes, SOFR_DEFAULT_CURVE_QUOTES_PCT[1:])
+        ]
 
     if len(quotes) == 6:
         overnight, one_year, two_year, three_year, five_year, ten_year = [
-            float(quote) for quote in quotes
+            _safe_float(quote, default)
+            for quote, default in zip(
+                quotes,
+                (
+                    SOFR_OVERNIGHT_DEFAULT_PCT,
+                    SOFR_DEFAULT_CURVE_QUOTES_PCT[1],
+                    SOFR_DEFAULT_CURVE_QUOTES_PCT[2],
+                    SOFR_DEFAULT_CURVE_QUOTES_PCT[3],
+                    SOFR_DEFAULT_CURVE_QUOTES_PCT[4],
+                    SOFR_DEFAULT_CURVE_QUOTES_PCT[6],
+                ),
+            )
         ]
         seven_year = round((five_year + ten_year) / 2.0, 4)
         twelve_year = round(ten_year + max((ten_year - five_year) * 0.4, 0.03), 4)
@@ -180,10 +205,35 @@ def normalize_portfolio_state(portfolio_state=None):
         overrides = portfolio_state.get("trades", {}).get(trade_type, {})
         state["trades"][trade_type].update(overrides)
 
+    state["trades"]["swap"]["direction"] = _direction_or_default(
+        state["trades"]["swap"]["direction"],
+        "payer",
+    )
+    state["trades"]["swap"]["notional"] = max(
+        _safe_float(state["trades"]["swap"]["notional"], 1_000_000),
+        1.0,
+    )
+    state["trades"]["swap"]["fixed_rate_pct"] = _safe_float(
+        state["trades"]["swap"]["fixed_rate_pct"],
+        3.0,
+    )
     state["trades"]["swap"]["tenor_years"] = _clamp_year(
         state["trades"]["swap"]["tenor_years"],
         1,
         30,
+    )
+
+    state["trades"]["european_swaption"]["direction"] = _direction_or_default(
+        state["trades"]["european_swaption"]["direction"],
+        "payer",
+    )
+    state["trades"]["european_swaption"]["notional"] = max(
+        _safe_float(state["trades"]["european_swaption"]["notional"], 1_000_000),
+        1.0,
+    )
+    state["trades"]["european_swaption"]["strike_pct"] = _safe_float(
+        state["trades"]["european_swaption"]["strike_pct"],
+        3.0,
     )
     state["trades"]["european_swaption"]["expiry_years"] = _clamp_year(
         state["trades"]["european_swaption"]["expiry_years"],
@@ -194,6 +244,19 @@ def normalize_portfolio_state(portfolio_state=None):
         state["trades"]["european_swaption"]["swap_tenor_years"],
         1,
         10,
+    )
+
+    state["trades"]["bermudan_swaption"]["direction"] = _direction_or_default(
+        state["trades"]["bermudan_swaption"]["direction"],
+        "payer",
+    )
+    state["trades"]["bermudan_swaption"]["notional"] = max(
+        _safe_float(state["trades"]["bermudan_swaption"]["notional"], 1_000_000),
+        1.0,
+    )
+    state["trades"]["bermudan_swaption"]["strike_pct"] = _safe_float(
+        state["trades"]["bermudan_swaption"]["strike_pct"],
+        3.0,
     )
     state["trades"]["bermudan_swaption"]["first_exercise_years"] = _clamp_year(
         state["trades"]["bermudan_swaption"]["first_exercise_years"],

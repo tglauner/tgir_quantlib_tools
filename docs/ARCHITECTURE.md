@@ -5,13 +5,14 @@
 
 ## Components
 - Browser
-- Flask application in `app.py`
+- Login screen and protected Flask routes created by `tgir_quantlib_tools/app_factory.py`
+- Session auth helpers and env-backed config in `tgir_quantlib_tools/`
 - Pricing and curve helpers in `portfolio.py`
 - HTML templates in `templates/`
 - Stand-alone scripts for curve inspection and isolated pricing checks
 
 ## Data Flow
-Browser -> Flask route -> shared portfolio state -> SOFR OIS curve bootstrap and swaption-vol inputs -> QuantLib pricing engines -> HTML workstation response
+Browser -> login route -> Flask session auth -> protected route -> shared portfolio state -> SOFR OIS curve bootstrap and swaption-vol inputs -> QuantLib pricing engines -> HTML workstation response
 
 Script -> shared QuantLib helpers -> stdout tables and diagnostics
 
@@ -32,12 +33,14 @@ Script -> shared QuantLib helpers -> stdout tables and diagnostics
 - For a valid cell, the underlying swap tenor is computed as `maturity - noncall`, and annual call dates are generated through the remaining life of the deal.
 
 ## Testing Strategy
-- Route smoke test for the Flask homepage
+- Route smoke test for the login screen and protected dashboard
+- Login flow test for session-protected workstation access
 - Portfolio smoke test for returned instruments and NPVs
 - Curve calibration test for all quoted SOFR OIS pillars
 - Shape test for the `10x10` ATM normal-vol matrix and the Bermudan grid
 
 ## Deviations From app_architecture
 - No `frontend/` and `backend/` split: the repo is intentionally a compact Flask + QuantLib codebase.
-- No database, auth, Stripe, Brevo, or Apify integration.
+- No database, Stripe, Brevo, or Apify integration.
+- The wider standard prefers Clerk auth; this repo uses a simple env-backed Flask login instead because the sandbox remains single-app and local/demo oriented.
 - No production infra is committed; if the app is deployed later, prefer a single-host Apache + WSGI setup.

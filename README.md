@@ -1,31 +1,32 @@
 # QuantLib Test
 
-This repository showcases small examples of using [QuantLib](https://www.quantlib.org/) from Python.  It includes a simple Flask web app for repricing a portfolio and several stand‑alone scripts that construct or price instruments.
+This repository showcases small examples of using [QuantLib](https://www.quantlib.org/) from Python. It includes a session-protected Flask workbench for repricing a compact rates portfolio and a few stand-alone scripts for curve inspection and pricing checks.
 
 ## Repository Structure
 
 | Path | Description |
 | --- | --- |
-| `app.py` | Flask application that displays a compact rates workstation with a live blotter, SOFR curve monitor, ATM swaption normal-vol matrix, and Bermudan pricing grid. |
+| `app.py` | Thin Flask entrypoint that creates the web app and starts the local server. |
+| `tgir_quantlib_tools/` | Internal Flask package with app factory, config loading, auth helpers, route registration, and dashboard/session utilities. |
 | `portfolio.py` | Functions for bootstrapping a SOFR OIS curve, repricing quoted OIS swaps, storing the ATM swaption vol matrix, creating interest-rate swaps and swaptions, and pricing the three-trade portfolio. |
 | `build_SOFR_curve.py` | Script that constructs a SOFR OIS term structure from market quotes, prints discount factors for select maturities, and shows a repricing table for calibration swaps. |
-| `price_bermudan_swaption.py` | Demonstrates pricing a Bermudan swaption using the Hull–White short‑rate model and a tree swaption engine. |
-| `read_rates_vols_from_Excel.py` | Placeholder for future functionality to load market data from Excel. |
+| `price_bermudan_swaption.py` | Prints the Bermudan swaption mark from the shared portfolio pricing path. |
 | `today.py` | Minimal example showing how to set QuantLib's evaluation date. |
-| `templates/` | HTML templates used by the web app. `dashboard.html` renders the workstation, `trade_form.html` renders the detailed trade editors, and `base.html` holds the shared styling. |
+| `templates/` | HTML templates used by the web app. `login.html` renders the sign-in screen, `dashboard.html` renders the workstation, `trade_form.html` renders the detailed trade editors, and `base.html` holds the shared styling. |
 | `tests/` | Smoke tests for the Flask route and portfolio plus OIS curve repricing checks. |
 | `docs/` | Architecture notes and a local runbook aligned to the sibling `app_architecture` guidance, with explicit repo-specific deviations. |
 | `AGENTS.md` | Repo-specific Codex guidance for working in this codebase. |
 | `.codex/config.toml` | Codex workspace defaults for this repository. |
+| `.env.example` | Example local configuration for Flask secret and login credentials. |
 | `requirements.txt` | Python dependencies. |
 | `LICENSE` | Apache 2.0 license. |
 
 ## Installation
 
-1. Create and activate a virtual environment (optional):
+1. Create and activate a virtual environment:
 
    ```bash
-   python -m venv .venv
+   python3 -m venv .venv
    source .venv/bin/activate
    ```
 
@@ -33,6 +34,12 @@ This repository showcases small examples of using [QuantLib](https://www.quantli
 
    ```bash
    python -m pip install -r requirements.txt
+   ```
+
+3. Copy the local config and set a strong secret and password:
+
+   ```bash
+   cp .env.example .env
    ```
 
 If the repository is moved or renamed, recreate `.venv` instead of reusing an older one. Python entrypoints inside a virtualenv can contain absolute paths.
@@ -47,7 +54,7 @@ Run the Flask app and open `http://127.0.0.1:5050` in a browser:
 ./.venv/bin/python app.py
 ```
 
-The page displays the marks of a swap, a European swaption, and a Bermudan swaption. You can adjust:
+The root route shows a login screen. After signing in, the workstation displays the marks of a swap, a European swaption, and a Bermudan swaption. You can adjust:
 
 - Overnight SOFR plus `1Y`, `2Y`, `3Y`, `5Y`, `7Y`, `10Y`, and `12Y` OIS quotes
 - A full ATM normal-vol matrix with annual expiries `1Y..10Y` and annual swap tenors `1Y..10Y`
@@ -55,43 +62,34 @@ The page displays the marks of a swap, a European swaption, and a Bermudan swapt
 
 The app defaults to port `5050` because port `5000` is often occupied by macOS services on local machines.
 
-### Stand‑alone Scripts
+When `FLASK_DEBUG=1`, the app falls back to a local development password if you have not configured one yet. Keep that mode local only and set explicit credentials in `.env` before using the app anywhere else.
+
+### Stand-alone Scripts
 
 - **Build SOFR Curve**
 
   ```bash
-  python build_SOFR_curve.py
+  ./.venv/bin/python build_SOFR_curve.py
   ```
-  Prints sample discount factors and a table of daily factors.
 
 - **Price Bermudan Swaption**
 
   ```bash
-  python price_bermudan_swaption.py
+  ./.venv/bin/python price_bermudan_swaption.py
   ```
-  Computes the NPV of a Bermudan swaption using the Hull–White model.
 
 - **Show Today's Date**
 
   ```bash
-  python today.py
+  ./.venv/bin/python today.py
   ```
-  Outputs the evaluation date currently set in QuantLib.
-
-## License
-
-This project is licensed under the terms of the [Apache License 2.0](LICENSE).
-
-## Contributing
-
-Issues and pull requests are welcome.  The repository is intended as a lightweight sandbox for experimenting with QuantLib in Python.
 
 ## Testing
 
 Run the smoke tests with:
 
 ```bash
-python -m unittest discover -s tests
+./.venv/bin/python -m unittest discover -s tests
 ```
 
 ## Market Data Note
@@ -110,4 +108,8 @@ This repository does not auto-download live ICE data. The matrix is an editable 
 
 ## Deviations From `app_architecture`
 
-This repository selectively adopts the documentation and workflow guidance from the sibling `app_architecture` template. It intentionally remains a compact Flask + QuantLib repo instead of being restructured into `frontend/` and `backend/`, and it does not add a database or production-only services that are irrelevant to this sandbox.
+This repository selectively adopts the documentation and workflow guidance from the sibling `app_architecture` template. It intentionally remains a compact Flask + QuantLib repo instead of being restructured into `frontend/` and `backend/`. It also uses an env-configured session login rather than Clerk so the repo stays local, dependency-light, and aligned to its demo scope.
+
+## License
+
+This project is licensed under the terms of the [Apache License 2.0](LICENSE).

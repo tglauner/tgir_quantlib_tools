@@ -49,6 +49,38 @@
       padding: 12px 0 24px;
     }
 
+    .shell-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .brand-lockup {
+      display: grid;
+      gap: 3px;
+    }
+
+    .brand-lockup strong {
+      font-size: 0.88rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .brand-meta {
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+
+    .auth-strip {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
     .hero {
       display: flex;
       justify-content: space-between;
@@ -159,6 +191,11 @@
       font-size: 0.84rem;
     }
 
+    .flash.success {
+      background: rgba(11, 116, 99, 0.12);
+      border-color: rgba(11, 116, 99, 0.18);
+    }
+
     .flash.error {
       background: rgba(176, 59, 50, 0.12);
       border-color: rgba(176, 59, 50, 0.18);
@@ -210,6 +247,14 @@
     .btn-mini {
       padding: 6px 10px;
       font-size: 0.74rem;
+    }
+
+    .btn-ghost,
+    button.btn-ghost {
+      background: transparent;
+      color: var(--ink);
+      border: 1px solid rgba(19, 33, 48, 0.10);
+      box-shadow: none;
     }
 
     .stack {
@@ -380,6 +425,54 @@
       grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.7fr);
       gap: 12px;
       align-items: start;
+    }
+
+    .login-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+      gap: 14px;
+      align-items: start;
+      min-height: calc(100vh - 140px);
+    }
+
+    .login-panel {
+      min-height: 100%;
+    }
+
+    .login-card {
+      display: grid;
+      gap: 14px;
+    }
+
+    .login-grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .field-note {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.78rem;
+      line-height: 1.45;
+    }
+
+    .mini-list {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .mini-list-item {
+      padding: 10px 11px;
+      border-radius: 12px;
+      background: rgba(19, 33, 48, 0.04);
+      border: 1px solid rgba(19, 33, 48, 0.05);
+    }
+
+    .mini-list-item strong {
+      display: block;
+      margin-bottom: 3px;
+      font-size: 0.82rem;
     }
 
     .summary-block {
@@ -607,6 +700,7 @@
     }
 
     @media (max-width: 1080px) {
+      .login-layout,
       .workstation-grid,
       .editor-layout,
       .dashboard-grid {
@@ -624,8 +718,14 @@
         flex-direction: column;
       }
 
-      .hero-meta {
+      .hero-meta,
+      .auth-strip {
         justify-content: flex-start;
+      }
+
+      .shell-header {
+        flex-direction: column;
+        align-items: flex-start;
       }
     }
 
@@ -646,11 +746,28 @@
 </head>
 <body>
   <main class="shell">
-    {% with messages = get_flashed_messages() %}
+    <div class="shell-header">
+      <div class="brand-lockup">
+        <strong>TGIR QuantLib Tools</strong>
+        <span class="brand-meta">Flask workstation with session-protected access and shared QuantLib pricing services.</span>
+      </div>
+      <div class="auth-strip">
+        {% if auth_state.is_authenticated %}
+          <div class="pill mono-pill">Signed in as {{ auth_state.username }}</div>
+          <form method="post" action="{{ url_for('workbench.logout') }}">
+            <button class="btn btn-ghost btn-mini" type="submit">Sign out</button>
+          </form>
+        {% else %}
+          <div class="pill mono-pill">Protected workstation</div>
+        {% endif %}
+      </div>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
         <div class="flash-stack">
-          {% for message in messages %}
-            <div class="flash">{{ message }}</div>
+          {% for category, message in messages %}
+            <div class="flash {{ category }}">{{ message }}</div>
           {% endfor %}
         </div>
       {% endif %}

@@ -1,10 +1,30 @@
 import unittest
 
-from app import app
+from tgir_quantlib_tools import create_app
 from portfolio import default_portfolio_state, price_portfolio
 
 
 class PortfolioSmokeTests(unittest.TestCase):
+    def setUp(self):
+        self.app = create_app(
+            {
+                "TESTING": True,
+                "SECRET_KEY": "test-secret",
+                "AUTH_USERNAME": "tester",
+                "AUTH_PASSWORD": "secret-pass",
+                "AUTH_PASSWORD_HASH": None,
+                "SESSION_COOKIE_SECURE": False,
+            }
+        )
+        self.client = self.app.test_client()
+
+    def login(self):
+        return self.client.post(
+            "/login",
+            data={"username": "tester", "password": "secret-pass"},
+            follow_redirects=True,
+        )
+
     def test_price_portfolio_returns_expected_rows(self):
         df = price_portfolio(default_portfolio_state())
 
@@ -14,19 +34,30 @@ class PortfolioSmokeTests(unittest.TestCase):
         )
         self.assertTrue(df["NPV"].notna().all())
 
-    def test_dashboard_renders(self):
-        client = app.test_client()
+    def test_login_page_renders(self):
+        response = self.client.get("/")
 
-        response = client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Sign in to the rates workstation.", response.data)
+        self.assertIn(b"Open workstation", response.data)
+
+    def test_dashboard_requires_login(self):
+        response = self.client.get("/dashboard")
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/login?next=/dashboard", response.location)
+
+    def test_login_redirects_to_dashboard(self):
+        response = self.login()
 
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"SOFR curve, ATM vol surface, callable grid.", response.data)
         self.assertIn(b"ATM swaption normal-vol matrix", response.data)
 
     def test_market_update_round_trips(self):
-        client = app.test_client()
+        self.login()
 
-        response = client.post(
+        response = self.client.post(
             "/market",
             data={
                 "rate0": "4.75",
@@ -50,8 +81,8 @@ class PortfolioSmokeTests(unittest.TestCase):
         self.assertIn(b'value="61.5"', response.data)
 
     def test_realtime_tick_perturbs_curve_but_not_vol(self):
-        client = app.test_client()
-        client.post(
+        self.login()
+        self.client.post(
             "/market",
             data={
                 "rate0": "4.85",
@@ -66,7 +97,7 @@ class PortfolioSmokeTests(unittest.TestCase):
             },
         )
 
-        response = client.post("/api/realtime/tick")
+        response = self.client.post("/api/realtime/tick")
 
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
@@ -77,9 +108,9 @@ class PortfolioSmokeTests(unittest.TestCase):
         self.assertEqual(payload["blotter_rows"][0]["Type"], "Swap")
 
     def test_trade_editor_updates_swap_terms(self):
-        client = app.test_client()
+        self.login()
 
-        response = client.post(
+        response = self.client.post(
             "/trade/swap",
             data={
                 "direction": "receiver",
@@ -93,6 +124,12 @@ class PortfolioSmokeTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Receive fixed", response.data)
         self.assertIn(b"Receive fixed | 6Y | 3.85%", response.data)
+
+    def test_health_is_public(self):
+        response = self.client.get("/health")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), {"ok": True, "app": "tgir_quantlib_tools"})
 
 
 if __name__ == "__main__":

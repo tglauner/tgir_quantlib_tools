@@ -10,7 +10,7 @@
       <p>{{ trade_description }}</p>
     </div>
     <div class="hero-meta">
-      <a class="btn btn-secondary" href="{{ url_for('dashboard') }}">Back to dashboard</a>
+      <a class="btn btn-secondary" href="{{ url_for('workbench.dashboard') }}">Back to dashboard</a>
     </div>
   </section>
 
@@ -44,7 +44,7 @@
           </div>
           <div class="btn-row" style="margin-top: 20px;">
             <button class="btn btn-warm" type="submit">Save trade</button>
-            <a class="btn btn-secondary" href="{{ url_for('dashboard') }}">Cancel</a>
+            <a class="btn btn-secondary" href="{{ url_for('workbench.dashboard') }}">Cancel</a>
           </div>
         </form>
       </div>

@@ -30,7 +30,7 @@
         </div>
         <div class="btn-row top-controls">
           <button class="btn btn-secondary" id="realtime-toggle" type="button">Start real-time</button>
-          <form method="post" action="{{ url_for('reset_portfolio') }}">
+          <form method="post" action="{{ url_for('workbench.reset_portfolio') }}">
             <button class="btn btn-secondary" type="submit">Reset demo</button>
           </form>
         </div>
@@ -124,7 +124,7 @@
             </div>
           </div>
 
-          <form method="post" action="{{ url_for('update_market') }}">
+          <form method="post" action="{{ url_for('workbench.update_market') }}">
             <div class="table-scroll">
               <table class="matrix-table">
                 <thead>
@@ -259,7 +259,7 @@
 
           <div class="subtle-divider"></div>
 
-          <form method="post" action="{{ url_for('update_market') }}" id="market-form">
+          <form method="post" action="{{ url_for('workbench.update_market') }}" id="market-form">
             <div class="form-grid workstation-form-grid">
               {% for curve_input in curve_inputs %}
                 <div class="field">
@@ -503,10 +503,17 @@
         }
         requestInFlight = true;
         try {
-          const response = await fetch("{{ url_for('realtime_tick') }}", {
+          const response = await fetch("{{ url_for('workbench.realtime_tick') }}", {
             method: "POST",
             headers: { "X-Requested-With": "XMLHttpRequest" },
           });
+          if (response.status === 401) {
+            realtimeEnabled = false;
+            window.localStorage.setItem(realtimeKey, "false");
+            const payload = await response.json();
+            window.location.href = payload.login_url;
+            return;
+          }
           if (!response.ok) {
             throw new Error(`Realtime tick failed with ${response.status}`);
           }

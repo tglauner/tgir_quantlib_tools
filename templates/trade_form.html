@@ -3,6 +3,9 @@
 {% block title %}{{ trade_title }}{% endblock %}
 
 {% block content %}
+  {% set page_error = trade_page_error if trade_page_error is defined else none %}
+  {% set risk_api_url = trade_risk_api_url if trade_risk_api_url is defined else "" %}
+  {% set matrix_headers = trade_risk_matrix_headers if trade_risk_matrix_headers is defined else ["1Y", "2Y", "3Y", "4Y", "5Y", "6Y", "7Y", "8Y", "9Y", "10Y"] %}
   <section class="hero">
     <div>
       <span class="section-kicker">Trade Editor</span>
@@ -81,4 +84,293 @@
       </section>
     </div>
   </div>
+
+  <section class="panel">
+    <div class="panel-inner">
+      <div class="panel-header">
+        <div>
+          <span class="section-kicker">Trade Risk</span>
+          <h2>Point sensitivities</h2>
+          <p>
+            Run these analytics on demand. The report bumps one curve point or one ATM normal-vol matrix
+            cell at a time, reprices the trade, and shows explicit <span class="mono">$0.00</span>
+            where a bump has no effect.
+          </p>
+        </div>
+      </div>
+
+      {% if page_error %}
+        <div class="flash error">{{ page_error }}</div>
+      {% endif %}
+
+      <div class="flow-card risk-status-card" id="trade-risk-status-card" data-state="idle">
+        <div class="panel-header" style="margin-bottom: 6px;">
+          <div class="summary-list-item">
+            <span id="trade-risk-status-title">Analytics not run yet</span>
+            <strong id="trade-risk-status-badge">Idle</strong>
+          </div>
+        </div>
+        <p id="trade-risk-status-copy">
+          Click <strong>Run analytics</strong> to compute the full curve ladder and full 10x10 vega matrix for this trade.
+        </p>
+        <div class="loading-inline" id="trade-risk-loading" hidden>
+          <span class="loading-dot" aria-hidden="true"></span>
+          <span>Running bump-and-reprice analytics. This can take time, especially for Bermudan swaptions.</span>
+        </div>
+      </div>
+
+      <div class="btn-row" style="margin-top: 12px;">
+        <button class="btn btn-warm" id="trade-risk-run" type="button" {% if not risk_api_url %}disabled{% endif %}>Run analytics</button>
+      </div>
+
+      <div id="trade-risk-error-box" style="margin-top: 10px;"></div>
+
+      <div id="trade-risk-results" hidden>
+        <div class="summary-list">
+          <div class="summary-list-item">
+            <span>Base NPV</span>
+            <strong class="mono" id="trade-risk-base-npv">$0.00</strong>
+          </div>
+          <div class="summary-list-item">
+            <span>Curve shock convention</span>
+            <strong id="trade-risk-curve-bump">+1 bp single-point bump</strong>
+          </div>
+          <div class="summary-list-item">
+            <span>Vol shock convention</span>
+            <strong id="trade-risk-vol-bump">+1 bp single-cell bump</strong>
+          </div>
+          <div class="summary-list-item">
+            <span id="trade-risk-callable-label">Bermudan GSR seed sensitivity</span>
+            <strong class="mono" id="trade-risk-callable-delta">$0.00</strong>
+          </div>
+        </div>
+        <p class="table-note">
+          The Bermudan GSR seed is bumped separately from the ATM matrix. For trades that do not use that
+          seed, the sensitivity remains <span class="mono">$0.00</span>.
+        </p>
+
+        <div class="subtle-divider"></div>
+
+        <div class="panel-header">
+          <div>
+            <span class="section-kicker">Rates</span>
+            <h3>Interest-rate point ladder</h3>
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table class="blotter-table">
+            <thead>
+              <tr>
+                <th>Curve point</th>
+                <th class="numeric">Base quote</th>
+                <th class="numeric">Bumped quote</th>
+                <th class="numeric">ΔNPV</th>
+              </tr>
+            </thead>
+            <tbody id="trade-risk-curve-body"></tbody>
+          </table>
+        </div>
+
+        <div class="subtle-divider"></div>
+
+        <div class="panel-header">
+          <div>
+            <span class="section-kicker">Volatility</span>
+            <h3>Vega point matrix</h3>
+            <p>Each cell shows the NPV change from bumping that exact ATM normal-vol pillar by the on-demand shock size shown above.</p>
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table class="matrix-table">
+            <thead>
+              <tr>
+                <th>Expiry \ Tenor</th>
+                {% for header in matrix_headers %}
+                  <th class="numeric">{{ header }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody id="trade-risk-vega-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    (() => {
+      const runButton = document.getElementById("trade-risk-run");
+      const riskApiUrl = "{{ risk_api_url }}";
+      const statusCard = document.getElementById("trade-risk-status-card");
+      const statusTitle = document.getElementById("trade-risk-status-title");
+      const statusBadge = document.getElementById("trade-risk-status-badge");
+      const statusCopy = document.getElementById("trade-risk-status-copy");
+      const loadingRow = document.getElementById("trade-risk-loading");
+      const errorBox = document.getElementById("trade-risk-error-box");
+      const results = document.getElementById("trade-risk-results");
+      const baseNpv = document.getElementById("trade-risk-base-npv");
+      const curveBump = document.getElementById("trade-risk-curve-bump");
+      const volBump = document.getElementById("trade-risk-vol-bump");
+      const callableLabel = document.getElementById("trade-risk-callable-label");
+      const callableDelta = document.getElementById("trade-risk-callable-delta");
+      const curveBody = document.getElementById("trade-risk-curve-body");
+      const vegaBody = document.getElementById("trade-risk-vega-body");
+      let requestInFlight = false;
+
+      const moneyFormatter = new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+
+      function pct(value) {
+        return `${Number(value).toFixed(2)}%`;
+      }
+
+      function plainMoney(value) {
+        if (value < 0) {
+          return `-${moneyFormatter.format(Math.abs(value))}`;
+        }
+        return moneyFormatter.format(value);
+      }
+
+      function signClass(value) {
+        if (value > 0) {
+          return "positive";
+        }
+        if (value < 0) {
+          return "negative";
+        }
+        return "flat";
+      }
+
+      function signedMoneyMarkup(value) {
+        return `<span class="signed-value ${signClass(value)}">${plainMoney(value)}</span>`;
+      }
+
+      function setStatus(state, title, badge, copy) {
+        statusCard.dataset.state = state;
+        statusTitle.textContent = title;
+        statusBadge.textContent = badge;
+        statusCopy.textContent = copy;
+      }
+
+      function renderError(message) {
+        if (!message) {
+          errorBox.innerHTML = "";
+          return;
+        }
+        errorBox.innerHTML = `<div class="flash error">${message}</div>`;
+      }
+
+      function renderCurveRows(rows) {
+        curveBody.innerHTML = rows.map((row) => `
+          <tr>
+            <td><strong>${row.label}</strong></td>
+            <td class="numeric mono">${pct(row.base_quote_pct)}</td>
+            <td class="numeric mono">${pct(row.bumped_quote_pct)}</td>
+            <td class="numeric mono">${signedMoneyMarkup(row.delta_npv)}</td>
+          </tr>
+        `).join("");
+      }
+
+      function renderVegaRows(rows) {
+        vegaBody.innerHTML = rows.map((row) => `
+          <tr>
+            <th>${row.expiry_label}</th>
+            ${row.cells.map((cell) => `
+              <td class="numeric mono">${signedMoneyMarkup(cell.delta_npv)}</td>
+            `).join("")}
+          </tr>
+        `).join("");
+      }
+
+      function renderRisk(payload) {
+        baseNpv.innerHTML = signedMoneyMarkup(payload.base_npv);
+        curveBump.textContent = `+${Number(payload.curve_bump_bp).toFixed(0)} bp single-point bump`;
+        volBump.textContent = `+${Number(payload.vol_bump_bp).toFixed(0)} bp single-cell bump`;
+        callableLabel.textContent = `${payload.callable_seed_row.label} sensitivity`;
+        callableDelta.innerHTML = signedMoneyMarkup(payload.callable_seed_row.delta_npv);
+        renderCurveRows(payload.curve_rows);
+        renderVegaRows(payload.vega_matrix_rows);
+        results.hidden = false;
+      }
+
+      async function runAnalytics() {
+        if (!riskApiUrl) {
+          renderError("Analytics endpoint is not available in the current page context. Refresh the page and try again.");
+          setStatus(
+            "error",
+            "Analytics unavailable",
+            "Error",
+            "This page loaded without the analytics endpoint configuration. Refresh once and try again."
+          );
+          return;
+        }
+        if (requestInFlight) {
+          return;
+        }
+        requestInFlight = true;
+        runButton.disabled = true;
+        runButton.textContent = "Running analytics...";
+        loadingRow.hidden = false;
+        renderError("");
+        setStatus(
+          "running",
+          "Analytics running",
+          "Running",
+          "Working through single-point curve bumps and the full volatility matrix. Keep this tab open while pricing completes."
+        );
+
+        try {
+          const response = await fetch(riskApiUrl, {
+            method: "GET",
+            headers: { "X-Requested-With": "XMLHttpRequest" },
+          });
+          if (response.status === 401) {
+            const payload = await response.json();
+            window.location.href = payload.login_url;
+            return;
+          }
+          const payload = await response.json();
+          if (!response.ok) {
+            throw new Error(payload.error || `Analytics request failed with ${response.status}`);
+          }
+          renderRisk(payload);
+          setStatus(
+            "done",
+            "Analytics complete",
+            "Ready",
+            "The latest sensitivity report is shown below. Run analytics again whenever you change trade terms or market inputs."
+          );
+        } catch (error) {
+          console.error(error);
+          results.hidden = true;
+          renderError(error.message);
+          setStatus(
+            "error",
+            "Analytics failed",
+            "Error",
+            "The sensitivity run did not complete. Review the error below and try again."
+          );
+        } finally {
+          requestInFlight = false;
+          runButton.disabled = false;
+          runButton.textContent = "Run analytics";
+          loadingRow.hidden = true;
+        }
+      }
+
+      runButton.addEventListener("click", runAnalytics);
+      if (!riskApiUrl) {
+        setStatus(
+          "error",
+          "Analytics unavailable",
+          "Error",
+          "Refresh this page to load the analytics endpoint, then run the sensitivity report."
+        );
+      }
+    })();
+  </script>
 {% endblock %}

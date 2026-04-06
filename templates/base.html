@@ -547,6 +547,44 @@
       border: 1px solid rgba(19, 33, 48, 0.06);
     }
 
+    .risk-status-card[data-state="idle"] {
+      background: rgba(19, 33, 48, 0.04);
+    }
+
+    .risk-status-card[data-state="running"] {
+      background: rgba(11, 116, 99, 0.10);
+      border-color: rgba(11, 116, 99, 0.18);
+    }
+
+    .risk-status-card[data-state="done"] {
+      background: rgba(31, 122, 54, 0.10);
+      border-color: rgba(31, 122, 54, 0.16);
+    }
+
+    .risk-status-card[data-state="error"] {
+      background: rgba(176, 59, 50, 0.10);
+      border-color: rgba(176, 59, 50, 0.16);
+    }
+
+    .loading-inline {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--ink);
+      font-size: 0.82rem;
+      font-weight: 600;
+    }
+
+    .loading-dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 999px;
+      background: var(--accent);
+      box-shadow: 0 0 0 0 rgba(11, 116, 99, 0.28);
+      animation: pulse 1.2s ease-out infinite;
+      flex: 0 0 auto;
+    }
+
     .flow-step {
       display: inline-flex;
       align-items: center;
@@ -798,6 +836,21 @@
       to {
         opacity: 1;
         transform: translateY(0);
+      }
+    }
+
+    @keyframes pulse {
+      0% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(11, 116, 99, 0.28);
+      }
+      70% {
+        transform: scale(1);
+        box-shadow: 0 0 0 10px rgba(11, 116, 99, 0.0);
+      }
+      100% {
+        transform: scale(0.95);
+        box-shadow: 0 0 0 0 rgba(11, 116, 99, 0.0);
       }
     }
 

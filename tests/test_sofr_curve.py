@@ -7,6 +7,7 @@ from portfolio import (
     BERMUDAN_GRID_MATURITIES_YEARS,
     BERMUDAN_GRID_NONCALL_YEARS,
     SOFR_FORWARD_HORIZON_YEARS,
+    SOFR_CURVE_TENOR_LABELS,
     bermudan_diagonal_calibration_pillars,
     build_bermudan_pricing_grid,
     build_bermudan_gsr_model,
@@ -16,6 +17,7 @@ from portfolio import (
     daily_one_day_forward_points,
     default_portfolio_state,
     reprice_sofr_calibration_swaps,
+    trade_point_sensitivities,
 )
 
 
@@ -96,6 +98,51 @@ class SofrCurveTests(unittest.TestCase):
         self.assertEqual(len(grid), len(BERMUDAN_GRID_NONCALL_YEARS))
         self.assertTrue(pd.isna(grid.iloc[-1]["2Y"]))
         self.assertIsNotNone(grid.iloc[0]["10Y"])
+
+    def test_swap_point_sensitivities_show_all_curve_nodes_and_zero_vega_cells(self):
+        sensitivities = trade_point_sensitivities("swap", default_portfolio_state())
+
+        self.assertEqual(len(sensitivities["curve_rows"]), len(SOFR_CURVE_TENOR_LABELS))
+        self.assertListEqual(
+            [row["label"] for row in sensitivities["curve_rows"]],
+            list(SOFR_CURVE_TENOR_LABELS),
+        )
+        self.assertTrue(any(row["delta_npv"] != 0.0 for row in sensitivities["curve_rows"]))
+        self.assertEqual(len(sensitivities["vega_matrix_rows"]), 10)
+        self.assertTrue(all(len(row["cells"]) == 10 for row in sensitivities["vega_matrix_rows"]))
+        self.assertTrue(
+            all(
+                cell["delta_npv"] == 0.0
+                for row in sensitivities["vega_matrix_rows"]
+                for cell in row["cells"]
+            )
+        )
+        self.assertEqual(sensitivities["callable_seed_row"]["delta_npv"], 0.0)
+
+    def test_european_swaption_only_moves_selected_matrix_pillar(self):
+        sensitivities = trade_point_sensitivities("european_swaption", default_portfolio_state())
+        nonzero_labels = [
+            cell["label"]
+            for row in sensitivities["vega_matrix_rows"]
+            for cell in row["cells"]
+            if cell["delta_npv"] != 0.0
+        ]
+
+        self.assertListEqual(nonzero_labels, ["1Y x 4Y"])
+        self.assertEqual(sensitivities["callable_seed_row"]["delta_npv"], 0.0)
+
+    def test_bermudan_swaption_matrix_sensitivities_keep_off_diagonal_cells_at_zero(self):
+        sensitivities = trade_point_sensitivities("bermudan_swaption", default_portfolio_state())
+        nonzero_labels = {
+            cell["label"]
+            for row in sensitivities["vega_matrix_rows"]
+            for cell in row["cells"]
+            if cell["delta_npv"] != 0.0
+        }
+        allowed_diagonal_labels = {f"{year}Y x {year}Y" for year in range(1, 7)}
+
+        self.assertTrue(nonzero_labels)
+        self.assertTrue(nonzero_labels.issubset(allowed_diagonal_labels))
 
 
 if __name__ == "__main__":

@@ -5,7 +5,7 @@ from pathlib import Path
 import QuantLib as ql
 from flask import Blueprint, Response, abort, current_app, flash, jsonify, redirect, render_template, request, url_for
 
-from portfolio import build_sofr_curve, default_portfolio_state, write_curve_debug_csv
+from portfolio import build_sofr_curve, default_portfolio_state, trade_point_sensitivities, write_curve_debug_csv
 
 from .auth import (
     credentials_are_valid,
@@ -157,3 +157,16 @@ def edit_trade(trade_type):
         return redirect(url_for("workbench.dashboard"))
 
     return render_template("trade_form.html", **build_trade_editor_context(state, trade_type))
+
+
+@workbench_bp.get("/api/trade/<trade_type>/risk")
+@login_required
+def trade_risk(trade_type):
+    if trade_type not in TRADE_FORM_DEFINITIONS:
+        abort(404)
+
+    state = get_portfolio_state()
+    try:
+        return jsonify(trade_point_sensitivities(trade_type, state))
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import math
 import random
 
 import QuantLib as ql
@@ -565,6 +566,18 @@ def pricing_tables(state):
     return portfolio_rows, calibration_rows, bermudan_grid_rows, pricing_error
 
 
+def _json_safe(value):
+    if isinstance(value, float):
+        if math.isnan(value) or math.isinf(value):
+            return None
+        return value
+    if isinstance(value, dict):
+        return {key: _json_safe(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_json_safe(item) for item in value]
+    return value
+
+
 def enrich_portfolio_rows(portfolio_rows):
     enriched_rows = []
     for row in portfolio_rows:
@@ -613,7 +626,8 @@ def dynamic_dashboard_payload(state):
     except Exception as exc:
         analytics_error = str(exc)
 
-    return {
+    return _json_safe(
+        {
         "portfolio_rows": portfolio_rows,
         "blotter_rows": enrich_portfolio_rows(portfolio_rows),
         "calibration_rows": calibration_rows,
@@ -625,7 +639,8 @@ def dynamic_dashboard_payload(state):
         "portfolio_marks": portfolio_marks(portfolio_rows),
         "pricing_error": pricing_error or analytics_error,
         "last_update_label": datetime.now().strftime("%H:%M:%S"),
-    }
+        }
+    )
 
 
 def build_dashboard_context(state):
@@ -662,12 +677,22 @@ def build_trade_editor_context(state, trade_type):
     trade = state["trades"][trade_type]
     headline, detail = trade_card_summary(trade_type, trade, state["market"])
     selected_matrix_vol_bp = None
+    trade_page_error = None
     if trade_type == "european_swaption":
         selected_matrix_vol_bp = lookup_swaption_normal_vol_bp(
             state,
             trade["expiry_years"],
             trade["swap_tenor_years"],
         )
+
+    zero_points = []
+    forward_points = []
+    bermudan_pillars = []
+    try:
+        zero_points, forward_points, bermudan_pillars = _curve_analytics(state)
+    except Exception as exc:
+        trade_page_error = str(exc)
+
     return {
         "trade_type": trade_type,
         "trade_title": definition["title"],
@@ -675,8 +700,11 @@ def build_trade_editor_context(state, trade_type):
         "trade_fields": prepare_trade_form(definition, trade),
         "trade_headline": headline,
         "trade_detail": detail,
-        "market_snapshot": market_snapshot(state, *_curve_analytics(state)),
+        "market_snapshot": market_snapshot(state, zero_points, forward_points, bermudan_pillars),
         "selected_matrix_vol_bp": selected_matrix_vol_bp,
+        "trade_page_error": trade_page_error,
+        "trade_risk_api_url": url_for("workbench.trade_risk", trade_type=trade_type),
+        "trade_risk_matrix_headers": swaption_matrix_headers(),
     }
 
 

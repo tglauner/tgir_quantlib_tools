@@ -5,6 +5,7 @@ import tempfile
 import unittest
 
 import QuantLib as ql
+from flask import render_template
 
 from tgir_quantlib_tools import create_app
 from portfolio import SOFR_FORWARD_HORIZON_YEARS, build_sofr_curve, default_portfolio_state, price_portfolio
@@ -123,6 +124,7 @@ class PortfolioSmokeTests(unittest.TestCase):
         self.assertEqual(len(payload["blotter_rows"]), 3)
         self.assertEqual(len(payload["bermudan_grid_rows"]), 9)
         self.assertEqual(payload["blotter_rows"][0]["Type"], "Swap")
+        self.assertNotIn("NaN", response.get_data(as_text=True))
 
     def test_trade_editor_updates_swap_terms(self):
         self.login()
@@ -141,6 +143,45 @@ class PortfolioSmokeTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Receive fixed", response.data)
         self.assertIn(b"Receive fixed | 6Y | 3.85%", response.data)
+
+    def test_trade_editor_renders_point_sensitivities(self):
+        self.login()
+
+        response = self.client.get("/trade/european_swaption")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Point sensitivities", response.data)
+        self.assertIn(b"Analytics not run yet", response.data)
+        self.assertIn(b"Run analytics", response.data)
+        self.assertIn(b"$0.00", response.data)
+
+    def test_trade_risk_api_returns_sensitivity_payload(self):
+        self.login()
+
+        response = self.client.get("/api/trade/swap/risk", headers={"X-Requested-With": "XMLHttpRequest"})
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertIn("base_npv", payload)
+        self.assertEqual(len(payload["curve_rows"]), 8)
+        self.assertEqual(len(payload["vega_matrix_rows"]), 10)
+        self.assertEqual(len(payload["vega_matrix_rows"][0]["cells"]), 10)
+
+    def test_trade_template_falls_back_when_trade_risk_missing(self):
+        with self.app.test_request_context("/trade/european_swaption"):
+            html = render_template(
+                "trade_form.html",
+                trade_title="European Swaption",
+                trade_description="desc",
+                trade_fields=[],
+                trade_headline="head",
+                trade_detail="detail",
+                market_snapshot={"zero_rate_rows": [], "callable_normal_vol_bp": 55.0},
+                selected_matrix_vol_bp=62.0,
+            )
+
+        self.assertIn("Point sensitivities", html)
+        self.assertIn("$0.00", html)
 
     def test_health_is_public(self):
         response = self.client.get("/health")

@@ -38,6 +38,10 @@ TRADE_TITLES = {
     "bermudan_swaption": "Bermudan Swaption",
 }
 
+CURVE_POINT_BUMP_BP = 1.0
+VOL_POINT_BUMP_BP = 1.0
+SENSITIVITY_ZERO_TOLERANCE = 1e-9
+
 
 def _safe_float(value, default):
     try:
@@ -834,18 +838,70 @@ def build_bermudan_pricing_grid(portfolio_state=None, market_context=None, bermu
     return pd.DataFrame(rows)
 
 
-def price_portfolio(portfolio_state=None, market_context=None, bermudan_pricing_engine=None):
+def _trade_npv(trade_type, portfolio_state=None, market_context=None, bermudan_pricing_engine=None):
     state, today, calendar, curve, curve_handle = _resolve_market_context(
         portfolio_state,
         market_context,
     )
-    market = state["market"]
     trades = state["trades"]
 
-    european_matrix_vol_bp = lookup_swaption_normal_vol_bp(
+    if trade_type == "swap":
+        return _create_live_swap(trades["swap"], today, calendar, curve_handle).NPV()
+
+    if trade_type == "european_swaption":
+        european_matrix_vol_bp = lookup_swaption_normal_vol_bp(
+            state,
+            trades["european_swaption"]["expiry_years"],
+            trades["european_swaption"]["swap_tenor_years"],
+        )
+        return _create_european_swaption(
+            trades["european_swaption"],
+            today,
+            calendar,
+            curve_handle,
+            european_matrix_vol_bp,
+        ).NPV()
+
+    if trade_type == "bermudan_swaption":
+        if bermudan_pricing_engine is None:
+            bermudan_pricing_engine = build_bermudan_gsr_model(
+                state,
+                market_context=(state, today, calendar, curve, curve_handle),
+            )["engine"]
+        return _create_bermudan_swaption(
+            trades["bermudan_swaption"],
+            today,
+            calendar,
+            curve_handle,
+            bermudan_pricing_engine,
+        ).NPV()
+
+    raise ValueError(f"Unsupported trade type: {trade_type}")
+
+
+def _priced_trade_row(trade_type, portfolio_state=None, market_context=None, bermudan_pricing_engine=None):
+    state, *_unused = _resolve_market_context(portfolio_state, market_context)
+    market = state["market"]
+    trade = state["trades"][trade_type]
+    npv = _trade_npv(
+        trade_type,
         state,
-        trades["european_swaption"]["expiry_years"],
-        trades["european_swaption"]["swap_tenor_years"],
+        market_context=market_context,
+        bermudan_pricing_engine=bermudan_pricing_engine,
+    )
+    return {
+        "TradeKey": trade_type,
+        "Type": TRADE_TITLES[trade_type],
+        "Structure": trade_structure_summary(trade_type, trade, market),
+        "MTM": npv,
+        "NPV": npv,
+    }
+
+
+def price_portfolio(portfolio_state=None, market_context=None, bermudan_pricing_engine=None):
+    state, today, calendar, curve, curve_handle = _resolve_market_context(
+        portfolio_state,
+        market_context,
     )
     if bermudan_pricing_engine is None:
         bermudan_pricing_engine = build_bermudan_gsr_model(
@@ -853,51 +909,155 @@ def price_portfolio(portfolio_state=None, market_context=None, bermudan_pricing_
             market_context=(state, today, calendar, curve, curve_handle),
         )["engine"]
 
-    swap = _create_live_swap(trades["swap"], today, calendar, curve_handle)
-    european_swaption = _create_european_swaption(
-        trades["european_swaption"],
-        today,
-        calendar,
-        curve_handle,
-        european_matrix_vol_bp,
-    )
-    bermudan_swaption = _create_bermudan_swaption(
-        trades["bermudan_swaption"],
-        today,
-        calendar,
-        curve_handle,
-        bermudan_pricing_engine,
-    )
-
     securities = [
-        {
-            "TradeKey": "swap",
-            "Type": TRADE_TITLES["swap"],
-            "Structure": trade_structure_summary("swap", trades["swap"], market),
-            "MTM": swap.NPV(),
-            "NPV": swap.NPV(),
-        },
-        {
-            "TradeKey": "european_swaption",
-            "Type": TRADE_TITLES["european_swaption"],
-            "Structure": trade_structure_summary(
-                "european_swaption",
-                trades["european_swaption"],
-                market,
-            ),
-            "MTM": european_swaption.NPV(),
-            "NPV": european_swaption.NPV(),
-        },
-        {
-            "TradeKey": "bermudan_swaption",
-            "Type": TRADE_TITLES["bermudan_swaption"],
-            "Structure": trade_structure_summary(
-                "bermudan_swaption",
-                trades["bermudan_swaption"],
-                market,
-            ),
-            "MTM": bermudan_swaption.NPV(),
-            "NPV": bermudan_swaption.NPV(),
-        },
+        _priced_trade_row(
+            trade_type,
+            state,
+            market_context=(state, today, calendar, curve, curve_handle),
+            bermudan_pricing_engine=bermudan_pricing_engine if trade_type == "bermudan_swaption" else None,
+        )
+        for trade_type in TRADE_SEQUENCE
     ]
     return pd.DataFrame(securities)
+
+
+def _clean_sensitivity(value):
+    return 0.0 if abs(value) <= SENSITIVITY_ZERO_TOLERANCE else float(value)
+
+
+def trade_point_sensitivities(
+    trade_type,
+    portfolio_state=None,
+    curve_bump_bp=CURVE_POINT_BUMP_BP,
+    vol_bump_bp=VOL_POINT_BUMP_BP,
+):
+    if trade_type not in TRADE_SEQUENCE:
+        raise ValueError(f"Unsupported trade type: {trade_type}")
+
+    state, today, calendar, curve, curve_handle = _market_context(portfolio_state)
+    base_market_context = (state, today, calendar, curve, curve_handle)
+    base_bermudan_engine = None
+    if trade_type == "bermudan_swaption":
+        base_bermudan_engine = build_bermudan_gsr_model(
+            state,
+            market_context=base_market_context,
+        )["engine"]
+
+    base_npv = _trade_npv(
+        trade_type,
+        state,
+        market_context=base_market_context,
+        bermudan_pricing_engine=base_bermudan_engine,
+    )
+
+    curve_rows = []
+    for index, label in enumerate(SOFR_CURVE_TENOR_LABELS):
+        shocked_state = copy.deepcopy(state)
+        shocked_state["market"]["curve_quotes_pct"][index] += float(curve_bump_bp) / 100.0
+        shocked_state, shocked_today, shocked_calendar, shocked_curve, shocked_curve_handle = _market_context(
+            shocked_state
+        )
+        shocked_market_context = (
+            shocked_state,
+            shocked_today,
+            shocked_calendar,
+            shocked_curve,
+            shocked_curve_handle,
+        )
+        shocked_bermudan_engine = None
+        if trade_type == "bermudan_swaption":
+            shocked_bermudan_engine = build_bermudan_gsr_model(
+                shocked_state,
+                market_context=shocked_market_context,
+            )["engine"]
+        shocked_npv = _trade_npv(
+            trade_type,
+            shocked_state,
+            market_context=shocked_market_context,
+            bermudan_pricing_engine=shocked_bermudan_engine,
+        )
+        curve_rows.append(
+            {
+                "label": label,
+                "base_quote_pct": state["market"]["curve_quotes_pct"][index],
+                "bumped_quote_pct": shocked_state["market"]["curve_quotes_pct"][index],
+                "delta_npv": _clean_sensitivity(shocked_npv - base_npv),
+            }
+        )
+
+    sensitive_matrix_points = set()
+    if trade_type == "european_swaption":
+        trade = state["trades"]["european_swaption"]
+        sensitive_matrix_points.add((trade["expiry_years"], trade["swap_tenor_years"]))
+    elif trade_type == "bermudan_swaption":
+        sensitive_matrix_points = {
+            (pillar["expiry_years"], pillar["swap_tenor_years"])
+            for pillar in bermudan_diagonal_calibration_pillars(
+                state,
+                market_context=base_market_context,
+            )
+        }
+
+    vega_matrix_rows = []
+    for expiry_index, expiry_years in enumerate(SWAPTION_MATRIX_EXPIRY_YEARS):
+        row = {"expiry_label": f"{expiry_years}Y", "cells": []}
+        for tenor_index, tenor_years in enumerate(SWAPTION_MATRIX_TENOR_YEARS):
+            delta_npv = 0.0
+            if (expiry_years, tenor_years) in sensitive_matrix_points:
+                shocked_state = copy.deepcopy(state)
+                shocked_state["market"]["swaption_vol_matrix_bp"][expiry_index][tenor_index] += float(
+                    vol_bump_bp
+                )
+                shocked_market_context = (shocked_state, today, calendar, curve, curve_handle)
+                shocked_bermudan_engine = None
+                if trade_type == "bermudan_swaption":
+                    shocked_bermudan_engine = build_bermudan_gsr_model(
+                        shocked_state,
+                        market_context=shocked_market_context,
+                    )["engine"]
+                shocked_npv = _trade_npv(
+                    trade_type,
+                    shocked_state,
+                    market_context=shocked_market_context,
+                    bermudan_pricing_engine=shocked_bermudan_engine,
+                )
+                delta_npv = _clean_sensitivity(shocked_npv - base_npv)
+            row["cells"].append(
+                {
+                    "label": f"{expiry_years}Y x {tenor_years}Y",
+                    "delta_npv": delta_npv,
+                }
+            )
+        vega_matrix_rows.append(row)
+
+    callable_seed_delta_npv = 0.0
+    if trade_type == "bermudan_swaption":
+        shocked_state = copy.deepcopy(state)
+        shocked_state["market"]["callable_normal_vol_bp"] += float(vol_bump_bp)
+        shocked_market_context = (shocked_state, today, calendar, curve, curve_handle)
+        shocked_bermudan_engine = build_bermudan_gsr_model(
+            shocked_state,
+            market_context=shocked_market_context,
+        )["engine"]
+        callable_seed_npv = _trade_npv(
+            trade_type,
+            shocked_state,
+            market_context=shocked_market_context,
+            bermudan_pricing_engine=shocked_bermudan_engine,
+        )
+        callable_seed_delta_npv = _clean_sensitivity(callable_seed_npv - base_npv)
+
+    return {
+        "base_npv": base_npv,
+        "curve_bump_bp": float(curve_bump_bp),
+        "vol_bump_bp": float(vol_bump_bp),
+        "curve_rows": curve_rows,
+        "vega_matrix_headers": [f"{tenor}Y" for tenor in SWAPTION_MATRIX_TENOR_YEARS],
+        "vega_matrix_rows": vega_matrix_rows,
+        "callable_seed_row": {
+            "label": "Bermudan GSR seed",
+            "base_vol_bp": state["market"]["callable_normal_vol_bp"],
+            "bumped_vol_bp": state["market"]["callable_normal_vol_bp"] + float(vol_bump_bp),
+            "delta_npv": callable_seed_delta_npv,
+        },
+    }

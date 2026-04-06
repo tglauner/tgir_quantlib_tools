@@ -59,14 +59,14 @@
             <p>{{ trade_detail }}</p>
           </div>
           <div class="summary-list">
-            {% for row in market_snapshot.curve_rows %}
+            {% for row in market_snapshot.zero_rate_rows %}
               <div class="summary-list-item">
-                <span>{{ row.label }} SOFR quote</span>
-                <strong>{{ row.quote|pct }}</strong>
+                <span>{{ row.label }} zero rate</span>
+                <strong>{{ row.rate_pct|pct }}</strong>
               </div>
             {% endfor %}
             <div class="summary-list-item">
-              <span>Callable flat vol</span>
+              <span>Bermudan GSR seed</span>
               <strong>{{ "%.1f"|format(market_snapshot.callable_normal_vol_bp) }} bp</strong>
             </div>
             {% if selected_matrix_vol_bp is not none %}
@@ -76,7 +76,7 @@
               </div>
             {% endif %}
           </div>
-          <p class="table-note">Curve, ATM matrix vols, and callable flat vol are shared across all three deals from the dashboard market panels.</p>
+          <p class="table-note">Curve, ATM matrix vols, and the Bermudan GSR seed are shared across all three deals from the dashboard market panels.</p>
         </div>
       </section>
     </div>

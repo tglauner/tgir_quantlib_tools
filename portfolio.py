@@ -1,4 +1,7 @@
 import copy
+import csv
+from io import StringIO
+from pathlib import Path
 
 import QuantLib as ql
 import pandas as pd
@@ -20,6 +23,10 @@ SOFR_DEFAULT_CURVE_QUOTES_PCT = (
 SWAPTION_MATRIX_EXPIRY_YEARS = tuple(range(1, 11))
 SWAPTION_MATRIX_TENOR_YEARS = tuple(range(1, 11))
 DEFAULT_CALLABLE_NORMAL_VOL_BP = 55.0
+SOFR_FORWARD_HORIZON_YEARS = 10
+BERMUDAN_GSR_MEAN_REVERSION = 0.03
+BERMUDAN_GSR_INTEGRATION_POINTS = 64
+BERMUDAN_GSR_STDDEVS = 7.0
 
 BERMUDAN_GRID_MATURITIES_YEARS = (2, 3, 5, 7, 10)
 BERMUDAN_GRID_NONCALL_YEARS = tuple(range(1, 10))
@@ -313,6 +320,129 @@ def build_sofr_curve(today, sofr_rates):
     return ql.PiecewiseLogCubicDiscount(today, helpers, ql.Actual360())
 
 
+def curve_zero_rate_points(curve, tenor_labels=SOFR_CURVE_TENOR_LABELS):
+    node_dates = list(curve.dates())[1:]
+    day_counter = ql.Actual360()
+    points = []
+
+    for index, node_date in enumerate(node_dates):
+        label = tenor_labels[index] if index < len(tenor_labels) else f"Node {index + 1}"
+        zero_rate_pct = (
+            curve.zeroRate(node_date, day_counter, ql.Compounded, ql.Annual).rate() * 100.0
+        )
+        points.append(
+            {
+                "label": label,
+                "date_iso": node_date.ISO(),
+                "short_date": f"{node_date.month():02d}/{node_date.dayOfMonth():02d}/{node_date.year()}",
+                "rate_pct": zero_rate_pct,
+                "year_fraction": day_counter.yearFraction(curve.referenceDate(), node_date),
+            }
+        )
+
+    return points
+
+
+def daily_one_day_forward_points(curve, horizon_years=SOFR_FORWARD_HORIZON_YEARS):
+    day_counter = ql.Actual360()
+    reference_date = curve.referenceDate()
+    horizon_end_date = reference_date + ql.Period(int(horizon_years), ql.Years)
+    points = []
+    start_date = reference_date
+    offset_days = 0
+
+    while start_date <= horizon_end_date:
+        end_date = start_date + 1
+        forward_rate_pct = (
+            curve.forwardRate(start_date, end_date, day_counter, ql.Simple).rate() * 100.0
+        )
+        points.append(
+            {
+                "label": start_date.ISO(),
+                "short_label": f"{start_date.month():02d}/{start_date.dayOfMonth():02d}",
+                "axis_label": (
+                    f"{start_date.month():02d}/{start_date.dayOfMonth():02d}/{start_date.year()}"
+                ),
+                "start_date_iso": start_date.ISO(),
+                "end_date_iso": end_date.ISO(),
+                "offset_days": offset_days,
+                "rate_pct": forward_rate_pct,
+            }
+        )
+        start_date = start_date + 1
+        offset_days += 1
+
+    return points
+
+
+def curve_debug_rows(curve, sofr_rates):
+    normalized_quotes = _normalize_curve_quotes(list(sofr_rates))
+    node_dates = list(curve.dates())[1:]
+    zero_points = curve_zero_rate_points(curve)
+
+    sofr_by_date = {
+        node_date.ISO(): normalized_quotes[index]
+        for index, node_date in enumerate(node_dates)
+        if index < len(normalized_quotes)
+    }
+    zero_by_date = {
+        point["date_iso"]: point["rate_pct"]
+        for point in zero_points
+    }
+
+    last_curve_date = node_dates[-1]
+    forward_by_date = {}
+    day_counter = ql.Actual360()
+    current_date = curve.referenceDate()
+    while current_date < last_curve_date:
+        next_date = current_date + 1
+        forward_by_date[current_date.ISO()] = (
+            curve.forwardRate(current_date, next_date, day_counter, ql.Simple).rate() * 100.0
+        )
+        current_date = next_date
+
+    rows = []
+    current_date = curve.referenceDate()
+    while current_date <= last_curve_date:
+        date_iso = current_date.ISO()
+        rows.append(
+            {
+                "date": date_iso,
+                "sofr_rate_pct": sofr_by_date.get(date_iso),
+                "zero_rate_pct": zero_by_date.get(date_iso),
+                "forward_rate_pct": forward_by_date.get(date_iso),
+            }
+        )
+        current_date = current_date + 1
+
+    return rows
+
+
+def curve_debug_csv(curve, sofr_rates):
+    output = StringIO()
+    writer = csv.writer(output, lineterminator="\n")
+    writer.writerow(["date", "sofr_rate_pct", "zero_rate_pct", "forward_rate_pct"])
+
+    for row in curve_debug_rows(curve, sofr_rates):
+        writer.writerow(
+            [
+                row["date"],
+                "" if row["sofr_rate_pct"] is None else f"{row['sofr_rate_pct']:.8f}",
+                "" if row["zero_rate_pct"] is None else f"{row['zero_rate_pct']:.8f}",
+                "" if row["forward_rate_pct"] is None else f"{row['forward_rate_pct']:.8f}",
+            ]
+        )
+
+    return output.getvalue()
+
+
+def write_curve_debug_csv(output_path, curve, sofr_rates):
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(curve_debug_csv(curve, sofr_rates), encoding="utf-8")
+    return path
+
+
 def _fixed_leg_direction(direction):
     return ql.VanillaSwap.Payer if direction == "payer" else ql.VanillaSwap.Receiver
 
@@ -358,6 +488,12 @@ def _market_context(portfolio_state):
     return state, today, calendar, curve, curve_handle
 
 
+def _resolve_market_context(portfolio_state=None, market_context=None):
+    if market_context is not None:
+        return market_context
+    return _market_context(portfolio_state)
+
+
 def _format_notional(notional):
     if abs(notional) >= 1_000_000:
         return f"${notional / 1_000_000:.2f}mm"
@@ -390,7 +526,7 @@ def trade_structure_summary(trade_type, trade, market):
     return (
         f"{option_side} | {trade['first_exercise_years']}NC into "
         f"{trade['swap_tenor_years']}Y | {trade['exercise_count']} dates | "
-        f"Flat {market['callable_normal_vol_bp']:.1f}bp"
+        "Diagonal GSR calib"
     )
 
 
@@ -424,7 +560,7 @@ def trade_card_summary(trade_type, trade, market):
     detail = (
         f"{'Payer' if trade['direction'] == 'payer' else 'Receiver'} style, "
         f"K {trade['strike_pct']:.2f}%, {_format_notional(trade['notional'])}, "
-        f"flat callable {market['callable_normal_vol_bp']:.1f}bp"
+        f"GSR seed {market['callable_normal_vol_bp']:.1f}bp, diagonal calibration"
     )
     return headline, detail
 
@@ -472,33 +608,165 @@ def _create_european_swaption(trade, today, calendar, curve_handle, normal_vol_b
     return swaption
 
 
-def _bermudan_exercise_dates(start, maturity, calendar, requested_count):
-    exercise_dates = []
-    for step in range(max(1, int(requested_count))):
-        exercise_date = calendar.advance(start, step, ql.Years)
-        if exercise_date < maturity:
-            exercise_dates.append(exercise_date)
-    if not exercise_dates:
-        exercise_dates.append(start)
+def _bermudan_exercise_dates(schedule, calendar, requested_count):
+    schedule_dates = list(schedule)
+    exercise_dates = [
+        calendar.advance(date, -1, ql.Days)
+        for date in schedule_dates[:-1][: max(1, int(requested_count))]
+    ]
+    if not exercise_dates and schedule_dates:
+        exercise_dates.append(calendar.advance(schedule_dates[0], -1, ql.Days))
     return exercise_dates
 
 
-def _create_bermudan_swaption(trade, today, calendar, curve_handle, normal_vol_bp):
+def bermudan_diagonal_calibration_pillars(portfolio_state=None, market_context=None):
+    state, today, calendar, curve, _curve_handle = _resolve_market_context(
+        portfolio_state,
+        market_context,
+    )
+    spot = _spot_start_date(today, calendar)
+    max_curve_date = curve.maxDate()
+    pillars = []
+
+    for expiry_years in SWAPTION_MATRIX_EXPIRY_YEARS:
+        exercise_date = calendar.advance(spot, expiry_years, ql.Years)
+        maturity_date = calendar.advance(exercise_date, expiry_years, ql.Years)
+        if maturity_date > max_curve_date:
+            break
+        pillars.append(
+            {
+                "label": f"{expiry_years}Y x {expiry_years}Y",
+                "expiry_years": expiry_years,
+                "swap_tenor_years": expiry_years,
+                "exercise_date": exercise_date,
+                "exercise_date_iso": exercise_date.ISO(),
+                "maturity_date": maturity_date,
+                "maturity_date_iso": maturity_date.ISO(),
+                "normal_vol_bp": lookup_swaption_normal_vol_bp(state, expiry_years, expiry_years),
+            }
+        )
+
+    return pillars
+
+
+def build_bermudan_gsr_model(portfolio_state=None, market_context=None):
+    state, today, calendar, curve, curve_handle = _resolve_market_context(
+        portfolio_state,
+        market_context,
+    )
+    calibration_pillars = bermudan_diagonal_calibration_pillars(
+        state,
+        market_context=(state, today, calendar, curve, curve_handle),
+    )
+    initial_sigma = _normal_vol_from_bp(state["market"]["callable_normal_vol_bp"])
+    step_dates = [pillar["exercise_date"] for pillar in calibration_pillars]
+    volatility_quotes = [
+        ql.QuoteHandle(ql.SimpleQuote(initial_sigma))
+        for _ in range(len(step_dates) + 1)
+    ]
+    reversion_quotes = [
+        ql.QuoteHandle(ql.SimpleQuote(BERMUDAN_GSR_MEAN_REVERSION))
+    ]
+
+    model = ql.Gsr(
+        curve_handle,
+        step_dates,
+        volatility_quotes,
+        reversion_quotes,
+        curve.timeFromReference(curve.maxDate()),
+    )
+    engine = ql.Gaussian1dSwaptionEngine(
+        model,
+        BERMUDAN_GSR_INTEGRATION_POINTS,
+        BERMUDAN_GSR_STDDEVS,
+        True,
+        False,
+        curve_handle,
+    )
+
+    helpers = ql.BlackCalibrationHelperVector()
+    calibration_rows = []
+    for pillar in calibration_pillars:
+        helper = ql.SwaptionHelper(
+            ql.Period(pillar["expiry_years"], ql.Years),
+            ql.Period(pillar["swap_tenor_years"], ql.Years),
+            ql.QuoteHandle(ql.SimpleQuote(pillar["normal_vol_bp"] / 10000.0)),
+            ql.Sofr(curve_handle),
+            ql.Period("1Y"),
+            ql.Thirty360(ql.Thirty360.BondBasis),
+            ql.Actual360(),
+            curve_handle,
+            ql.BlackCalibrationHelper.RelativePriceError,
+            ql.nullDouble(),
+            1.0,
+            ql.Normal,
+            0.0,
+            2,
+            ql.RateAveraging.Compound,
+        )
+        helper.setPricingEngine(engine)
+        helpers.push_back(helper)
+        calibration_rows.append(
+            {
+                "label": pillar["label"],
+                "expiry_years": pillar["expiry_years"],
+                "swap_tenor_years": pillar["swap_tenor_years"],
+                "exercise_date_iso": pillar["exercise_date_iso"],
+                "maturity_date_iso": pillar["maturity_date_iso"],
+                "market_normal_vol_bp": pillar["normal_vol_bp"],
+            }
+        )
+
+    if helpers.size() > 0:
+        model.calibrateVolatilitiesIterative(
+            helpers,
+            ql.LevenbergMarquardt(),
+            ql.EndCriteria(200, 50, 1e-8, 1e-8, 1e-8),
+        )
+
+    calibrated_sigmas = list(model.volatility())
+    for index, row in enumerate(calibration_rows):
+        row["model_value"] = helpers[index].modelValue()
+        row["market_value"] = helpers[index].marketValue()
+        row["calibration_error"] = helpers[index].calibrationError()
+        row["segment_sigma_bp"] = calibrated_sigmas[index] * 10000.0
+
+    sigma_rows = []
+    interval_start = curve.referenceDate()
+    for index, sigma in enumerate(calibrated_sigmas):
+        interval_end = step_dates[index] if index < len(step_dates) else curve.maxDate()
+        sigma_rows.append(
+            {
+                "segment": index + 1,
+                "start_date_iso": interval_start.ISO(),
+                "end_date_iso": interval_end.ISO(),
+                "sigma_bp": sigma * 10000.0,
+            }
+        )
+        interval_start = interval_end
+
+    return {
+        "model": model,
+        "engine": engine,
+        "calibration_rows": calibration_rows,
+        "sigma_rows": sigma_rows,
+        "mean_reversion": list(model.reversion())[0],
+        "initial_sigma_bp": state["market"]["callable_normal_vol_bp"],
+        "curve_max_date_iso": curve.maxDate().ISO(),
+    }
+
+
+def _create_bermudan_swaption(trade, today, calendar, curve_handle, pricing_engine):
     spot = _spot_start_date(today, calendar)
     first_exercise = calendar.advance(spot, int(trade["first_exercise_years"]), ql.Years)
     maturity = calendar.advance(first_exercise, int(trade["swap_tenor_years"]), ql.Years)
     underlying = _create_forward_swap(trade, first_exercise, maturity, curve_handle)
+    fixed_schedule = underlying.fixedSchedule()
     exercise = ql.BermudanExercise(
-        _bermudan_exercise_dates(
-            first_exercise,
-            maturity,
-            calendar,
-            trade["exercise_count"],
-        )
+        _bermudan_exercise_dates(fixed_schedule, calendar, trade["exercise_count"])
     )
-    model = ql.HullWhite(curve_handle, 0.03, _normal_vol_from_bp(normal_vol_bp))
     swaption = ql.Swaption(underlying, exercise)
-    swaption.setPricingEngine(ql.TreeSwaptionEngine(model, 80))
+    swaption.setPricingEngine(pricing_engine)
     return swaption
 
 
@@ -531,10 +799,17 @@ def reprice_sofr_calibration_swaps(curve, sofr_rates, tenors_years=SOFR_OIS_TENO
     return pd.DataFrame(repriced_swaps)
 
 
-def build_bermudan_pricing_grid(portfolio_state=None):
-    state, today, calendar, _curve, curve_handle = _market_context(portfolio_state)
+def build_bermudan_pricing_grid(portfolio_state=None, market_context=None, bermudan_pricing_engine=None):
+    state, today, calendar, curve, curve_handle = _resolve_market_context(
+        portfolio_state,
+        market_context,
+    )
     template_trade = state["trades"]["bermudan_swaption"]
-    callable_normal_vol_bp = state["market"]["callable_normal_vol_bp"]
+    if bermudan_pricing_engine is None:
+        bermudan_pricing_engine = build_bermudan_gsr_model(
+            state,
+            market_context=(state, today, calendar, curve, curve_handle),
+        )["engine"]
     rows = []
 
     for noncall_years in BERMUDAN_GRID_NONCALL_YEARS:
@@ -552,15 +827,18 @@ def build_bermudan_pricing_grid(portfolio_state=None):
                 today,
                 calendar,
                 curve_handle,
-                callable_normal_vol_bp,
+                bermudan_pricing_engine,
             ).NPV()
         rows.append(row)
 
     return pd.DataFrame(rows)
 
 
-def price_portfolio(portfolio_state=None):
-    state, today, calendar, _curve, curve_handle = _market_context(portfolio_state)
+def price_portfolio(portfolio_state=None, market_context=None, bermudan_pricing_engine=None):
+    state, today, calendar, curve, curve_handle = _resolve_market_context(
+        portfolio_state,
+        market_context,
+    )
     market = state["market"]
     trades = state["trades"]
 
@@ -569,7 +847,11 @@ def price_portfolio(portfolio_state=None):
         trades["european_swaption"]["expiry_years"],
         trades["european_swaption"]["swap_tenor_years"],
     )
-    callable_normal_vol_bp = market["callable_normal_vol_bp"]
+    if bermudan_pricing_engine is None:
+        bermudan_pricing_engine = build_bermudan_gsr_model(
+            state,
+            market_context=(state, today, calendar, curve, curve_handle),
+        )["engine"]
 
     swap = _create_live_swap(trades["swap"], today, calendar, curve_handle)
     european_swaption = _create_european_swaption(
@@ -584,7 +866,7 @@ def price_portfolio(portfolio_state=None):
         today,
         calendar,
         curve_handle,
-        callable_normal_vol_bp,
+        bermudan_pricing_engine,
     )
 
     securities = [

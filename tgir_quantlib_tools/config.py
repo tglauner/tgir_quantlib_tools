@@ -57,6 +57,7 @@ class AppConfig:
     debug_enabled: bool
     local_dev_host: str
     local_dev_port: int
+    curve_debug_csv_path: str
 
     @classmethod
     def from_env(cls, overrides: dict[str, Any] | None = None) -> "AppConfig":
@@ -99,6 +100,13 @@ class AppConfig:
                     default=os.environ.get("PORT", os.environ.get("FLASK_RUN_PORT", "5050")),
                 )
             ),
+            curve_debug_csv_path=str(
+                _override_or_env(
+                    overrides,
+                    "CURVE_DEBUG_CSV_PATH",
+                    default=_repo_root() / "debug" / "curve_debug.csv",
+                )
+            ),
         )
 
     def to_flask_config(self) -> dict[str, Any]:
@@ -111,6 +119,7 @@ class AppConfig:
             "AUTH_PASSWORD_HASH": self.auth_password_hash,
             "LOCAL_DEV_HOST": self.local_dev_host,
             "LOCAL_DEV_PORT": self.local_dev_port,
+            "CURVE_DEBUG_CSV_PATH": self.curve_debug_csv_path,
             "FLASK_DEBUG": self.debug_enabled,
             "SESSION_COOKIE_HTTPONLY": True,
             "SESSION_COOKIE_SAMESITE": "Lax",

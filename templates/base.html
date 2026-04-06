@@ -81,6 +81,14 @@
       justify-content: flex-end;
     }
 
+    .auth-cluster {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
     .hero {
       display: flex;
       justify-content: space-between;
@@ -249,6 +257,14 @@
       font-size: 0.74rem;
     }
 
+    .btn-active,
+    button.btn-active {
+      background: var(--ink);
+      color: #fff;
+      border-color: var(--ink);
+      box-shadow: none;
+    }
+
     .btn-ghost,
     button.btn-ghost {
       background: transparent;
@@ -326,6 +342,13 @@
     .curve-legend-item .quote {
       font-size: 0.88rem;
       font-weight: 700;
+    }
+
+    .curve-legend-meta {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 0.7rem;
     }
 
     form {
@@ -475,6 +498,80 @@
       font-size: 0.82rem;
     }
 
+    .info-grid {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .detail-card {
+      padding: 12px;
+      border-radius: 14px;
+      background: rgba(19, 33, 48, 0.04);
+      border: 1px solid rgba(19, 33, 48, 0.05);
+    }
+
+    .detail-card h3 {
+      margin-bottom: 6px;
+    }
+
+    .badge-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 5px 8px;
+      border-radius: 999px;
+      background: rgba(11, 116, 99, 0.10);
+      border: 1px solid rgba(11, 116, 99, 0.14);
+      color: var(--ink);
+      font-size: 0.74rem;
+    }
+
+    .flow-grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .flow-card {
+      display: grid;
+      gap: 8px;
+      padding: 12px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.76);
+      border: 1px solid rgba(19, 33, 48, 0.06);
+    }
+
+    .flow-step {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 999px;
+      background: var(--ink);
+      color: #fff;
+      font-size: 0.78rem;
+      font-weight: 700;
+    }
+
+    .mono-block {
+      margin-top: 8px;
+      padding: 9px 10px;
+      border-radius: 10px;
+      background: rgba(19, 33, 48, 0.05);
+      border: 1px solid rgba(19, 33, 48, 0.05);
+      font-family: Menlo, Monaco, "SFMono-Regular", monospace;
+      font-size: 0.77rem;
+      line-height: 1.5;
+      overflow: auto;
+    }
+
     .summary-block {
       padding: 12px;
       border-radius: 14px;
@@ -614,6 +711,11 @@
       background: rgba(255, 255, 255, 0.54);
     }
 
+    .table-grid {
+      display: grid;
+      gap: 12px;
+    }
+
     .matrix-table,
     .bermudan-grid-table {
       min-width: 760px;
@@ -701,6 +803,7 @@
 
     @media (max-width: 1080px) {
       .login-layout,
+      .info-grid,
       .workstation-grid,
       .editor-layout,
       .dashboard-grid {
@@ -753,10 +856,14 @@
       </div>
       <div class="auth-strip">
         {% if auth_state.is_authenticated %}
-          <div class="pill mono-pill">Signed in as {{ auth_state.username }}</div>
-          <form method="post" action="{{ url_for('workbench.logout') }}">
-            <button class="btn btn-ghost btn-mini" type="submit">Sign out</button>
-          </form>
+          <div class="auth-cluster">
+            <a class="btn btn-secondary btn-mini {% if request.endpoint == 'workbench.dashboard' %}btn-active{% endif %}" href="{{ url_for('workbench.dashboard') }}">Dashboard</a>
+            <a class="btn btn-secondary btn-mini {% if request.endpoint == 'workbench.quantlib_data_model' %}btn-active{% endif %}" href="{{ url_for('workbench.quantlib_data_model') }}">QuantLib Model</a>
+            <div class="pill mono-pill">Signed in as {{ auth_state.username }}</div>
+            <form method="post" action="{{ url_for('workbench.logout') }}">
+              <button class="btn btn-ghost btn-mini" type="submit">Sign out</button>
+            </form>
+          </div>
         {% else %}
           <div class="pill mono-pill">Protected workstation</div>
         {% endif %}

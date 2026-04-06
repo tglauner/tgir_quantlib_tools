@@ -22,6 +22,8 @@ APP_LOGIN_PASSWORD=<strong-password>
 
 Open `http://127.0.0.1:5050/` after the server starts, sign in, and the app will redirect to `/dashboard`.
 
+The educational / QA view of the live QuantLib object graph is available after login at `/quantlib-data-model`.
+
 ## Run The Curve Demo
 ```bash
 ./.venv/bin/python build_SOFR_curve.py
@@ -35,6 +37,26 @@ Open `http://127.0.0.1:5050/` after the server starts, sign in, and the app will
 ## Flask Smoke Check
 ```bash
 ./.venv/bin/python -c "from app import app; print(app.test_client().get('/').status_code)"
+```
+
+## Protected Route Smoke Check
+```bash
+./.venv/bin/python - <<'PY'
+from tgir_quantlib_tools import create_app
+
+app = create_app({
+    "TESTING": True,
+    "SECRET_KEY": "smoke-secret",
+    "AUTH_USERNAME": "tester",
+    "AUTH_PASSWORD": "secret-pass",
+    "AUTH_PASSWORD_HASH": None,
+    "SESSION_COOKIE_SECURE": False,
+})
+client = app.test_client()
+client.post("/login", data={"username": "tester", "password": "secret-pass"})
+for path in ["/dashboard", "/quantlib-data-model"]:
+    print(path, client.get(path).status_code)
+PY
 ```
 
 ## Health Check

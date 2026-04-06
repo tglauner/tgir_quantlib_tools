@@ -12,7 +12,7 @@ This repository showcases small examples of using [QuantLib](https://www.quantli
 | `build_SOFR_curve.py` | Script that constructs a SOFR OIS term structure from market quotes, prints discount factors for select maturities, and shows a repricing table for calibration swaps. |
 | `price_bermudan_swaption.py` | Prints the Bermudan swaption mark from the shared portfolio pricing path. |
 | `today.py` | Minimal example showing how to set QuantLib's evaluation date. |
-| `templates/` | HTML templates used by the web app. `login.html` renders the sign-in screen, `dashboard.html` renders the workstation, `trade_form.html` renders the detailed trade editors, and `base.html` holds the shared styling. |
+| `templates/` | HTML templates used by the web app. `login.html` renders the sign-in screen, `dashboard.html` renders the workstation with QuantLib-derived zero-rate and forward-rate charts, `quantlib_model.html` renders the data-model page, `trade_form.html` renders the detailed trade editors, and `base.html` holds the shared styling. |
 | `tests/` | Smoke tests for the Flask route and portfolio plus OIS curve repricing checks. |
 | `docs/` | Architecture notes and a local runbook aligned to the sibling `app_architecture` guidance, with explicit repo-specific deviations. |
 | `AGENTS.md` | Repo-specific Codex guidance for working in this codebase. |
@@ -58,7 +58,14 @@ The root route shows a login screen. After signing in, the workstation displays 
 
 - Overnight SOFR plus `1Y`, `2Y`, `3Y`, `5Y`, `7Y`, `10Y`, and `12Y` OIS quotes
 - A full ATM normal-vol matrix with annual expiries `1Y..10Y` and annual swap tenors `1Y..10Y`
-- A separate flat callable normal vol used for Bermudan pricing
+- A separate Bermudan GSR sigma seed used to initialize diagonal swaption calibration
+
+The dashboard then derives and displays:
+
+- QuantLib zero rates at the actual curve node dates
+- A separate daily one-day SOFR forward strip over the next ten years with annual date ticks
+- A dedicated QuantLib data-model page at `/quantlib-data-model` showing the live object graph, constructor signatures, dependencies, and enum values used by the app
+- A generated repo copy of the curve debug file at `debug/curve_debug.csv`, refreshed by the app and also downloadable at `/curve-debug.csv`
 
 The app defaults to port `5050` because port `5000` is often occupied by macOS services on local machines.
 
@@ -90,6 +97,27 @@ Run the smoke tests with:
 
 ```bash
 ./.venv/bin/python -m unittest discover -s tests
+```
+
+Useful route checks:
+
+```bash
+./.venv/bin/python - <<'PY'
+from tgir_quantlib_tools import create_app
+
+app = create_app({
+    "TESTING": True,
+    "SECRET_KEY": "smoke-secret",
+    "AUTH_USERNAME": "tester",
+    "AUTH_PASSWORD": "secret-pass",
+    "AUTH_PASSWORD_HASH": None,
+    "SESSION_COOKIE_SECURE": False,
+})
+client = app.test_client()
+client.post("/login", data={"username": "tester", "password": "secret-pass"})
+for path in ["/dashboard", "/quantlib-data-model"]:
+    print(path, client.get(path).status_code)
+PY
 ```
 
 ## Market Data Note

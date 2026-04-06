@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, url_for
+from pathlib import Path
 
-from portfolio import default_portfolio_state
+import QuantLib as ql
+from flask import Blueprint, Response, abort, current_app, flash, jsonify, redirect, render_template, request, url_for
+
+from portfolio import build_sofr_curve, default_portfolio_state, write_curve_debug_csv
 
 from .auth import (
     credentials_are_valid,
@@ -23,9 +26,21 @@ from .dashboard import (
     update_market_state,
     update_trade_state,
 )
+from .quantlib_model import build_quantlib_model_context
 
 
 workbench_bp = Blueprint("workbench", __name__)
+
+
+def _persist_curve_debug_csv(state) -> Path:
+    today = ql.Date.todaysDate()
+    ql.Settings.instance().evaluationDate = today
+    curve = build_sofr_curve(today, state["market"]["curve_quotes_pct"])
+    return write_curve_debug_csv(
+        current_app.config["CURVE_DEBUG_CSV_PATH"],
+        curve,
+        state["market"]["curve_quotes_pct"],
+    )
 
 
 @workbench_bp.get("/")
@@ -70,7 +85,34 @@ def health():
 @workbench_bp.get("/dashboard")
 @login_required
 def dashboard():
-    return render_template("dashboard.html", **build_dashboard_context(get_portfolio_state()))
+    state = get_portfolio_state()
+    _persist_curve_debug_csv(state)
+    return render_template("dashboard.html", **build_dashboard_context(state))
+
+
+@workbench_bp.get("/quantlib-data-model")
+@login_required
+def quantlib_data_model():
+    state = get_portfolio_state()
+    _persist_curve_debug_csv(state)
+    return render_template(
+        "quantlib_model.html",
+        **build_quantlib_model_context(state),
+    )
+
+
+@workbench_bp.get("/curve-debug.csv")
+@login_required
+def curve_debug_download():
+    state = get_portfolio_state()
+    output_path = _persist_curve_debug_csv(state)
+    today = ql.Date.todaysDate()
+    filename = f"curve_debug_{today.ISO()}.csv"
+    return Response(
+        output_path.read_text(encoding="utf-8"),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @workbench_bp.post("/market")
@@ -97,6 +139,7 @@ def realtime_tick():
     state = get_portfolio_state()
     apply_realtime_tick(state)
     save_portfolio_state(state)
+    _persist_curve_debug_csv(state)
     return jsonify(build_realtime_payload(state))
 
 

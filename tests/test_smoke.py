@@ -1,11 +1,19 @@
+import csv
+from io import StringIO
+from pathlib import Path
+import tempfile
 import unittest
 
+import QuantLib as ql
+
 from tgir_quantlib_tools import create_app
-from portfolio import default_portfolio_state, price_portfolio
+from portfolio import SOFR_FORWARD_HORIZON_YEARS, build_sofr_curve, default_portfolio_state, price_portfolio
 
 
 class PortfolioSmokeTests(unittest.TestCase):
     def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.curve_debug_csv_path = str(Path(self.temp_dir.name) / "curve_debug.csv")
         self.app = create_app(
             {
                 "TESTING": True,
@@ -14,9 +22,13 @@ class PortfolioSmokeTests(unittest.TestCase):
                 "AUTH_PASSWORD": "secret-pass",
                 "AUTH_PASSWORD_HASH": None,
                 "SESSION_COOKIE_SECURE": False,
+                "CURVE_DEBUG_CSV_PATH": self.curve_debug_csv_path,
             }
         )
         self.client = self.app.test_client()
+
+    def tearDown(self):
+        self.temp_dir.cleanup()
 
     def login(self):
         return self.client.post(
@@ -51,8 +63,12 @@ class PortfolioSmokeTests(unittest.TestCase):
         response = self.login()
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b"SOFR curve, ATM vol surface, callable grid.", response.data)
+        self.assertIn(b"SOFR zero rates, one-day forwards, ATM vol surface, callable grid.", response.data)
+        self.assertIn(b"Zero rates", response.data)
+        self.assertIn(b"Daily one-day forward SOFR", response.data)
         self.assertIn(b"ATM swaption normal-vol matrix", response.data)
+        self.assertIn(b"Bermudan GSR seed", response.data)
+        self.assertIn(self.curve_debug_csv_path.encode("utf-8"), response.data)
 
     def test_market_update_round_trips(self):
         self.login()
@@ -102,7 +118,8 @@ class PortfolioSmokeTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
         self.assertEqual(payload["market_snapshot"]["callable_normal_vol_bp"], 60.0)
-        self.assertEqual(len(payload["market_snapshot"]["curve_rows"]), 8)
+        self.assertEqual(len(payload["market_snapshot"]["zero_rate_rows"]), 8)
+        self.assertEqual(len(payload["forward_rate_chart"]["x_ticks"]), SOFR_FORWARD_HORIZON_YEARS + 1)
         self.assertEqual(len(payload["blotter_rows"]), 3)
         self.assertEqual(len(payload["bermudan_grid_rows"]), 9)
         self.assertEqual(payload["blotter_rows"][0]["Type"], "Swap")
@@ -130,6 +147,42 @@ class PortfolioSmokeTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json(), {"ok": True, "app": "tgir_quantlib_tools"})
+
+    def test_quantlib_data_model_page_renders(self):
+        self.login()
+
+        response = self.client.get("/quantlib-data-model")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Actual object graph used by this workstation.", response.data)
+        self.assertIn(b"ql.PiecewiseLogCubicDiscount", response.data)
+        self.assertIn(b"ql.VanillaSwap", response.data)
+        self.assertIn(b"ql.Gsr", response.data)
+        self.assertIn(b"ql.Gaussian1dSwaptionEngine", response.data)
+
+    def test_curve_debug_csv_downloads(self):
+        self.login()
+
+        response = self.client.get("/curve-debug.csv")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.mimetype, "text/csv")
+        self.assertIn("attachment; filename=", response.headers["Content-Disposition"])
+
+        rows = list(csv.DictReader(StringIO(response.get_data(as_text=True))))
+        today = ql.Date.todaysDate()
+        ql.Settings.instance().evaluationDate = today
+        curve = build_sofr_curve(today, default_portfolio_state()["market"]["curve_quotes_pct"])
+        self.assertEqual(
+            rows[0].keys(),
+            {"date", "sofr_rate_pct", "zero_rate_pct", "forward_rate_pct"},
+        )
+        self.assertEqual(len(rows), curve.dates()[-1] - curve.referenceDate() + 1)
+        self.assertEqual(rows[0]["date"], curve.referenceDate().ISO())
+        self.assertEqual(rows[-1]["date"], curve.dates()[-1].ISO())
+        self.assertEqual(rows[-1]["forward_rate_pct"], "")
+        self.assertEqual(sum(bool(row["sofr_rate_pct"]) for row in rows), 8)
+        self.assertEqual(Path(self.curve_debug_csv_path).read_text(encoding="utf-8"), response.get_data(as_text=True))
 
 
 if __name__ == "__main__":

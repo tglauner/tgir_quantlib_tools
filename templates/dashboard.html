@@ -6,14 +6,16 @@
   <section class="hero workstation-hero">
     <div>
       <span class="section-kicker">TGIR QuantLib Workstation</span>
-      <h1>SOFR curve, ATM vol surface, callable grid.</h1>
+      <h1>SOFR zero rates, one-day forwards, ATM vol surface, callable grid.</h1>
       <p>
         Three trades stay on the blotter. Detailed entry opens in a separate tab, while the workstation
-        keeps the curve, the full ATM swaption normal-vol matrix, and Bermudan pricing checks on one screen.
+        keeps the QuantLib-derived zero-rate curve, a ten-year daily one-day forward strip, the full ATM
+        swaption normal-vol matrix, and Bermudan pricing checks on one screen.
       </p>
     </div>
     <div class="hero-meta">
-      <div class="pill mono-pill">ON + OIS SOFR curve</div>
+      <div class="pill mono-pill">QuantLib zero-rate nodes</div>
+      <div class="pill mono-pill">10Y daily 1D SOFR forwards</div>
       <div class="pill mono-pill">ATM normal-vol matrix</div>
       <div class="pill mono-pill"><span id="live-status-pill">Manual mode</span></div>
       <div class="pill mono-pill">Last tick <span id="live-last-update">{{ last_update_label }}</span></div>
@@ -26,14 +28,17 @@
         <div>
           <span class="section-kicker">Portfolio marks</span>
           <h2>Live P&amp;L monitor</h2>
-          <p>Real-time mode only perturbs SOFR OIS quotes. The ATM vol matrix and callable flat vol stay fixed until you edit them manually.</p>
+          <p>Real-time mode only perturbs SOFR OIS quotes. The ATM vol matrix and Bermudan GSR seed stay fixed until you edit them manually.</p>
         </div>
         <div class="btn-row top-controls">
+          <a class="btn btn-secondary" href="{{ quantlib_data_model_url }}">QuantLib data model</a>
+          <a class="btn btn-secondary" href="{{ curve_debug_csv_url }}">Download debug CSV</a>
           <button class="btn btn-secondary" id="realtime-toggle" type="button">Start real-time</button>
           <form method="post" action="{{ url_for('workbench.reset_portfolio') }}">
             <button class="btn btn-secondary" type="submit">Reset demo</button>
           </form>
         </div>
+        <p class="table-note mono">Repo copy: {{ curve_debug_csv_repo_path }}</p>
       </div>
 
       <div class="summary-strip">
@@ -163,7 +168,7 @@
             <div>
               <span class="section-kicker">Callable grid</span>
               <h2>Bermudan pricing grid</h2>
-              <p>Columns are final maturity. Rows are non-call periods. Cells use the current Bermudan trade direction, strike, notional, and flat callable vol. Inapplicable cells are shown as <span class="mono">-</span>.</p>
+              <p>Columns are final maturity. Rows are non-call periods. Cells use the current Bermudan trade direction, strike, notional, and the GSR model calibrated to the feasible diagonal ATM strip. Inapplicable cells are shown as <span class="mono">-</span>.</p>
             </div>
           </div>
           <div class="table-scroll">
@@ -203,21 +208,17 @@
         <div class="panel-inner">
           <div class="panel-header tight-header">
             <div>
-              <span class="section-kicker">Curve</span>
-              <h2>SOFR curve monitor</h2>
-              <p>Overnight SOFR anchors the front end. Real-time mode bumps each quote up or down by 1 to 2 bp every 5 seconds while leaving the vol inputs untouched.</p>
+              <span class="section-kicker">Curve Output</span>
+              <h2>Zero rates</h2>
+              <p>{{ zero_rate_note }}</p>
             </div>
           </div>
 
           <div class="metric-strip compact-metrics">
             <div class="metric">
-              <span class="label">Average</span>
-              <span class="value mono" id="curve-average">{{ market_snapshot.curve_average_pct|pct }}</span>
-            </div>
-            <div class="metric">
               <span class="label">ON to 12Y</span>
-              <span class="value mono" id="curve-slope">
-                <span class="signed-value {{ market_snapshot.curve_steepness_bp|sign_class }}">{{ "%+.0f"|format(market_snapshot.curve_steepness_bp) }} bp</span>
+              <span class="value mono" id="zero-rate-slope">
+                <span class="signed-value {{ market_snapshot.zero_rate_steepness_bp|sign_class }}">{{ "%+.0f"|format(market_snapshot.zero_rate_steepness_bp) }} bp</span>
               </span>
             </div>
             <div class="metric">
@@ -225,33 +226,41 @@
               <span class="value mono" id="curve-atm-matrix">{{ "%.1f"|format(market_snapshot.atm_5y5y_bp) }} bp</span>
             </div>
             <div class="metric">
-              <span class="label">Callable vol</span>
-              <span class="value mono" id="curve-callable-vol">{{ "%.1f"|format(market_snapshot.callable_normal_vol_bp) }} bp</span>
+              <span class="label">Diag strip</span>
+              <span class="value mono" id="curve-diag-strip">{{ market_snapshot.bermudan_calibration_helper_count }} pillars</span>
+            </div>
+            <div class="metric">
+              <span class="label">GSR seed</span>
+              <span class="value mono" id="curve-gsr-seed">{{ "%.1f"|format(market_snapshot.callable_normal_vol_bp) }} bp</span>
             </div>
           </div>
 
           <div class="curve-shell">
-            <div id="curve-chart-wrap">
-              <svg viewBox="0 0 {{ curve_chart.width }} {{ curve_chart.height }}" role="img" aria-labelledby="curveTitle">
-                <title id="curveTitle">SOFR curve quote chart</title>
-                {% for tick in curve_chart.y_ticks %}
-                  <line x1="32" y1="{{ tick.y }}" x2="{{ curve_chart.width - 18 }}" y2="{{ tick.y }}" stroke="rgba(19,33,48,0.08)" stroke-dasharray="3 4" />
+            <div id="zero-rate-chart-wrap">
+              <svg viewBox="0 0 {{ zero_rate_chart.width }} {{ zero_rate_chart.height }}" role="img" aria-labelledby="zeroRateTitle">
+                <title id="zeroRateTitle">Zero rate chart</title>
+                {% for tick in zero_rate_chart.y_ticks %}
+                  <line x1="36" y1="{{ tick.y }}" x2="{{ zero_rate_chart.width - 18 }}" y2="{{ tick.y }}" stroke="rgba(19,33,48,0.08)" stroke-dasharray="3 4" />
                   <text x="4" y="{{ tick.y + 4 }}" font-size="10" fill="#607181">{{ "%.2f"|format(tick.value) }}</text>
                 {% endfor %}
-                <polygon points="{{ curve_chart.area }}" fill="rgba(11,116,99,0.12)"></polygon>
-                <polyline points="{{ curve_chart.polyline }}" fill="none" stroke="#0b7463" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></polyline>
-                {% for marker in curve_chart.markers %}
+                <line x1="36" y1="{{ zero_rate_chart.height - 34 }}" x2="{{ zero_rate_chart.width - 18 }}" y2="{{ zero_rate_chart.height - 34 }}" stroke="rgba(19,33,48,0.10)" />
+                <polygon points="{{ zero_rate_chart.area }}" fill="rgba(11,116,99,0.12)"></polygon>
+                <polyline points="{{ zero_rate_chart.polyline }}" fill="none" stroke="#0b7463" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></polyline>
+                {% for marker in zero_rate_chart.markers %}
                   <circle cx="{{ marker.x }}" cy="{{ marker.y }}" r="4.2" fill="#c0683a" stroke="#fff8f0" stroke-width="1.8"></circle>
-                  <text x="{{ marker.x }}" y="{{ curve_chart.height - 10 }}" text-anchor="middle" font-size="11" fill="#607181">{{ marker.label }}</text>
+                {% endfor %}
+                {% for tick in zero_rate_chart.x_ticks %}
+                  <text x="{{ tick.x }}" y="{{ zero_rate_chart.height - 10 }}" text-anchor="middle" font-size="11" fill="#607181">{{ tick.label }}</text>
                 {% endfor %}
               </svg>
             </div>
 
-            <div class="curve-legend" id="curve-legend">
-              {% for row in market_snapshot.curve_rows %}
+            <div class="curve-legend" id="zero-rate-legend">
+              {% for row in market_snapshot.zero_rate_rows %}
                 <div class="curve-legend-item">
                   <span class="tenor">{{ row.label }}</span>
-                  <span class="quote mono">{{ row.quote|pct }}</span>
+                  <span class="quote mono">{{ row.rate_pct|pct }}</span>
+                  <span class="curve-legend-meta mono">{{ row.short_date }}</span>
                 </div>
               {% endfor %}
             </div>
@@ -268,7 +277,7 @@
                 </div>
               {% endfor %}
               <div class="field">
-                <label for="callable_normal_vol_bp">Callable flat vol (bp)</label>
+                <label for="callable_normal_vol_bp">Bermudan GSR seed (bp)</label>
                 <input id="callable_normal_vol_bp" name="callable_normal_vol_bp" type="number" step="0.1" value="{{ market_snapshot.callable_normal_vol_bp }}">
               </div>
             </div>
@@ -277,6 +286,58 @@
               <button class="btn" type="submit">Apply curve and callable vol update</button>
             </div>
           </form>
+        </div>
+      </section>
+
+      <section class="panel panel-compact">
+        <div class="panel-inner">
+          <div class="panel-header tight-header">
+            <div>
+              <span class="section-kicker">Forward Strip</span>
+              <h2>Daily one-day forward SOFR</h2>
+              <p>{{ forward_rate_note }}</p>
+            </div>
+          </div>
+
+          <div class="metric-strip compact-metrics">
+            <div class="metric">
+              <span class="label">Start</span>
+              <span class="value mono" id="forward-start">{{ market_snapshot.forward_rate_summary.start_pct|pct }}</span>
+            </div>
+            <div class="metric">
+              <span class="label">3M</span>
+              <span class="value mono" id="forward-3m">{{ market_snapshot.forward_rate_summary.three_month_pct|pct }}</span>
+            </div>
+            <div class="metric">
+              <span class="label">6M</span>
+              <span class="value mono" id="forward-6m">{{ market_snapshot.forward_rate_summary.six_month_pct|pct }}</span>
+            </div>
+            <div class="metric">
+              <span class="label">1Y</span>
+              <span class="value mono" id="forward-1y">{{ market_snapshot.forward_rate_summary.one_year_pct|pct }}</span>
+            </div>
+          </div>
+
+          <div class="curve-shell">
+            <div id="forward-rate-chart-wrap">
+              <svg viewBox="0 0 {{ forward_rate_chart.width }} {{ forward_rate_chart.height }}" role="img" aria-labelledby="forwardRateTitle">
+                <title id="forwardRateTitle">Daily one-day forward SOFR chart</title>
+                {% for tick in forward_rate_chart.y_ticks %}
+                  <line x1="36" y1="{{ tick.y }}" x2="{{ forward_rate_chart.width - 18 }}" y2="{{ tick.y }}" stroke="rgba(19,33,48,0.08)" stroke-dasharray="3 4" />
+                  <text x="4" y="{{ tick.y + 4 }}" font-size="10" fill="#607181">{{ "%.2f"|format(tick.value) }}</text>
+                {% endfor %}
+                <line x1="36" y1="{{ forward_rate_chart.height - 34 }}" x2="{{ forward_rate_chart.width - 18 }}" y2="{{ forward_rate_chart.height - 34 }}" stroke="rgba(19,33,48,0.10)" />
+                <polygon points="{{ forward_rate_chart.area }}" fill="rgba(11,116,99,0.12)"></polygon>
+                <polyline points="{{ forward_rate_chart.polyline }}" fill="none" stroke="#0b7463" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></polyline>
+                {% for marker in forward_rate_chart.markers %}
+                  <circle cx="{{ marker.x }}" cy="{{ marker.y }}" r="3.6" fill="#c0683a" stroke="#fff8f0" stroke-width="1.6"></circle>
+                {% endfor %}
+                {% for tick in forward_rate_chart.x_ticks %}
+                  <text x="{{ tick.x }}" y="{{ forward_rate_chart.height - 10 }}" text-anchor="middle" font-size="10" fill="#607181">{{ tick.label }}</text>
+                {% endfor %}
+              </svg>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -376,30 +437,38 @@
         }
       }
 
-      function renderCurveChart(chart) {
-        const wrap = document.getElementById("curve-chart-wrap");
+      function renderLineChart(targetId, chart, ariaLabel) {
+        const wrap = document.getElementById(targetId);
+        if (!chart || !chart.width) {
+          wrap.innerHTML = "";
+          return;
+        }
         wrap.innerHTML = `
-          <svg viewBox="0 0 ${chart.width} ${chart.height}" role="img" aria-label="SOFR curve quote chart">
+          <svg viewBox="0 0 ${chart.width} ${chart.height}" role="img" aria-label="${ariaLabel}">
             ${chart.y_ticks.map((tick) => `
-              <line x1="32" y1="${tick.y}" x2="${chart.width - 18}" y2="${tick.y}" stroke="rgba(19,33,48,0.08)" stroke-dasharray="3 4" />
+              <line x1="36" y1="${tick.y}" x2="${chart.width - 18}" y2="${tick.y}" stroke="rgba(19,33,48,0.08)" stroke-dasharray="3 4" />
               <text x="4" y="${tick.y + 4}" font-size="10" fill="#607181">${tick.value.toFixed(2)}</text>
             `).join("")}
+            <line x1="36" y1="${chart.height - 34}" x2="${chart.width - 18}" y2="${chart.height - 34}" stroke="rgba(19,33,48,0.10)" />
             <polygon points="${chart.area}" fill="rgba(11,116,99,0.12)"></polygon>
             <polyline points="${chart.polyline}" fill="none" stroke="#0b7463" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></polyline>
             ${chart.markers.map((marker) => `
-              <circle cx="${marker.x}" cy="${marker.y}" r="4.2" fill="#c0683a" stroke="#fff8f0" stroke-width="1.8"></circle>
-              <text x="${marker.x}" y="${chart.height - 10}" text-anchor="middle" font-size="11" fill="#607181">${marker.label}</text>
+              <circle cx="${marker.x}" cy="${marker.y}" r="3.8" fill="#c0683a" stroke="#fff8f0" stroke-width="1.6"></circle>
+            `).join("")}
+            ${chart.x_ticks.map((tick) => `
+              <text x="${tick.x}" y="${chart.height - 10}" text-anchor="middle" font-size="10" fill="#607181">${tick.label}</text>
             `).join("")}
           </svg>
         `;
       }
 
-      function renderCurveLegend(curveRows) {
-        const legend = document.getElementById("curve-legend");
-        legend.innerHTML = curveRows.map((row) => `
+      function renderZeroRateLegend(rows) {
+        const legend = document.getElementById("zero-rate-legend");
+        legend.innerHTML = rows.map((row) => `
           <div class="curve-legend-item">
             <span class="tenor">${row.label}</span>
-            <span class="quote mono">${pct(row.quote)}</span>
+            <span class="quote mono">${pct(row.rate_pct)}</span>
+            <span class="curve-legend-meta mono">${row.short_date}</span>
           </div>
         `).join("");
       }
@@ -457,10 +526,14 @@
       }
 
       function renderMarketSnapshot(snapshot) {
-        document.getElementById("curve-average").textContent = pct(snapshot.curve_average_pct);
-        document.getElementById("curve-slope").innerHTML = signedBpMarkup(snapshot.curve_steepness_bp);
+        document.getElementById("zero-rate-slope").innerHTML = signedBpMarkup(snapshot.zero_rate_steepness_bp);
         document.getElementById("curve-atm-matrix").textContent = `${Number(snapshot.atm_5y5y_bp).toFixed(1)} bp`;
-        document.getElementById("curve-callable-vol").textContent = `${Number(snapshot.callable_normal_vol_bp).toFixed(1)} bp`;
+        document.getElementById("curve-diag-strip").textContent = `${Number(snapshot.bermudan_calibration_helper_count)} pillars`;
+        document.getElementById("curve-gsr-seed").textContent = `${Number(snapshot.callable_normal_vol_bp).toFixed(1)} bp`;
+        document.getElementById("forward-start").textContent = pct(snapshot.forward_rate_summary.start_pct);
+        document.getElementById("forward-3m").textContent = pct(snapshot.forward_rate_summary.three_month_pct);
+        document.getElementById("forward-6m").textContent = pct(snapshot.forward_rate_summary.six_month_pct);
+        document.getElementById("forward-1y").textContent = pct(snapshot.forward_rate_summary.one_year_pct);
       }
 
       function renderPricingError(message) {
@@ -479,8 +552,9 @@
         renderCalibration(payload.calibration_rows);
         renderBermudanGrid(payload.bermudan_grid_rows);
         renderMarketSnapshot(payload.market_snapshot);
-        renderCurveChart(payload.curve_chart);
-        renderCurveLegend(payload.market_snapshot.curve_rows);
+        renderLineChart("zero-rate-chart-wrap", payload.zero_rate_chart, "Zero rate chart");
+        renderLineChart("forward-rate-chart-wrap", payload.forward_rate_chart, "Daily one-day forward SOFR chart");
+        renderZeroRateLegend(payload.market_snapshot.zero_rate_rows);
         applyCurveInputs(payload.curve_inputs, payload.market_snapshot.callable_normal_vol_bp);
         liveLastUpdate.textContent = payload.last_update_label;
       }

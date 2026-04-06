@@ -1,0 +1,402 @@
+{% extends "base.html" %}
+
+{% block title %}QuantLib Data Model{% endblock %}
+
+{% block content %}
+  <section class="hero">
+    <div>
+      <span class="section-kicker">QuantLib Data Model</span>
+      <h1>Actual object graph used by this workstation.</h1>
+      <p>
+        This page shows the live QuantLib structures built by the app, their dependencies, the constructor
+        signatures used in code, and the enum values that shape date generation, calendars, schedules, and
+        pricing engines. It is intentionally explicit so the educational view and the implementation stay aligned.
+      </p>
+    </div>
+    <div class="hero-meta">
+      <a class="btn btn-secondary" href="{{ dashboard_url }}">Back to dashboard</a>
+      <a class="btn btn-secondary" href="{{ curve_debug_csv_url }}">Download debug CSV</a>
+      <div class="pill mono-pill">Curve reference {{ curve_reference_date }}</div>
+    </div>
+  </section>
+
+  <p class="table-note mono">Repo copy: {{ curve_debug_csv_repo_path }}</p>
+
+  <section class="panel panel-compact">
+    <div class="panel-inner">
+      <div class="panel-header tight-header">
+        <div>
+          <span class="section-kicker">Overview</span>
+          <h2>Current build footprint</h2>
+          <p>The cards below summarize the object families and outputs active in the current session state.</p>
+        </div>
+      </div>
+      <div class="summary-strip">
+        {% for card in overview_cards %}
+          <div class="summary-card">
+            <span class="label">{{ card.label }}</span>
+            <strong>{{ card.value }}</strong>
+            <span class="summary-sub">{{ card.detail }}</span>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+
+  <div class="grid">
+    <section class="panel panel-compact">
+      <div class="panel-inner">
+        <div class="panel-header tight-header">
+          <div>
+            <span class="section-kicker">Dependency Flow</span>
+            <h2>Object creation sequence</h2>
+            <p>This is the order in which the app builds market context, instruments, and pricing engines.</p>
+          </div>
+        </div>
+        <div class="flow-grid">
+          {% for item in object_flow %}
+            <div class="flow-card">
+              <div class="btn-row" style="align-items: center;">
+                <span class="flow-step">{{ item.step }}</span>
+                <strong>{{ item.title }}</strong>
+              </div>
+              <div class="summary-list">
+                <div class="summary-list-item">
+                  <span>Factory</span>
+                  <strong class="mono">{{ item.function }}</strong>
+                </div>
+                <div class="summary-list-item">
+                  <span>Depends on</span>
+                  <strong>{{ item.depends_on }}</strong>
+                </div>
+                <div class="summary-list-item">
+                  <span>Produces</span>
+                  <strong>{{ item.produces }}</strong>
+                </div>
+              </div>
+              <p>{{ item.description }}</p>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+
+    <section class="panel panel-compact">
+      <div class="panel-inner">
+        <div class="panel-header tight-header">
+          <div>
+            <span class="section-kicker">State Schema</span>
+            <h2>Application state that feeds QuantLib</h2>
+            <p>The Flask session stores market inputs and trade terms. These values are normalized before QuantLib objects are created.</p>
+          </div>
+        </div>
+        <div class="table-grid">
+          {% for section in state_sections %}
+            <div class="table-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th colspan="4">{{ section.title }}</th>
+                  </tr>
+                  <tr>
+                    <th>Field</th>
+                    <th>Type</th>
+                    <th>Current value</th>
+                    <th>Used by</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in section.rows %}
+                    <tr>
+                      <td class="mono">{{ row.field }}</td>
+                      <td>{{ row.type }}</td>
+                      <td>{{ row.value }}</td>
+                      <td>{{ row.used_by }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+
+    <section class="panel panel-compact">
+      <div class="panel-inner">
+        <div class="panel-header tight-header">
+          <div>
+            <span class="section-kicker">Live Market Structures</span>
+            <h2>Quotes, curve nodes, forward strip, and vol matrix</h2>
+            <p>These tables expose the current live inputs and the derived QuantLib curve outputs used on the dashboard.</p>
+          </div>
+        </div>
+        <div class="table-grid">
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th colspan="2">SOFR Input Quotes</th>
+                </tr>
+                <tr>
+                  <th>Tenor</th>
+                  <th class="numeric">Quote (%)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in curve_rows %}
+                  <tr>
+                    <td><strong>{{ row.tenor }}</strong></td>
+                    <td class="numeric mono">{{ row.quote_pct|pct }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th colspan="5">Curve Nodes From `ql.PiecewiseLogCubicDiscount`</th>
+                </tr>
+                <tr>
+                  <th>Node</th>
+                  <th>Tenor</th>
+                  <th>Date</th>
+                  <th class="numeric">Zero (%)</th>
+                  <th class="numeric">DF</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in curve_node_rows %}
+                  <tr>
+                    <td>{{ row.node }}</td>
+                    <td><strong>{{ row.tenor }}</strong></td>
+                    <td class="mono">{{ row.date_iso }}</td>
+                    <td class="numeric mono">{{ row.zero_rate_pct|pct }}</td>
+                    <td class="numeric mono">{{ "%.6f"|format(row.discount_factor) }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th colspan="3">Daily One-Day Forward SOFR Checkpoints</th>
+                </tr>
+                <tr>
+                  <th>Point</th>
+                  <th>Date</th>
+                  <th class="numeric">Forward (%)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in forward_summary_rows %}
+                  <tr>
+                    <td><strong>{{ row.label }}</strong></td>
+                    <td class="mono">{{ row.date }}</td>
+                    <td class="numeric mono">{{ row.rate_pct|pct }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th colspan="5">Bermudan Diagonal Calibration Strip</th>
+                </tr>
+                <tr>
+                  <th>Pillar</th>
+                  <th>Exercise</th>
+                  <th>Maturity</th>
+                  <th class="numeric">Market vol (bp)</th>
+                  <th class="numeric">Sigma seg (bp)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in bermudan_calibration_rows %}
+                  <tr>
+                    <td><strong>{{ row.label }}</strong></td>
+                    <td class="mono">{{ row.exercise_date_iso }}</td>
+                    <td class="mono">{{ row.maturity_date_iso }}</td>
+                    <td class="numeric mono">{{ "%.1f"|format(row.market_normal_vol_bp) }}</td>
+                    <td class="numeric mono">{{ "%.2f"|format(row.segment_sigma_bp) }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="table-scroll">
+            <table class="matrix-table">
+              <thead>
+                <tr>
+                  <th>Expiry \ Tenor</th>
+                  {% for header in swaption_matrix_headers %}
+                    <th class="numeric">{{ header }}</th>
+                  {% endfor %}
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in swaption_matrix_rows %}
+                  <tr>
+                    <th>{{ row.expiry_label }}</th>
+                    {% for value in row["values"] %}
+                      <td class="numeric mono">{{ "%.1f"|format(value) }}</td>
+                    {% endfor %}
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel panel-compact">
+      <div class="panel-inner">
+        <div class="panel-header tight-header">
+          <div>
+            <span class="section-kicker">QuantLib Components</span>
+            <h2>Constructor signatures and actual values</h2>
+            <p>The cards below show the full structure used in code, not only the small subset of economic fields exposed in the UI.</p>
+          </div>
+        </div>
+        <div class="info-grid">
+          {% for card in component_cards %}
+            <div class="detail-card">
+              <span class="section-kicker">{{ card.family }}</span>
+              <h3>{{ card.title }}</h3>
+              <p>{{ card.purpose }}</p>
+              <div class="mono-block">{{ card.signature }}</div>
+              <div class="summary-list">
+                <div class="summary-list-item">
+                  <span>Factory</span>
+                  <strong class="mono">{{ card.factory }}</strong>
+                </div>
+              </div>
+              <div class="badge-row">
+                {% for dependency in card.dependencies %}
+                  <span class="badge">{{ dependency }}</span>
+                {% endfor %}
+              </div>
+              <div class="table-scroll" style="margin-top: 10px;">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Field</th>
+                      <th>Current value</th>
+                      <th>Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for field in card.fields %}
+                      <tr>
+                        <td class="mono">{{ field.name }}</td>
+                        <td>{{ field.value }}</td>
+                        <td>{{ field.notes }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+              {% if card.table %}
+                <div class="table-scroll" style="margin-top: 10px;">
+                  <table>
+                    <thead>
+                      <tr>
+                        {% for header in card.table.headers %}
+                          <th>{{ header }}</th>
+                        {% endfor %}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for row in card.table.rows %}
+                        <tr>
+                          <td>{{ row.c1 }}</td>
+                          <td>{{ row.c2 }}</td>
+                          <td>{{ row.c3 }}</td>
+                          {% if row.c4 is defined %}<td>{{ row.c4 }}</td>{% endif %}
+                          {% if row.c5 is defined %}<td>{{ row.c5 }}</td>{% endif %}
+                          {% if row.c6 is defined %}<td>{{ row.c6 }}</td>{% endif %}
+                        </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              {% endif %}
+              {% if card.enums %}
+                <div class="table-scroll" style="margin-top: 10px;">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Enum</th>
+                        <th class="numeric">Value</th>
+                        <th>Notes</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for row in card.enums %}
+                        <tr>
+                          <td class="mono">{{ row.label }}</td>
+                          <td class="numeric mono">{{ row.value }}</td>
+                          <td>{{ row.notes }}</td>
+                        </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+
+    <section class="panel panel-compact">
+      <div class="panel-inner">
+        <div class="panel-header tight-header">
+          <div>
+            <span class="section-kicker">Enums</span>
+            <h2>Enumeration values used by the app</h2>
+            <p>These are the concrete enum members used in calendars, schedules, swap typing, and rate extraction.</p>
+          </div>
+        </div>
+        <div class="info-grid">
+          {% for section in enum_sections %}
+            <div class="detail-card">
+              <h3>{{ section.title }}</h3>
+              <div class="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Enum</th>
+                      <th class="numeric">Value</th>
+                      <th>Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for row in section.rows %}
+                      <tr>
+                        <td class="mono">{{ row.label }}</td>
+                        <td class="numeric mono">{{ row.value }}</td>
+                        <td>{{ row.notes }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+  </div>
+{% endblock %}

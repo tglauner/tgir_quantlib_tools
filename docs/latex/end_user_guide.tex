@@ -1,0 +1,136 @@
+\documentclass[11pt]{article}
+\input{shared/tgir-article-preamble}
+
+\title{End User Guide\\\large \product}
+\author{TG Investments and Research}
+\date{\docdate}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+\section{Purpose}
+This guide is for day-to-day users of the workstation. It explains how to log in, navigate the dashboard, edit trades, read the analytics, and export useful outputs without needing to read the Python code.
+
+\section{What The Application Does}
+The application is a protected Flask workbench for a compact four-trade QuantLib portfolio:
+\begin{itemize}[leftmargin=1.5em]
+    \item a spot-starting SOFR swap,
+    \item a European swaption priced from an editable ATM normal-volatility matrix,
+    \item a Bermudan swaption priced with a calibrated Gaussian short-rate model, and
+    \item an S\&P 500 equity cliquet with reset-strip analytics.
+\end{itemize}
+
+The main screen is \code{/dashboard}. The technical model and research page is \code{/quantlib-data-model}. Each trade has a dedicated editor at \code{/trade/<trade\_type>}.
+
+\section{Getting Started}
+\subsection{Login}
+\begin{enumerate}[leftmargin=1.5em]
+    \item Start the application with \code{./.venv/bin/python app.py}.
+    \item Open \code{http://127.0.0.1:5050}.
+    \item Enter the username and password from the local \code{.env} file.
+    \item After successful login, the app redirects to \code{/dashboard}.
+\end{enumerate}
+
+\subsection{Session Model}
+The workstation stores market inputs, the valuation date, and trade terms in the Flask session. Changes are immediate after pressing \emph{Apply} or \emph{Save trade}. A reset button restores the demo defaults loaded from the JSON files in \path{data/}.
+
+\section{Dashboard Tour}
+\subsection{Portfolio Marks}
+The top blotter shows the mark-to-market and NPV of all five trades. The blotter is the fastest way to confirm whether a market move or trade edit changed the portfolio in the expected direction. The second Bermudan is the workbook benchmark deal used for QL spreadsheet comparison.
+
+\subsection{Rates Panels}
+The dashboard contains:
+\begin{itemize}[leftmargin=1.5em]
+    \item SOFR input quote fields for the workbook strip from \code{1D} through \code{30Y},
+    \item a valuation-date field that anchors all pricing and schedule generation,
+    \item a zero-rate chart built from QuantLib curve node dates using continuous-compounded spot rates on an Actual/365 basis,
+    \item a ten-year daily one-day forward SOFR chart,
+    \item a full workbook-based ATM swaption normal-volatility matrix on the exact workbook axes, and
+    \item a Bermudan pricing grid by non-call period and final maturity.
+\end{itemize}
+
+\subsection{SPX Cliquet Panel}
+The equity panel controls the SPX trade with three market inputs:
+\begin{itemize}[leftmargin=1.5em]
+    \item spot index level,
+    \item flat dividend yield, and
+    \item flat Black volatility.
+\end{itemize}
+These inputs only affect the cliquet trade. The real-time button does not perturb them.
+
+\section{Trade Editors}
+\subsection{Swap}
+Use the swap editor to set fixed-side direction, notional, fixed coupon, maturity, payment frequency, and reset frequency. The floating leg always references daily compounded SOFR over the selected reset periods.
+
+\subsection{European Swaption}
+The European swaption editor controls direction, notional, strike, expiry, underlying swap tenor, payment frequency, and reset frequency. The trade reads exactly one volatility cell from the dashboard matrix.
+
+\subsection{Bermudan Swaption}
+The Bermudan editor controls direction, notional, strike, first exercise date, fixed final maturity, payment frequency, and reset frequency. Exercise opportunities are generated on the payment schedule from first exercise up to the period before final maturity. The pricing engine calibrates a time-dependent Gaussian short-rate sigma term structure to the feasible diagonal of the matrix before pricing, while keeping the user-specified Hull-White mean reversion fixed. A \code{5Y NC 2Y} trade therefore keeps the same final maturity date and steps through the remaining \code{3Y}, \code{2Y}, and \code{1Y} swaps as the annual exercise dates arrive.
+
+\subsection{Equity Cliquet}
+The cliquet editor controls:
+\begin{itemize}[leftmargin=1.5em]
+    \item option type,
+    \item quantity in SPX units,
+    \item moneyness in percent,
+    \item maturity in months, and
+    \item reset frequency in months.
+\end{itemize}
+The page also shows:
+\begin{itemize}[leftmargin=1.5em]
+    \item analytic Greeks,
+    \item a reset-by-reset forward-start decomposition,
+    \item a deterministic spot-volatility scenario matrix, and
+    \item a Monte Carlo payoff distribution summary.
+\end{itemize}
+
+\section{Typical User Workflow}
+\begin{enumerate}[leftmargin=1.5em]
+    \item Adjust SOFR curve quotes if the rates market changed.
+    \item Update the ATM normal-volatility matrix if swaption market assumptions changed.
+    \item Update the SPX spot, dividend yield, or volatility if the equity trade needs refresh.
+    \item Open a trade editor and change contractual terms if you want to reshape an instrument.
+    \item Review the blotter, zero-rate panel, forward strip, Bermudan grid, and cliquet analytics.
+    \item Download \code{/curve-debug.csv} if you need the curve exported for spreadsheet or audit use.
+\end{enumerate}
+
+\section{Outputs And Exports}
+\subsection{Curve Debug CSV}
+The route \code{/curve-debug.csv} downloads a daily curve file containing:
+\begin{itemize}[leftmargin=1.5em]
+    \item date,
+    \item SOFR quote points where available,
+    \item zero-rate points where available, and
+    \item one-day forward rates where available.
+\end{itemize}
+
+\subsection{Research And Model View}
+The page \code{/quantlib-data-model} is the authoritative in-app reference for:
+\begin{itemize}[leftmargin=1.5em]
+    \item constructor signatures,
+    \item enum values,
+    \item current normalized state,
+    \item object-creation order, and
+    \item swaption and cliquet research-paper lists.
+\end{itemize}
+
+\section{Troubleshooting}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{0.28\textwidth}X}
+\toprule
+Symptom & What to check \\
+\midrule
+Login fails & Confirm \code{APP\_LOGIN\_USERNAME} and \code{APP\_LOGIN\_PASSWORD} in \code{.env}. \\
+Dashboard shows an error banner & Revert the last manual input change and confirm rates, volatilities, and tenors are numeric. \\
+Swaption risk is slow & Bermudan bump-and-reprice analytics rebuild and recalibrate the Gaussian short-rate model many times. This is expected. \\
+Cliquet page is slow & The page calculates Greeks, reset rows, scenarios, and a Monte Carlo distribution every time it renders. \\
+Curve file missing & Confirm the repo \code{debug/} directory is writable. \\
+\bottomrule
+\end{tabularx}
+
+\section{Support Boundaries}
+This application is a controlled sandbox, not a production booking system. It does not pull live market data, persist trades to a database, or manage users beyond the single login defined in the environment. For model or deployment questions, use the quant, developer, and IT guides in \path{docs/latex/}.
+
+\end{document}

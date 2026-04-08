@@ -1,0 +1,109 @@
+\documentclass[11pt]{article}
+\input{shared/tgir-article-preamble}
+
+\title{IT Operations Guide\\\large \product}
+\author{TG Investments and Research}
+\date{\docdate}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+\section{Purpose}
+This guide is for IT and operations staff responsible for runtime support, access control, incident response, backups, and production hygiene.
+
+\section{Runtime Summary}
+The application is a single Flask service with no database. Operational state is limited to:
+\begin{itemize}[leftmargin=1.5em]
+    \item the deployed code,
+    \item the Python virtual environment,
+    \item the local \code{.env} file,
+    \item logs and service definitions,
+    \item the generated debug CSV under the app's debug directory, and
+    \item standard operating-system service state.
+\end{itemize}
+
+\section{Minimum Environment Requirements}
+\begin{itemize}[leftmargin=1.5em]
+    \item Linux host or local macOS workstation.
+    \item Python 3 with the ability to create \code{.venv/}.
+    \item QuantLib Python package installation support.
+    \item Apache reverse proxy and a local WSGI service for production.
+    \item Read-write access to the debug output path.
+\end{itemize}
+
+\section{Secrets And Configuration}
+\subsection{Required Variables}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{0.32\textwidth}X}
+\toprule
+Variable & Purpose \\
+\midrule
+\code{FLASK\_SECRET\_KEY} & Signs Flask sessions. \\
+\code{APP\_LOGIN\_USERNAME} & Single application login username. \\
+\code{APP\_LOGIN\_PASSWORD} or \code{APP\_LOGIN\_PASSWORD\_HASH} & Login credential. \\
+\code{PORT} or \code{FLASK\_RUN\_PORT} & Local port override if required. \\
+\bottomrule
+\end{tabularx}
+
+\subsection{Storage Rules}
+Do not commit secrets. Store production secrets in a server-side \code{.env} file outside Git-controlled directories, and use least-privilege filesystem permissions.
+
+\section{Operational Tasks}
+\subsection{Start And Stop}
+Local development uses \code{./.venv/bin/python app.py}. Production should use a systemd-managed WSGI service rather than the Flask development server.
+
+\subsection{Health Check}
+Use \code{/health} as the first smoke check after restart or deployment. It should return a JSON document with \code{"ok": true}.
+
+\subsection{Logs}
+Primary production logs should come from:
+\begin{itemize}[leftmargin=1.5em]
+    \item systemd journal for the WSGI process,
+    \item Apache access and error logs, and
+    \item CI/CD workflow logs for deployment history.
+\end{itemize}
+
+\section{Security Checklist}
+\begin{itemize}[leftmargin=1.5em]
+    \item Keep \code{FLASK\_SECRET\_KEY} strong and unique.
+    \item Run behind HTTPS in production.
+    \item Restrict shell access to the droplet.
+    \item Patch the host OS and Apache packages regularly.
+    \item Use a dedicated service account when practical.
+    \item Keep the \code{.env} file outside world-readable paths.
+\end{itemize}
+
+\section{Backup And Recovery}
+There is no database to back up. Recovery focuses on:
+\begin{itemize}[leftmargin=1.5em]
+    \item code releases,
+    \item the production \code{.env} file,
+    \item Apache and systemd unit templates, and
+    \item any shared debug or log directories kept outside the current release.
+\end{itemize}
+The deployment guide uses a \code{current} symlink plus timestamped release directories so rollback can be a symlink change followed by a service restart.
+
+\section{Troubleshooting}
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{0.28\textwidth}X}
+\toprule
+Symptom & Operational response \\
+\midrule
+Service will not start & Confirm Python package install, \code{.env} presence, and systemd working directory. \\
+\code{/health} fails & Check local bind port, WSGI service, and Apache proxy settings. \\
+Login fails in production & Verify the deployed \code{.env} credential values and file permissions. \\
+Disk growth & Clear old release directories, old logs, and generated artifacts according to retention policy. \\
+\bottomrule
+\end{tabularx}
+
+\section{Reference Files}
+Operations should know these files:
+\begin{itemize}[leftmargin=1.5em]
+    \item \path{wsgi.py},
+    \item \path{requirements-production.txt},
+    \item \path{deploy/systemd/tgir-quantlib-tools.service.template},
+    \item \path{deploy/apache/tgir-quantlib-tools.conf.template}, and
+    \item \path{.github/workflows/deploy_digitalocean.yml}.
+\end{itemize}
+
+\end{document}

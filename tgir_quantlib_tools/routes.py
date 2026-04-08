@@ -5,7 +5,7 @@ from pathlib import Path
 import QuantLib as ql
 from flask import Blueprint, Response, abort, current_app, flash, jsonify, redirect, render_template, request, url_for
 
-from portfolio import build_sofr_curve, default_portfolio_state, trade_point_sensitivities, write_curve_debug_csv
+from portfolio import build_sofr_curve, default_portfolio_state, trade_point_sensitivities, valuation_date, write_curve_debug_csv
 
 from .auth import (
     credentials_are_valid,
@@ -33,7 +33,7 @@ workbench_bp = Blueprint("workbench", __name__)
 
 
 def _persist_curve_debug_csv(state) -> Path:
-    today = ql.Date.todaysDate()
+    today = valuation_date(state)
     ql.Settings.instance().evaluationDate = today
     curve = build_sofr_curve(today, state["market"]["curve_quotes_pct"])
     return write_curve_debug_csv(
@@ -106,7 +106,7 @@ def quantlib_data_model():
 def curve_debug_download():
     state = get_portfolio_state()
     output_path = _persist_curve_debug_csv(state)
-    today = ql.Date.todaysDate()
+    today = valuation_date(state)
     filename = f"curve_debug_{today.ISO()}.csv"
     return Response(
         output_path.read_text(encoding="utf-8"),

@@ -1,0 +1,22 @@
+<VirtualHost *:80>
+    ServerName quant.example.com
+    Redirect permanent / https://quant.example.com/
+</VirtualHost>
+
+<IfModule mod_ssl.c>
+<VirtualHost *:443>
+    ServerName quant.example.com
+
+    SSLEngine on
+    SSLCertificateFile /etc/letsencrypt/live/quant.example.com/fullchain.pem
+    SSLCertificateKeyFile /etc/letsencrypt/live/quant.example.com/privkey.pem
+
+    ProxyPreserveHost On
+    RequestHeader set X-Forwarded-Proto "https"
+    ProxyPass / http://127.0.0.1:8008/
+    ProxyPassReverse / http://127.0.0.1:8008/
+
+    ErrorLog ${APACHE_LOG_DIR}/tgir-quantlib-tools-error.log
+    CustomLog ${APACHE_LOG_DIR}/tgir-quantlib-tools-access.log combined
+</VirtualHost>
+</IfModule>

@@ -1,0 +1,94 @@
+name: Deploy To DigitalOcean
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: production
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Create virtual environment
+        run: python -m venv .venv
+
+      - name: Install dependencies
+        run: |
+          .venv/bin/python -m pip install --upgrade pip
+          .venv/bin/python -m pip install -r requirements.txt
+
+      - name: Run release-gate tests
+        run: |
+          .venv/bin/python -m unittest tests.test_cliquet
+          .venv/bin/python -m unittest tests.test_sofr_curve
+          .venv/bin/python -m unittest tests.test_smoke
+
+      - name: Package release archive
+        run: |
+          tar \
+            --exclude='.git' \
+            --exclude='.venv' \
+            --exclude='docs/latex/*.pdf' \
+            -czf tgir_quantlib_tools-release.tgz .
+
+      - name: Configure SSH
+        env:
+          DO_HOST: ${{ secrets.DO_HOST }}
+          DO_SSH_KEY: ${{ secrets.DO_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$DO_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$DO_HOST" >> ~/.ssh/known_hosts
+
+      - name: Upload release archive
+        env:
+          DO_HOST: ${{ secrets.DO_HOST }}
+          DO_USER: ${{ secrets.DO_USER }}
+        run: |
+          scp tgir_quantlib_tools-release.tgz "$DO_USER@$DO_HOST:/tmp/tgir_quantlib_tools-release.tgz"
+
+      - name: Install release on droplet
+        env:
+          DO_APP_ROOT: ${{ secrets.DO_APP_ROOT }}
+          DO_HOST: ${{ secrets.DO_HOST }}
+          DO_USER: ${{ secrets.DO_USER }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          ssh "$DO_USER@$DO_HOST" "
+            set -euo pipefail
+            APP_ROOT='${DO_APP_ROOT:-/opt/tgir_quantlib_tools}'
+            RELEASE_DIR=\"\$APP_ROOT/releases/$GITHUB_SHA\"
+            sudo mkdir -p \"\$APP_ROOT/releases\" \"\$APP_ROOT/shared/debug\"
+            sudo rm -rf \"\$RELEASE_DIR\"
+            sudo mkdir -p \"\$RELEASE_DIR\"
+            sudo tar -xzf /tmp/tgir_quantlib_tools-release.tgz -C \"\$RELEASE_DIR\"
+            sudo python3 -m venv \"\$RELEASE_DIR/.venv\"
+            sudo \"\$RELEASE_DIR/.venv/bin/python\" -m pip install --upgrade pip
+            sudo \"\$RELEASE_DIR/.venv/bin/python\" -m pip install -r \"\$RELEASE_DIR/requirements-production.txt\"
+            sudo ln -sfn \"\$APP_ROOT/shared/.env\" \"\$RELEASE_DIR/.env\"
+            sudo rm -rf \"\$RELEASE_DIR/debug\"
+            sudo ln -sfn \"\$APP_ROOT/shared/debug\" \"\$RELEASE_DIR/debug\"
+            sudo ln -sfn \"\$RELEASE_DIR\" \"\$APP_ROOT/current\"
+            sudo systemctl restart tgir-quantlib-tools
+            curl -fsS http://127.0.0.1:8008/health
+          "
+
+      - name: Run public health check
+        env:
+          DO_HEALTHCHECK_URL: ${{ secrets.DO_HEALTHCHECK_URL }}
+        run: curl -fsS "$DO_HEALTHCHECK_URL"

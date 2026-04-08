@@ -6,25 +6,26 @@ import pandas as pd
 from portfolio import (
     SOFR_CURVE_TENOR_LABELS,
     build_sofr_curve,
+    default_portfolio_state,
     reprice_sofr_calibration_swaps,
+    valuation_date,
 )
 
 
-SOFR_QUOTES = [4.85, 4.98, 5.04, 5.09, 5.17, 5.22, 5.28, 5.31]
-
-
 def main() -> None:
-    today = ql.Date.todaysDate()
+    state = default_portfolio_state()
+    today = valuation_date(state)
     ql.Settings.instance().evaluationDate = today
-    sofr_curve = build_sofr_curve(today, SOFR_QUOTES)
+    sofr_quotes = state["market"]["curve_quotes_pct"]
+    sofr_curve = build_sofr_curve(today, sofr_quotes)
     sofr_handle = ql.YieldTermStructureHandle(sofr_curve)
 
     print("SOFR Discount Factors:")
     overnight_date = today + ql.Period(1, ql.Days)
     print(f"{SOFR_CURVE_TENOR_LABELS[0]}: {sofr_handle.discount(overnight_date):.6f}")
-    for years in [1, 2, 5, 7, 10, 12]:
-        curve_date = today + ql.Period(years, ql.Years)
-        print(f"{years}Y: {sofr_handle.discount(curve_date):.6f}")
+    for tenor_label in ["1M", "3M", "1Y", "5Y", "10Y", "30Y"]:
+        curve_date = today + ql.Period(tenor_label)
+        print(f"{tenor_label}: {sofr_handle.discount(curve_date):.6f}")
 
     dates = []
     discount_factors = []
@@ -36,7 +37,7 @@ def main() -> None:
     daily_curve = pd.DataFrame({"Date": dates, "Discount Factor": discount_factors})
     print(daily_curve.head())
     print("\nSOFR Calibration Swap Repricing:")
-    print(reprice_sofr_calibration_swaps(sofr_curve, SOFR_QUOTES).to_string(index=False))
+    print(reprice_sofr_calibration_swaps(sofr_curve, sofr_quotes).to_string(index=False))
 
 
 if __name__ == "__main__":

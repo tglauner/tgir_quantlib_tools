@@ -6,17 +6,22 @@ from flask import current_app, url_for
 from portfolio import (
     BERMUDAN_GSR_INTEGRATION_POINTS,
     BERMUDAN_GSR_STDDEVS,
+    SOFR_CURVE_POINT_SPECS,
     SOFR_CURVE_TENOR_LABELS,
-    SOFR_OIS_TENORS_YEARS,
-    SWAPTION_MATRIX_EXPIRY_YEARS,
-    SWAPTION_MATRIX_TENOR_YEARS,
+    SWAPTION_MATRIX_EXPIRY_LABELS,
+    SWAPTION_MATRIX_TENOR_LABELS,
     build_bermudan_gsr_model,
+    cliquet_analytics,
+    cliquet_reset_schedule,
     build_sofr_curve,
     curve_zero_rate_points,
     daily_one_day_forward_points,
+    frequency_label,
     lookup_swaption_normal_vol_bp,
     normalize_portfolio_state,
+    valuation_date,
 )
+from .research import CLIQUET_RESEARCH_SECTION, SWAPTION_RESEARCH_SECTIONS
 
 
 def _enum_member(label, enum_value, notes):
@@ -28,15 +33,16 @@ def _enum_member(label, enum_value, notes):
 
 
 def _swap_type_label(direction):
-    return "ql.VanillaSwap.Payer" if direction == "payer" else "ql.VanillaSwap.Receiver"
+    return "ql.OvernightIndexedSwap.Payer" if direction == "payer" else "ql.OvernightIndexedSwap.Receiver"
 
 
-def _schedule_summary(name, start, maturity):
+def _schedule_summary(name, start, maturity, payment_frequency_months, reset_frequency_months):
     return {
         "name": name,
         "start": start.ISO(),
         "maturity": maturity.ISO(),
-        "tenor": "ql.Period('1Y')",
+        "fixed_tenor": f"ql.Period({int(payment_frequency_months)}, ql.Months)",
+        "floating_tenor": f"ql.Period({int(reset_frequency_months)}, ql.Months)",
         "calendar": "ql.UnitedStates(ql.UnitedStates.Settlement)",
         "convention": "ql.ModifiedFollowing",
         "termination_convention": "ql.ModifiedFollowing",
@@ -64,7 +70,7 @@ def build_quantlib_model_context(portfolio_state=None):
     market = state["market"]
     trades = state["trades"]
 
-    today = ql.Date.todaysDate()
+    today = valuation_date(state)
     ql.Settings.instance().evaluationDate = today
     calendar = ql.UnitedStates(ql.UnitedStates.Settlement)
     curve = build_sofr_curve(today, market["curve_quotes_pct"])
@@ -75,8 +81,16 @@ def build_quantlib_model_context(portfolio_state=None):
         state,
         market_context=(state, today, calendar, curve, curve_handle),
     )
+    cliquet_model = cliquet_analytics(
+        state,
+        market_context=(state, today, calendar, curve, curve_handle),
+    )
     bermudan_calibration_rows = bermudan_model["calibration_rows"]
     gsr_sigma_rows = bermudan_model["sigma_rows"]
+    cliquet_reset_dates, cliquet_maturity = cliquet_reset_schedule(
+        trades["equity_cliquet"],
+        today,
+    )
 
     spot = calendar.advance(today, 2, ql.Days)
     live_swap_maturity = calendar.advance(spot, int(trades["swap"]["tenor_years"]), ql.Years)
@@ -94,14 +108,14 @@ def build_quantlib_model_context(portfolio_state=None):
         ql.Years,
     )
     bermudan_maturity = calendar.advance(
-        bermudan_first_exercise,
-        int(trades["bermudan_swaption"]["swap_tenor_years"]),
+        spot,
+        int(trades["bermudan_swaption"]["final_maturity_years"]),
         ql.Years,
     )
     bermudan_schedule = ql.Schedule(
         bermudan_first_exercise,
         bermudan_maturity,
-        ql.Period("1Y"),
+        ql.Period(int(trades["bermudan_swaption"]["payment_frequency_months"]), ql.Months),
         ql.UnitedStates(ql.UnitedStates.Settlement),
         ql.ModifiedFollowing,
         ql.ModifiedFollowing,
@@ -110,10 +124,24 @@ def build_quantlib_model_context(portfolio_state=None):
     )
     bermudan_exercise_dates = [
         calendar.advance(date, -1, ql.Days).ISO()
-        for date in list(bermudan_schedule)[:-1][: max(1, int(trades["bermudan_swaption"]["exercise_count"]))]
+        for date in list(bermudan_schedule)[:-1]
     ]
     if not bermudan_exercise_dates:
         bermudan_exercise_dates.append(calendar.advance(bermudan_first_exercise, -1, ql.Days).ISO())
+
+    cliquet_period_dates = list(cliquet_reset_dates) + [cliquet_maturity]
+    cliquet_period_labels = [
+        {
+            "start": start.ISO(),
+            "end": end.ISO(),
+            "year_fraction": row["year_fraction"],
+        }
+        for row, start, end in zip(
+            cliquet_model["period_rows"],
+            cliquet_period_dates[:-1],
+            cliquet_period_dates[1:],
+        )
+    ]
 
     curve_rows = [
         {
@@ -155,10 +183,10 @@ def build_quantlib_model_context(portfolio_state=None):
     ]
 
     swaption_matrix_rows = []
-    for expiry_index, expiry_years in enumerate(SWAPTION_MATRIX_EXPIRY_YEARS):
+    for expiry_index, expiry_label in enumerate(SWAPTION_MATRIX_EXPIRY_LABELS):
         swaption_matrix_rows.append(
             {
-                "expiry_label": f"{expiry_years}Y",
+                "expiry_label": expiry_label,
                 "values": market["swaption_vol_matrix_bp"][expiry_index],
             }
         )
@@ -168,9 +196,9 @@ def build_quantlib_model_context(portfolio_state=None):
             "step": "1",
             "title": "Evaluation context",
             "function": "_market_context / build_sofr_curve",
-            "depends_on": "system date",
+            "depends_on": "configured valuation date",
             "produces": "ql.Settings.instance().evaluationDate and ql.UnitedStates(Settlement)",
-            "description": "Sets the pricing date once per request and uses a settlement calendar for curve and schedule dates.",
+            "description": "Sets the pricing date once per request from the configured valuation date and uses a settlement calendar for curve and schedule dates.",
         },
         {
             "step": "2",
@@ -186,15 +214,15 @@ def build_quantlib_model_context(portfolio_state=None):
             "function": "build_sofr_curve",
             "depends_on": "helper strip, day count",
             "produces": "ql.PiecewiseLogCubicDiscount and ql.YieldTermStructureHandle",
-            "description": "Bootstraps the term structure used for discounting, forward extraction, swap pricing, and the Bermudan GSR calibration stack.",
+            "description": "Bootstraps the term structure used for discounting, forward extraction, swap pricing, and the Bermudan calibration stack.",
         },
         {
             "step": "4",
             "title": "Underlying instruments",
-            "function": "_make_vanilla_swap",
+            "function": "_make_ois_swap",
             "depends_on": "curve handle, schedules, trade terms",
-            "produces": "ql.VanillaSwap for the live swap and the swaption underlyings",
-            "description": "Uses one canonical swap constructor for the live swap and for both forward-starting swaption underlyings.",
+            "produces": "ql.OvernightIndexedSwap for the live swap and the swaption underlyings",
+            "description": "Uses one canonical overnight-indexed swap constructor for the live trade and for both forward-starting swaption underlyings.",
         },
         {
             "step": "5",
@@ -220,6 +248,14 @@ def build_quantlib_model_context(portfolio_state=None):
             "produces": "ql.MakeOIS repricing strip",
             "description": "Rebuilds quoted OIS instruments against the bootstrapped curve to confirm the helper calibration is near-par.",
         },
+        {
+            "step": "8",
+            "title": "Equity cliquet stack",
+            "function": "_create_equity_cliquet / cliquet_analytics",
+            "depends_on": "curve handle, SPX spot, dividend yield, flat vol, reset schedule",
+            "produces": "ql.BlackScholesMertonProcess, ql.CliquetOption, ql.AnalyticCliquetEngine",
+            "description": "Builds a forward-start SPX cliquet strip on top of the SOFR discount curve and decomposes it into reset-by-reset forward-start option analytics.",
+        },
     ]
 
     state_sections = [
@@ -228,21 +264,30 @@ def build_quantlib_model_context(portfolio_state=None):
             "rows": [
                 {
                     "field": "curve_quotes_pct",
-                    "type": "list[float] length 8",
+                    "type": f"list[float] length {len(SOFR_CURVE_TENOR_LABELS)}",
                     "value": ", ".join(f"{row['tenor']}={row['quote_pct']:.2f}%" for row in curve_rows),
                     "used_by": "build_sofr_curve",
                 },
                 {
-                    "field": "callable_normal_vol_bp",
+                    "field": "hw_mean_reversion",
                     "type": "float",
-                    "value": f"{market['callable_normal_vol_bp']:.1f} bp",
-                    "used_by": "build_bermudan_gsr_model -> initial sigma guess and tail segment",
+                    "value": f"{market['hw_mean_reversion']:.4f}",
+                    "used_by": "build_bermudan_gsr_model -> fixed mean-reversion input during calibration",
                 },
                 {
                     "field": "swaption_vol_matrix_bp",
-                    "type": "10x10 list[list[float]]",
+                    "type": f"{len(SWAPTION_MATRIX_EXPIRY_LABELS)}x{len(SWAPTION_MATRIX_TENOR_LABELS)} list[list[float]]",
                     "value": f"matrix[5Y][5Y]={lookup_swaption_normal_vol_bp(state, 5, 5):.1f} bp",
                     "used_by": "_create_european_swaption -> ql.BachelierSwaptionEngine",
+                },
+                {
+                    "field": "equity_spot / equity_dividend_yield_pct / equity_volatility_pct",
+                    "type": "float triplet",
+                    "value": (
+                        f"spot={market['equity_spot']:.2f}, q={market['equity_dividend_yield_pct']:.2f}%, "
+                        f"vol={market['equity_volatility_pct']:.2f}%"
+                    ),
+                    "used_by": "_create_equity_cliquet -> ql.BlackScholesMertonProcess",
                 },
             ],
         },
@@ -254,9 +299,11 @@ def build_quantlib_model_context(portfolio_state=None):
                     "type": "dict",
                     "value": (
                         f"direction={trades['swap']['direction']}, notional={trades['swap']['notional']:.0f}, "
-                        f"fixed_rate_pct={trades['swap']['fixed_rate_pct']:.2f}, tenor_years={trades['swap']['tenor_years']}"
+                        f"fixed_rate_pct={trades['swap']['fixed_rate_pct']:.2f}, tenor_years={trades['swap']['tenor_years']}, "
+                        f"payment_frequency_months={trades['swap']['payment_frequency_months']}, "
+                        f"reset_frequency_months={trades['swap']['reset_frequency_months']}"
                     ),
-                    "used_by": "_create_live_swap -> ql.VanillaSwap",
+                    "used_by": "_create_live_swap -> ql.OvernightIndexedSwap",
                 },
                 {
                     "field": "trades.european_swaption",
@@ -264,7 +311,9 @@ def build_quantlib_model_context(portfolio_state=None):
                     "value": (
                         f"direction={trades['european_swaption']['direction']}, notional={trades['european_swaption']['notional']:.0f}, "
                         f"strike_pct={trades['european_swaption']['strike_pct']:.2f}, expiry_years={trades['european_swaption']['expiry_years']}, "
-                        f"swap_tenor_years={trades['european_swaption']['swap_tenor_years']}"
+                        f"swap_tenor_years={trades['european_swaption']['swap_tenor_years']}, "
+                        f"payment_frequency_months={trades['european_swaption']['payment_frequency_months']}, "
+                        f"reset_frequency_months={trades['european_swaption']['reset_frequency_months']}"
                     ),
                     "used_by": "_create_european_swaption",
                 },
@@ -274,9 +323,21 @@ def build_quantlib_model_context(portfolio_state=None):
                     "value": (
                         f"direction={trades['bermudan_swaption']['direction']}, notional={trades['bermudan_swaption']['notional']:.0f}, "
                         f"strike_pct={trades['bermudan_swaption']['strike_pct']:.2f}, first_exercise_years={trades['bermudan_swaption']['first_exercise_years']}, "
-                        f"swap_tenor_years={trades['bermudan_swaption']['swap_tenor_years']}, exercise_count={trades['bermudan_swaption']['exercise_count']}"
+                        f"final_maturity_years={trades['bermudan_swaption']['final_maturity_years']}, "
+                        f"payment_frequency_months={trades['bermudan_swaption']['payment_frequency_months']}, "
+                        f"reset_frequency_months={trades['bermudan_swaption']['reset_frequency_months']}"
                     ),
                     "used_by": "_create_bermudan_swaption",
+                },
+                {
+                    "field": "trades.equity_cliquet",
+                    "type": "dict",
+                    "value": (
+                        f"option_type={trades['equity_cliquet']['option_type']}, quantity={trades['equity_cliquet']['quantity']:.2f}, "
+                        f"moneyness_pct={trades['equity_cliquet']['moneyness_pct']:.1f}, maturity_months={trades['equity_cliquet']['maturity_months']}, "
+                        f"reset_frequency_months={trades['equity_cliquet']['reset_frequency_months']}"
+                    ),
+                    "used_by": "_create_equity_cliquet",
                 },
             ],
         },
@@ -289,9 +350,9 @@ def build_quantlib_model_context(portfolio_state=None):
             factory="_market_context",
             signature="ql.Settings.instance().evaluationDate = today",
             purpose="Pins every curve build and pricing engine to the same valuation date.",
-            dependencies=["ql.Date.todaysDate()"],
+            dependencies=["state.valuation_date_iso"],
             fields=[
-                {"name": "today", "value": today.ISO(), "notes": "Current QuantLib evaluation date"},
+                {"name": "today", "value": today.ISO(), "notes": "Configured QuantLib evaluation date"},
             ],
             enums=[],
         ),
@@ -322,7 +383,7 @@ def build_quantlib_model_context(portfolio_state=None):
             family="Curve helper",
             factory="build_sofr_curve",
             signature="ql.OISRateHelper(settlementDays, tenor, fixedRate, overnightIndex)",
-            purpose="Supplies the seven OIS pillars used to bootstrap the rest of the curve.",
+            purpose="Supplies the term OIS pillars used to bootstrap the rest of the curve.",
             dependencies=["market.curve_quotes_pct[1:]", "ql.Sofr()"],
             fields=[
                 {"name": "settlementDays", "value": "2", "notes": "OIS helpers start from spot"},
@@ -332,14 +393,18 @@ def build_quantlib_model_context(portfolio_state=None):
                 "headers": ["Tenor", "Quote (%)", "Helper call"],
                 "rows": [
                     {
-                        "c1": f"{tenor_years}Y",
+                        "c1": label,
                         "c2": f"{market['curve_quotes_pct'][index + 1]:.2f}",
-                        "c3": f"ql.OISRateHelper(2, ql.Period({tenor_years}, ql.Years), quote, ql.Sofr())",
+                        "c3": f"ql.OISRateHelper(2, ql.Period('{label}'), quote, ql.Sofr())",
                     }
-                    for index, tenor_years in enumerate(SOFR_OIS_TENORS_YEARS)
+                    for index, (label, _period, _kind) in enumerate(SOFR_CURVE_POINT_SPECS[1:])
                 ],
             },
-            enums=[_enum_member("ql.Years", ql.Years, "Time unit for OIS tenors")],
+            enums=[
+                _enum_member("ql.Weeks", ql.Weeks, "Short-dated OIS tenor unit"),
+                _enum_member("ql.Months", ql.Months, "Monthly OIS tenor unit"),
+                _enum_member("ql.Years", ql.Years, "Long-dated OIS tenor unit"),
+            ],
         ),
         _component_card(
             title="ql.PiecewiseLogCubicDiscount",
@@ -350,12 +415,21 @@ def build_quantlib_model_context(portfolio_state=None):
             dependencies=["deposit helper", "OIS helper strip", "ql.Actual360()"],
             fields=[
                 {"name": "referenceDate", "value": today.ISO(), "notes": "Same as evaluation date"},
-                {"name": "helpers", "value": "8 helpers", "notes": "1 deposit helper plus 7 OIS helpers"},
+                {
+                    "name": "helpers",
+                    "value": f"{len(SOFR_CURVE_POINT_SPECS)} helpers",
+                    "notes": "1 deposit helper plus the workbook OIS strip",
+                },
                 {"name": "dayCounter", "value": "ql.Actual360()", "notes": "Interpolation metric"},
+                {
+                    "name": "reportedZeroRateConvention",
+                    "value": "Continuous / Actual365Fixed",
+                    "notes": "Displayed zero rates satisfy df(x) = exp(-z * x / 365) using actual calendar days x",
+                },
                 {"name": "handle", "value": "ql.YieldTermStructureHandle(curve)", "notes": "Shared downstream by swaps, swaptions, and model"},
             ],
             table={
-                "headers": ["Node", "Tenor", "Date", "Zero rate (%)", "Discount factor"],
+                "headers": ["Node", "Tenor", "Date", "Zero rate (% cc Act/365)", "Discount factor"],
                 "rows": [
                     {
                         "c1": row["node"],
@@ -371,7 +445,7 @@ def build_quantlib_model_context(portfolio_state=None):
         _component_card(
             title="ql.Schedule",
             family="Cashflow schedule",
-            factory="_make_vanilla_swap",
+            factory="_make_ois_swap",
             signature=(
                 "ql.Schedule(effectiveDate, terminationDate, tenor, calendar, convention, "
                 "terminationDateConvention, rule, endOfMonth)"
@@ -379,7 +453,16 @@ def build_quantlib_model_context(portfolio_state=None):
             purpose="Defines the fixed and floating leg coupon dates for the live swap and both forward underlyings.",
             dependencies=["calendar", "trade start date", "trade maturity date"],
             fields=[
-                {"name": "tenor", "value": "ql.Period('1Y')", "notes": "Annual fixed and floating schedule frequency in this sandbox"},
+                {
+                    "name": "fixedTenor",
+                    "value": f"ql.Period({trades['swap']['payment_frequency_months']}, ql.Months)",
+                    "notes": f"{frequency_label(trades['swap']['payment_frequency_months'])} fixed-leg payment schedule for the live swap",
+                },
+                {
+                    "name": "floatingTenor",
+                    "value": f"ql.Period({trades['swap']['reset_frequency_months']}, ql.Months)",
+                    "notes": f"{frequency_label(trades['swap']['reset_frequency_months'])} overnight coupon periods for the live swap",
+                },
                 {"name": "calendar", "value": "ql.UnitedStates(ql.UnitedStates.Settlement)", "notes": "Shared calendar for all schedules"},
                 {"name": "convention", "value": "ql.ModifiedFollowing", "notes": "Roll convention for start and coupon dates"},
                 {"name": "terminationDateConvention", "value": "ql.ModifiedFollowing", "notes": "Termination-date convention"},
@@ -393,12 +476,30 @@ def build_quantlib_model_context(portfolio_state=None):
                         "c1": schedule["name"],
                         "c2": schedule["start"],
                         "c3": schedule["maturity"],
-                        "c4": f"{schedule['tenor']}, {schedule['convention']}, {schedule['rule']}",
+                        "c4": f"fixed {schedule['fixed_tenor']} / float {schedule['floating_tenor']}, {schedule['convention']}, {schedule['rule']}",
                     }
                     for schedule in [
-                        _schedule_summary("Live swap", spot, live_swap_maturity),
-                        _schedule_summary("European underlying swap", european_exercise, european_maturity),
-                        _schedule_summary("Bermudan underlying swap", bermudan_first_exercise, bermudan_maturity),
+                        _schedule_summary(
+                            "Live swap",
+                            spot,
+                            live_swap_maturity,
+                            trades["swap"]["payment_frequency_months"],
+                            trades["swap"]["reset_frequency_months"],
+                        ),
+                        _schedule_summary(
+                            "European underlying swap",
+                            european_exercise,
+                            european_maturity,
+                            trades["european_swaption"]["payment_frequency_months"],
+                            trades["european_swaption"]["reset_frequency_months"],
+                        ),
+                        _schedule_summary(
+                            "Bermudan underlying swap",
+                            bermudan_first_exercise,
+                            bermudan_maturity,
+                            trades["bermudan_swaption"]["payment_frequency_months"],
+                            trades["bermudan_swaption"]["reset_frequency_months"],
+                        ),
                     ]
                 ],
             },
@@ -408,20 +509,20 @@ def build_quantlib_model_context(portfolio_state=None):
             ],
         ),
         _component_card(
-            title="ql.VanillaSwap",
+            title="ql.OvernightIndexedSwap",
             family="Instrument",
-            factory="_make_vanilla_swap",
+            factory="_make_ois_swap",
             signature=(
-                "ql.VanillaSwap(type, nominal, fixedSchedule, fixedRate, fixedDayCount, "
-                "floatingSchedule, iborIndex, spread, floatingDayCount)"
+                "ql.OvernightIndexedSwap(type, fixedNominals, fixedSchedule, fixedRate, fixedDayCount, "
+                "floatingNominals, floatingSchedule, overnightIndex, spread, ..., averagingMethod)"
             ),
-            purpose="Provides one full swap constructor for the live trade and for both swaption underlyings.",
+            purpose="Provides one full overnight-indexed swap constructor for the live trade and for both swaption underlyings.",
             dependencies=["ql.Schedule", "ql.Sofr(curveHandle)", "trade terms", "ql.DiscountingSwapEngine"],
             fields=[
-                {"name": "fixedDayCount", "value": "ql.Thirty360(ql.Thirty360.BondBasis)", "notes": "Fixed-leg accrual convention"},
+                {"name": "fixedDayCount", "value": "ql.Actual360()", "notes": "Fixed-leg accrual convention from the workbook trade"},
                 {"name": "floatingIndex", "value": "ql.Sofr(curveHandle)", "notes": "Overnight floating leg projected from the same curve"},
                 {"name": "spread", "value": "0.0", "notes": "No floating spread in this sandbox"},
-                {"name": "floatingDayCount", "value": "ql.Actual360()", "notes": "SOFR floating-leg accrual basis"},
+                {"name": "averagingMethod", "value": "ql.RateAveraging.Compound", "notes": "Daily compounded overnight accrual within each coupon period"},
             ],
             table={
                 "headers": ["Instance", "Type", "Nominal", "Rate input", "Start", "Maturity"],
@@ -453,15 +554,14 @@ def build_quantlib_model_context(portfolio_state=None):
                 ],
             },
             enums=[
-                _enum_member("ql.VanillaSwap.Payer", ql.VanillaSwap.Payer, "Pay fixed / receive SOFR"),
-                _enum_member("ql.VanillaSwap.Receiver", ql.VanillaSwap.Receiver, "Receive fixed / pay SOFR"),
-                _enum_member("ql.Thirty360.BondBasis", ql.Thirty360.BondBasis, "Fixed-leg day-count convention"),
+                _enum_member("ql.OvernightIndexedSwap.Payer", ql.OvernightIndexedSwap.Payer, "Pay fixed / receive SOFR"),
+                _enum_member("ql.OvernightIndexedSwap.Receiver", ql.OvernightIndexedSwap.Receiver, "Receive fixed / pay SOFR"),
             ],
         ),
         _component_card(
             title="ql.DiscountingSwapEngine",
             family="Pricing engine",
-            factory="_make_vanilla_swap",
+            factory="_make_ois_swap",
             signature="ql.DiscountingSwapEngine(discountCurve)",
             purpose="Discounts the live swap and the calibration OIS instruments with the bootstrapped curve handle.",
             dependencies=["ql.YieldTermStructureHandle(curve)"],
@@ -478,7 +578,7 @@ def build_quantlib_model_context(portfolio_state=None):
                 "ql.BachelierSwaptionEngine(discountCurve, vol)"
             ),
             purpose="Prices the European swaption from the current ATM normal-vol matrix pillar.",
-            dependencies=["forward-starting ql.VanillaSwap", "selected matrix vol", "curve handle"],
+            dependencies=["forward-starting ql.OvernightIndexedSwap", "selected matrix vol", "curve handle"],
             fields=[
                 {"name": "exerciseDate", "value": european_exercise.ISO(), "notes": "Spot plus option expiry"},
                 {
@@ -494,6 +594,100 @@ def build_quantlib_model_context(portfolio_state=None):
             ],
         ),
         _component_card(
+            title="ql.FlatForward + ql.BlackConstantVol + ql.BlackScholesMertonProcess",
+            family="Equity market model",
+            factory="_create_equity_cliquet",
+            signature=(
+                "ql.FlatForward(today, q, dayCounter), ql.BlackConstantVol(today, calendar, vol, dayCounter), "
+                "ql.BlackScholesMertonProcess(spot, dividendCurve, riskFreeCurve, volSurface)"
+            ),
+            purpose="Combines the shared SOFR discount curve with flat SPX dividend and volatility assumptions for the cliquet trade.",
+            dependencies=["market.equity_spot", "market.equity_dividend_yield_pct", "market.equity_volatility_pct", "curve handle"],
+            fields=[
+                {"name": "spot", "value": f"{market['equity_spot']:.2f}", "notes": "Current S&P 500 index level"},
+                {
+                    "name": "dividendYield",
+                    "value": f"{market['equity_dividend_yield_pct'] / 100.0:.6f}",
+                    "notes": "Flat continuous dividend yield in decimal form",
+                },
+                {
+                    "name": "riskFreeCurve",
+                    "value": "ql.YieldTermStructureHandle(curve)",
+                    "notes": "Shared SOFR curve reused as the discount curve for the equity trade",
+                },
+                {
+                    "name": "flatVol",
+                    "value": f"{market['equity_volatility_pct'] / 100.0:.6f}",
+                    "notes": "Flat Black volatility in decimal form",
+                },
+                {
+                    "name": "calendar",
+                    "value": "ql.UnitedStates(ql.UnitedStates.NYSE)",
+                    "notes": "Business-day adjustment for the SPX reset schedule",
+                },
+            ],
+            enums=[_enum_member("ql.UnitedStates.NYSE", ql.UnitedStates.NYSE, "Equity reset calendar")],
+        ),
+        _component_card(
+            title="ql.CliquetOption + ql.AnalyticCliquetEngine",
+            family="Equity option stack",
+            factory="_create_equity_cliquet",
+            signature=(
+                "ql.CliquetOption(ql.PercentageStrikePayoff(type, moneyness), "
+                "ql.EuropeanExercise(maturity), resetDates), ql.AnalyticCliquetEngine(process)"
+            ),
+            purpose="Prices the SPX cliquet as a strip of forward-start percentage-strike options and exposes analytic Greeks.",
+            dependencies=["ql.BlackScholesMertonProcess", "reset schedule", "trade quantity", "moneyness"],
+            fields=[
+                {
+                    "name": "optionType",
+                    "value": f"ql.Option.{trades['equity_cliquet']['option_type'].capitalize()}",
+                    "notes": "Call or put strip across each reset period",
+                },
+                {
+                    "name": "moneyness",
+                    "value": f"{trades['equity_cliquet']['moneyness_pct'] / 100.0:.4f}",
+                    "notes": "Percentage strike applied at each reset date",
+                },
+                {
+                    "name": "quantity",
+                    "value": f"{trades['equity_cliquet']['quantity']:.2f}",
+                    "notes": "Number of SPX units multiplied by the unit cliquet price",
+                },
+                {
+                    "name": "maturity",
+                    "value": cliquet_maturity.ISO(),
+                    "notes": "Final maturity date of the cliquet strip",
+                },
+                {
+                    "name": "analyticGreeks",
+                    "value": (
+                        f"delta={cliquet_model['greeks']['delta']:.4f}, gamma={cliquet_model['greeks']['gamma']:.4f}, "
+                        f"vega={cliquet_model['greeks']['vega']:.2f}"
+                    ),
+                    "notes": "Trade-level Greeks reported by QuantLib's analytic engine",
+                },
+            ],
+            table={
+                "headers": ["Period", "Start", "End", "Year frac", "Unit NPV", "Trade NPV"],
+                "rows": [
+                    {
+                        "c1": row["period"],
+                        "c2": row["start_date_iso"],
+                        "c3": row["end_date_iso"],
+                        "c4": f"{row['year_fraction']:.4f}",
+                        "c5": f"{row['unit_npv']:.4f}",
+                        "c6": f"{row['trade_npv']:.2f}",
+                    }
+                    for row in cliquet_model["period_rows"]
+                ],
+            },
+            enums=[
+                _enum_member("ql.Option.Call", ql.Option.Call, "Call cliquet leg"),
+                _enum_member("ql.Option.Put", ql.Option.Put, "Put cliquet leg"),
+            ],
+        ),
+        _component_card(
             title="ql.SwaptionHelper",
             family="Calibration helper strip",
             factory="build_bermudan_gsr_model",
@@ -502,12 +696,12 @@ def build_quantlib_model_context(portfolio_state=None):
                 "fixedLegDayCounter, floatingLegDayCounter, termStructure, errorType, strike, "
                 "nominal, type, shift, settlementDays, averagingMethod)"
             ),
-            purpose="Builds the diagonal ATM swaption strip used to calibrate the Bermudan GSR model.",
+            purpose="Builds the diagonal ATM swaption strip used to calibrate the Bermudan Gaussian short-rate model.",
             dependencies=["diagonal market.swaption_vol_matrix_bp", "ql.Sofr(curveHandle)", "curve handle"],
             fields=[
                 {"name": "index", "value": "ql.Sofr(curveHandle)", "notes": "Overnight index on the bootstrapped curve"},
                 {"name": "fixedLegTenor", "value": "ql.Period('1Y')", "notes": "Annual fixed leg used by the helper swap"},
-                {"name": "fixedLegDayCounter", "value": "ql.Thirty360(ql.Thirty360.BondBasis)", "notes": "Fixed-leg basis"},
+                {"name": "fixedLegDayCounter", "value": "ql.Actual360()", "notes": "Fixed-leg basis aligned to the workbook trade"},
                 {"name": "floatingLegDayCounter", "value": "ql.Actual360()", "notes": "SOFR floating-leg basis"},
                 {"name": "volatilityType", "value": "ql.Normal", "notes": "Helpers calibrate to ATM normal vols from the matrix"},
                 {"name": "errorType", "value": "ql.BlackCalibrationHelper.RelativePriceError", "notes": "Calibration objective used by QuantLib"},
@@ -541,22 +735,17 @@ def build_quantlib_model_context(portfolio_state=None):
                 "extrapolatePayoff, flatPayoffExtrapolation, discountCurve)"
             ),
             purpose="Fits a time-dependent sigma term structure to the feasible diagonal ATM strip and prices the Bermudan with the calibrated Gaussian model.",
-            dependencies=["curve handle", "ql.SwaptionHelper strip", "initial sigma seed"],
+            dependencies=["curve handle", "ql.SwaptionHelper strip", "Hull-White mean reversion"],
             fields=[
                 {
                     "name": "volstepdates",
                     "value": ", ".join(row["exercise_date_iso"] for row in bermudan_calibration_rows) or "-",
-                    "notes": "Annual diagonal expiry dates used as GSR volatility step dates",
-                },
-                {
-                    "name": "initialSigmaSeed",
-                    "value": f"{bermudan_model['initial_sigma_bp']:.1f} bp",
-                    "notes": "Seed level for all sigma buckets before QuantLib calibration",
+                    "notes": "Annual diagonal expiry dates used as model volatility step dates",
                 },
                 {
                     "name": "meanReversion a",
                     "value": f"{bermudan_model['mean_reversion']:.4f}",
-                    "notes": "Constant GSR mean reversion kept fixed during calibration",
+                    "notes": "Constant Hull-White mean reversion kept fixed during calibration",
                 },
                 {
                     "name": "integrationPoints",
@@ -593,12 +782,12 @@ def build_quantlib_model_context(portfolio_state=None):
             factory="_create_bermudan_swaption",
             signature="ql.BermudanExercise(dates), ql.Swaption(underlying, exercise)",
             purpose="Defines the Bermudan exercise schedule on top of the forward-starting swap; pricing is delegated to the calibrated Gaussian engine.",
-            dependencies=["forward-starting ql.VanillaSwap", "exercise-date list", "ql.Gaussian1dSwaptionEngine"],
+            dependencies=["forward-starting ql.OvernightIndexedSwap", "exercise-date list", "ql.Gaussian1dSwaptionEngine"],
             fields=[
                 {"name": "exerciseDates", "value": ", ".join(bermudan_exercise_dates), "notes": "Annual exercise dates until maturity"},
                 {"name": "exerciseCount", "value": str(len(bermudan_exercise_dates)), "notes": "Actual exercise opportunities in the current trade"},
                 {"name": "firstExercise", "value": bermudan_first_exercise.ISO(), "notes": "Spot plus non-call period"},
-                {"name": "maturity", "value": bermudan_maturity.ISO(), "notes": "Underlying forward swap maturity"},
+                {"name": "maturity", "value": bermudan_maturity.ISO(), "notes": "Fixed final maturity of the callable structure"},
             ],
         ),
         _component_card(
@@ -632,6 +821,7 @@ def build_quantlib_model_context(portfolio_state=None):
             "title": "Calendars and conventions",
             "rows": [
                 _enum_member("ql.UnitedStates.Settlement", ql.UnitedStates.Settlement, "Calendar market used across curve helpers and schedules"),
+                _enum_member("ql.UnitedStates.NYSE", ql.UnitedStates.NYSE, "Calendar used for the SPX cliquet reset schedule"),
                 _enum_member("ql.Following", ql.Following, "Deposit helper business-day convention"),
                 _enum_member("ql.ModifiedFollowing", ql.ModifiedFollowing, "Schedule convention for swaps"),
                 _enum_member("ql.DateGeneration.Forward", ql.DateGeneration.Forward, "Schedule generation rule"),
@@ -640,9 +830,8 @@ def build_quantlib_model_context(portfolio_state=None):
         {
             "title": "Swap and day-count enums",
             "rows": [
-                _enum_member("ql.VanillaSwap.Payer", ql.VanillaSwap.Payer, "Pay fixed / receive floating"),
-                _enum_member("ql.VanillaSwap.Receiver", ql.VanillaSwap.Receiver, "Receive fixed / pay floating"),
-                _enum_member("ql.Thirty360.BondBasis", ql.Thirty360.BondBasis, "Fixed-leg day-count basis"),
+                _enum_member("ql.OvernightIndexedSwap.Payer", ql.OvernightIndexedSwap.Payer, "Pay fixed / receive floating"),
+                _enum_member("ql.OvernightIndexedSwap.Receiver", ql.OvernightIndexedSwap.Receiver, "Receive fixed / pay floating"),
                 _enum_member("ql.Annual", ql.Annual, "Annual compounding/frequency enum used for zero-rate extraction"),
                 _enum_member("ql.Normal", ql.Normal, "Normal-volatility type used for swaption calibration helpers"),
                 _enum_member("ql.RateAveraging.Compound", ql.RateAveraging.Compound, "SOFR averaging method used by swaption helpers"),
@@ -658,16 +847,27 @@ def build_quantlib_model_context(portfolio_state=None):
     ]
 
     overview_cards = [
-        {"label": "Curve helpers", "value": "8", "detail": "1 deposit helper + 7 OIS helpers"},
-        {"label": "Priced instruments", "value": "3", "detail": "swap + European swaption + Bermudan swaption"},
-        {"label": "Pricing engines", "value": "3", "detail": "discounting, Bachelier, Gaussian1d"},
+        {
+            "label": "Curve helpers",
+            "value": str(len(SOFR_CURVE_POINT_SPECS)),
+            "detail": "1 deposit helper plus the workbook OIS strip",
+        },
+        {"label": "Priced instruments", "value": "4", "detail": "swap + European swaption + Bermudan swaption + SPX cliquet"},
+        {"label": "Pricing engines", "value": "4", "detail": "discounting, Bachelier, Gaussian1d, analytic cliquet"},
         {
             "label": "Bermudan diag helpers",
             "value": str(len(bermudan_calibration_rows)),
             "detail": bermudan_calibration_rows[-1]["label"] if bermudan_calibration_rows else "none",
         },
+        {
+            "label": "Cliquet periods",
+            "value": str(cliquet_model["reset_count"]),
+            "detail": f"{cliquet_model['maturity_date_iso']} maturity",
+        },
         {"label": "Curve outputs", "value": f"{len(curve_node_rows)} + {len(forward_points)}", "detail": "zero-rate nodes and one-day forwards shown on the dashboard"},
     ]
+
+    research_sections = list(SWAPTION_RESEARCH_SECTIONS) + [CLIQUET_RESEARCH_SECTION]
 
     return {
         "overview_cards": overview_cards,
@@ -677,10 +877,11 @@ def build_quantlib_model_context(portfolio_state=None):
         "curve_node_rows": curve_node_rows,
         "forward_summary_rows": forward_summary_rows,
         "bermudan_calibration_rows": bermudan_calibration_rows,
-        "swaption_matrix_headers": [f"{tenor}Y" for tenor in SWAPTION_MATRIX_TENOR_YEARS],
+        "swaption_matrix_headers": list(SWAPTION_MATRIX_TENOR_LABELS),
         "swaption_matrix_rows": swaption_matrix_rows,
         "component_cards": component_cards,
         "enum_sections": enum_sections,
+        "research_sections": research_sections,
         "curve_reference_date": curve.referenceDate().ISO(),
         "dashboard_url": url_for("workbench.dashboard"),
         "curve_debug_csv_url": url_for("workbench.curve_debug_download"),

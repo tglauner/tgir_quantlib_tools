@@ -1,0 +1,177 @@
+\documentclass[11pt]{article}
+\input{shared/tgir-article-preamble}
+
+\title{Deployment, CI/CD, And DigitalOcean Guide\\\large \product}
+\author{TG Investments and Research}
+\date{\docdate}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+\section{Purpose}
+This guide describes a practical production path for the repo using GitHub Actions for CI/CD and a single DigitalOcean droplet for runtime hosting.
+
+\section{Target Architecture}
+The recommended production layout is:
+\begin{enumerate}[leftmargin=1.5em]
+    \item GitHub repository for source control and CI/CD,
+    \item one Ubuntu-based DigitalOcean droplet,
+    \item Apache as the public HTTPS reverse proxy,
+    \item one local WSGI process managed by systemd,
+    \item a release directory layout with a \code{current} symlink, and
+    \item a shared server-side \code{.env} file that is never committed.
+\end{enumerate}
+
+\section{Files Added For Deployment}
+This repo now contains deployment-supporting assets:
+\begin{itemize}[leftmargin=1.5em]
+    \item \path{wsgi.py},
+    \item \path{requirements-production.txt},
+    \item \path{deploy/systemd/tgir-quantlib-tools.service.template},
+    \item \path{deploy/apache/tgir-quantlib-tools.conf.template},
+    \item \path{deploy/env/production.env.example},
+    \item \path{.github/workflows/ci.yml}, and
+    \item \path{.github/workflows/deploy_digitalocean.yml}.
+\end{itemize}
+
+\section{CI Pipeline}
+\subsection{Objective}
+CI should prove that the code installs, compiles, the LaTeX docs build, and the quantitative tests pass before deployment is allowed.
+
+\subsection{Recommended CI Stages}
+\begin{enumerate}[leftmargin=1.5em]
+    \item checkout and Python setup,
+    \item virtual-environment creation,
+    \item dependency installation,
+    \item Python syntax compilation,
+    \item targeted unittest execution,
+    \item LaTeX PDF build for the doc set, and
+    \item artifact upload of generated PDFs.
+\end{enumerate}
+
+\section{CD Pipeline}
+\subsection{One-Time Bootstrap}
+Before automated deployment, bootstrap the droplet manually:
+\begin{enumerate}[leftmargin=1.5em]
+    \item create the application root such as \path{/opt/tgir_quantlib_tools},
+    \item create a shared \code{.env} file under \path{/opt/tgir_quantlib_tools/shared/.env},
+    \item install Apache and enable proxy-related modules,
+    \item install the systemd service using the template in \path{deploy/systemd/},
+    \item install the Apache site configuration using the template in \path{deploy/apache/}, and
+    \item confirm that \code{/health} works on the local WSGI bind port and through Apache.
+\end{enumerate}
+
+\subsection{Automated Release Flow}
+The deployment workflow should:
+\begin{enumerate}[leftmargin=1.5em]
+    \item run after CI succeeds on \code{main} or manual dispatch,
+    \item upload the repository as a release tarball,
+    \item create a timestamped or commit-hash release directory on the droplet,
+    \item create a fresh \code{.venv} inside that release,
+    \item install \path{requirements-production.txt},
+    \item link the shared \code{.env} and debug directories into the new release,
+    \item repoint \code{current} to the new release,
+    \item restart the systemd service, and
+    \item smoke-check \code{/health}.
+\end{enumerate}
+
+\section{Droplet Preparation}
+\subsection{Packages}
+On Ubuntu, the typical bootstrap is:
+\begin{lstlisting}
+sudo apt-get update
+sudo apt-get install -y python3 python3-venv python3-pip apache2
+\end{lstlisting}
+
+\subsection{Apache Modules}
+Enable the required modules:
+\begin{lstlisting}
+sudo a2enmod proxy proxy_http headers rewrite ssl
+\end{lstlisting}
+
+\subsection{Filesystem Layout}
+Recommended layout:
+\begin{lstlisting}
+/opt/tgir_quantlib_tools/
+  current -> /opt/tgir_quantlib_tools/releases/<release-id>
+  releases/
+  shared/
+    .env
+    debug/
+\end{lstlisting}
+
+\section{Production Configuration}
+\subsection{WSGI Entry Point}
+Use \path{wsgi.py} as the production entrypoint so the systemd service can run a local WSGI server cleanly.
+
+\subsection{Production Dependencies}
+Use \path{requirements-production.txt}. It extends the development requirements with \code{gunicorn} for the production process manager.
+
+\subsection{Service Template}
+The systemd template starts \code{gunicorn} on a loopback port such as \code{127.0.0.1:8008}. Apache proxies public HTTPS requests to that local port.
+
+\section{GitHub Secrets}
+The deployment workflow assumes these secrets or environment variables:
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{0.32\textwidth}X}
+\toprule
+Secret & Purpose \\
+\midrule
+\code{DO\_HOST} & Droplet hostname or IP. \\
+\code{DO\_USER} & SSH user for deployments. \\
+\code{DO\_SSH\_KEY} & Private key used by GitHub Actions. \\
+\code{DO\_APP\_ROOT} & App root, for example \path{/opt/tgir_quantlib_tools}. \\
+\code{DO\_HEALTHCHECK\_URL} & Public health endpoint for final verification. \\
+\bottomrule
+\end{tabularx}
+
+\section{Suggested Release Procedure}
+\begin{enumerate}[leftmargin=1.5em]
+    \item Open a pull request and let CI pass.
+    \item Merge to \code{main}.
+    \item Let the deployment workflow publish the new release to the droplet.
+    \item Verify \code{/health}, login, dashboard rendering, and the cliquet page.
+    \item If needed, roll back by repointing the \code{current} symlink to the previous release and restarting the service.
+\end{enumerate}
+
+\section{Rollback}
+Rollback is intentionally simple:
+\begin{enumerate}[leftmargin=1.5em]
+    \item list prior release directories,
+    \item repoint \code{current} to the previous known-good release,
+    \item restart the systemd service,
+    \item re-run the local and public health checks.
+\end{enumerate}
+
+\section{Operational Smoke Checks}
+After every deploy, run:
+\begin{lstlisting}
+curl -fsS http://127.0.0.1:8008/health
+curl -fsS https://your-hostname.example.com/health
+\end{lstlisting}
+Then confirm interactive behavior by logging in and opening:
+\begin{itemize}[leftmargin=1.5em]
+    \item \code{/dashboard},
+    \item \path{/trade/equity_cliquet}, and
+    \item \code{/quantlib-data-model}.
+\end{itemize}
+
+\section{TLS}
+For HTTPS, use Apache with a real certificate. On a public hostname, \code{certbot} is the lowest-friction path:
+\begin{lstlisting}
+sudo apt-get install -y certbot python3-certbot-apache
+sudo certbot --apache -d your-hostname.example.com
+\end{lstlisting}
+
+\section{Notes}
+This deployment model intentionally stays small and inexpensive:
+\begin{itemize}[leftmargin=1.5em]
+    \item one droplet,
+    \item local filesystem storage,
+    \item no database,
+    \item no extra worker host, and
+    \item no paid external platform dependencies beyond the droplet itself.
+\end{itemize}
+
+\end{document}

@@ -1,0 +1,56 @@
+\documentclass[aspectratio=169]{beamer}
+\input{shared/tgir-beamer-preamble}
+
+\title{IT Operations Slides}
+\subtitle{\product}
+\author{TG Investments and Research}
+\date{\docdate}
+
+\begin{document}
+\frame{\titlepage}
+
+\begin{frame}{Runtime Model}
+\begin{itemize}
+    \item Single Flask application.
+    \item No database.
+    \item Production target: Apache reverse proxy to local WSGI service.
+    \item Local debug CSV output on disk.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Operational Inputs}
+\begin{itemize}
+    \item \code{FLASK\_SECRET\_KEY}
+    \item \code{APP\_LOGIN\_USERNAME}
+    \item \code{APP\_LOGIN\_PASSWORD} or hash
+    \item host, port, and Apache proxy settings
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Core Operational Checks}
+\begin{itemize}
+    \item Service status from systemd.
+    \item \code{/health} endpoint.
+    \item Apache access and error logs.
+    \item Deployment workflow logs.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Security Focus}
+\begin{itemize}
+    \item Keep secrets out of Git.
+    \item Force HTTPS in production.
+    \item Restrict server access.
+    \item Protect the \code{.env} file with filesystem permissions.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Recovery Model}
+\begin{itemize}
+    \item Preserve release directories and a \code{current} symlink.
+    \item Back up the production \code{.env} and service configs.
+    \item Roll back by repointing the symlink and restarting the service.
+\end{itemize}
+\end{frame}
+
+\end{document}

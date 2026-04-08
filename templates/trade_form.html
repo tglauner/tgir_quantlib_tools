@@ -40,7 +40,15 @@
                     {% endfor %}
                   </select>
                 {% else %}
-                  <input id="{{ field.name }}" name="{{ field.name }}" type="{{ field.type }}" step="{{ field.step }}" value="{{ field.value }}">
+                  <input
+                    id="{{ field.name }}"
+                    name="{{ field.name }}"
+                    type="{{ field.input_type or field.type }}"
+                    step="{{ field.step }}"
+                    value="{{ field.value }}"
+                    {% if field.inputmode %}inputmode="{{ field.inputmode }}"{% endif %}
+                    autocomplete="off"
+                  >
                 {% endif %}
               </div>
             {% endfor %}
@@ -62,6 +70,12 @@
             <p>{{ trade_detail }}</p>
           </div>
           <div class="summary-list">
+            {% for row in trade_detail_rows %}
+              <div class="summary-list-item">
+                <span>{{ row.label }}</span>
+                <strong>{{ row.value }}</strong>
+              </div>
+            {% endfor %}
             {% for row in market_snapshot.zero_rate_rows %}
               <div class="summary-list-item">
                 <span>{{ row.label }} zero rate</span>
@@ -69,8 +83,8 @@
               </div>
             {% endfor %}
             <div class="summary-list-item">
-              <span>Bermudan GSR seed</span>
-              <strong>{{ "%.1f"|format(market_snapshot.callable_normal_vol_bp) }} bp</strong>
+              <span>Hull-White mean reversion</span>
+              <strong>{{ "%.4f"|format(market_snapshot.hw_mean_reversion) }}</strong>
             </div>
             {% if selected_matrix_vol_bp is not none %}
               <div class="summary-list-item">
@@ -78,13 +92,187 @@
                 <strong>{{ "%.1f"|format(selected_matrix_vol_bp) }} bp</strong>
               </div>
             {% endif %}
+            {% if cliquet_context %}
+              <div class="summary-list-item">
+                <span>SPX spot</span>
+                <strong>{{ "%.2f"|format(market_snapshot.equity_spot) }}</strong>
+              </div>
+              <div class="summary-list-item">
+                <span>Flat SPX vol</span>
+                <strong>{{ market_snapshot.equity_volatility_pct|pct }}</strong>
+              </div>
+            {% endif %}
           </div>
-          <p class="table-note">Curve, ATM matrix vols, and the Bermudan GSR seed are shared across all three deals from the dashboard market panels.</p>
+          <p class="table-note">Curve, ATM matrix vols, Hull-White mean reversion, and the SPX equity inputs are shared across the dashboard market panels.</p>
         </div>
       </section>
     </div>
   </div>
 
+  {% if cliquet_context %}
+    <section class="panel">
+      <div class="panel-inner">
+        <div class="panel-header">
+          <div>
+            <span class="section-kicker">Cliquet Analytics</span>
+            <h2>QuantLib mark, reset strip, and scenario risk</h2>
+            <p>
+              QuantLib prices this trade as a strip of forward-start percentage-strike options.
+              The tables below expose the reset decomposition, analytic Greeks, deterministic scenarios,
+              and a Monte Carlo payoff distribution under the same market assumptions.
+            </p>
+          </div>
+        </div>
+
+        <div class="summary-strip">
+          <div class="summary-card">
+            <span class="label">Base NPV</span>
+            <strong class="mono">{{ cliquet_context.base_npv|money }}</strong>
+            <span class="summary-sub">Unit {{ "%.4f"|format(cliquet_context.unit_npv) }}</span>
+          </div>
+          <div class="summary-card">
+            <span class="label">Equivalent notional</span>
+            <strong class="mono">{{ cliquet_context.equivalent_notional|money }}</strong>
+            <span class="summary-sub">{{ cliquet_context.quantity }} SPX units</span>
+          </div>
+          <div class="summary-card">
+            <span class="label">Reset periods</span>
+            <strong>{{ cliquet_context.reset_count }}</strong>
+            <span class="summary-sub mono">{{ cliquet_context.maturity_date_iso }}</span>
+          </div>
+          <div class="summary-card">
+            <span class="label">MC paths</span>
+            <strong>{{ cliquet_context.distribution_summary.path_count }}</strong>
+            <span class="summary-sub">Seed {{ cliquet_context.distribution_summary.seed }}</span>
+          </div>
+        </div>
+
+        <div class="subtle-divider"></div>
+
+        <div class="panel-header">
+          <div>
+            <span class="section-kicker">Greeks</span>
+            <h3>Analytic trade Greeks</h3>
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table class="blotter-table">
+            <thead>
+              <tr>
+                <th>Metric</th>
+                <th class="numeric">Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>Delta</strong></td><td class="numeric mono">{{ "%.6f"|format(cliquet_context.greeks.delta) }}</td></tr>
+              <tr><td><strong>Gamma</strong></td><td class="numeric mono">{{ "%.6f"|format(cliquet_context.greeks.gamma) }}</td></tr>
+              <tr><td><strong>Vega</strong></td><td class="numeric mono">{{ "%.2f"|format(cliquet_context.greeks.vega) }}</td></tr>
+              <tr><td><strong>Theta</strong></td><td class="numeric mono">{{ "%.2f"|format(cliquet_context.greeks.theta) }}</td></tr>
+              <tr><td><strong>Rho</strong></td><td class="numeric mono">{{ "%.2f"|format(cliquet_context.greeks.rho) }}</td></tr>
+              <tr><td><strong>Dividend rho</strong></td><td class="numeric mono">{{ "%.2f"|format(cliquet_context.greeks.dividend_rho) }}</td></tr>
+              <tr><td><strong>Elasticity</strong></td><td class="numeric mono">{{ "%.6f"|format(cliquet_context.greeks.elasticity) }}</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="subtle-divider"></div>
+
+        <div class="panel-header">
+          <div>
+            <span class="section-kicker">Reset Strip</span>
+            <h3>Forward-start decomposition</h3>
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table class="blotter-table">
+            <thead>
+              <tr>
+                <th>Period</th>
+                <th>Start</th>
+                <th>End</th>
+                <th class="numeric">Year frac</th>
+                <th class="numeric">Forward ratio</th>
+                <th class="numeric">Unit NPV</th>
+                <th class="numeric">Trade NPV</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in cliquet_context.period_rows %}
+                <tr>
+                  <td><strong>{{ row.period }}</strong></td>
+                  <td class="mono">{{ row.start_date_iso }}</td>
+                  <td class="mono">{{ row.end_date_iso }}</td>
+                  <td class="numeric mono">{{ "%.4f"|format(row.year_fraction) }}</td>
+                  <td class="numeric mono">{{ "%.6f"|format(row.forward_ratio) }}</td>
+                  <td class="numeric mono">{{ "%.4f"|format(row.unit_npv) }}</td>
+                  <td class="numeric mono">{{ row.trade_npv|money }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="subtle-divider"></div>
+
+        <div class="panel-header">
+          <div>
+            <span class="section-kicker">Scenarios</span>
+            <h3>Spot-vol scenario grid</h3>
+            <p>Rows shock SPX spot, columns shock flat SPX volatility. Each cell shows the full trade NPV.</p>
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table class="matrix-table">
+            <thead>
+              <tr>
+                <th>Spot shock</th>
+                {% for header in cliquet_context.scenario_vol_headers %}
+                  <th class="numeric">{{ header }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in cliquet_context.scenario_rows %}
+                <tr>
+                  <th>{{ "%+.1f"|format(row.spot_shock_pct) }}%</th>
+                  {% for cell in row.cells %}
+                    <td class="numeric mono">{{ cell.npv|money }}</td>
+                  {% endfor %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="subtle-divider"></div>
+
+        <div class="panel-header">
+          <div>
+            <span class="section-kicker">Distribution</span>
+            <h3>Monte Carlo payoff profile</h3>
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table class="blotter-table">
+            <thead>
+              <tr>
+                <th>Statistic</th>
+                <th class="numeric">Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>Mean PV</strong></td><td class="numeric mono">{{ cliquet_context.distribution_summary.mean_pv|money }}</td></tr>
+              <tr><td><strong>PV stdev</strong></td><td class="numeric mono">{{ cliquet_context.distribution_summary.stdev_pv|money }}</td></tr>
+              <tr><td><strong>5th percentile PV</strong></td><td class="numeric mono">{{ cliquet_context.distribution_summary.p05_pv|money }}</td></tr>
+              <tr><td><strong>95% expected shortfall</strong></td><td class="numeric mono">{{ cliquet_context.distribution_summary.expected_shortfall_pv|money }}</td></tr>
+              <tr><td><strong>Zero-payoff probability</strong></td><td class="numeric mono">{{ "%.2f"|format(cliquet_context.distribution_summary.probability_of_zero_payoff_pct) }}%</td></tr>
+              <tr><td><strong>Average positive periods</strong></td><td class="numeric mono">{{ "%.2f"|format(cliquet_context.distribution_summary.average_positive_periods) }}</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  {% else %}
   <section class="panel">
     <div class="panel-inner">
       <div class="panel-header">
@@ -111,7 +299,7 @@
           </div>
         </div>
         <p id="trade-risk-status-copy">
-          Click <strong>Run analytics</strong> to compute the full curve ladder and full 10x10 vega matrix for this trade.
+          Click <strong>Run analytics</strong> to compute the full curve ladder and the full ATM matrix vega grid for this trade.
         </p>
         <div class="loading-inline" id="trade-risk-loading" hidden>
           <span class="loading-dot" aria-hidden="true"></span>
@@ -140,13 +328,13 @@
             <strong id="trade-risk-vol-bump">+1 bp single-cell bump</strong>
           </div>
           <div class="summary-list-item">
-            <span id="trade-risk-callable-label">Bermudan GSR seed sensitivity</span>
+            <span id="trade-risk-callable-label">Hull-White mean reversion sensitivity</span>
             <strong class="mono" id="trade-risk-callable-delta">$0.00</strong>
           </div>
         </div>
         <p class="table-note">
-          The Bermudan GSR seed is bumped separately from the ATM matrix. For trades that do not use that
-          seed, the sensitivity remains <span class="mono">$0.00</span>.
+          The Hull-White mean reversion is bumped separately from the ATM matrix. For trades that do not
+          use that model parameter, the sensitivity remains <span class="mono">$0.00</span>.
         </p>
 
         <div class="subtle-divider"></div>
@@ -290,8 +478,8 @@
         baseNpv.innerHTML = signedMoneyMarkup(payload.base_npv);
         curveBump.textContent = `+${Number(payload.curve_bump_bp).toFixed(0)} bp single-point bump`;
         volBump.textContent = `+${Number(payload.vol_bump_bp).toFixed(0)} bp single-cell bump`;
-        callableLabel.textContent = `${payload.callable_seed_row.label} sensitivity`;
-        callableDelta.innerHTML = signedMoneyMarkup(payload.callable_seed_row.delta_npv);
+        callableLabel.textContent = `${payload.model_parameter_row.label} sensitivity`;
+        callableDelta.innerHTML = signedMoneyMarkup(payload.model_parameter_row.delta_npv);
         renderCurveRows(payload.curve_rows);
         renderVegaRows(payload.vega_matrix_rows);
         results.hidden = false;
@@ -373,4 +561,5 @@
       }
     })();
   </script>
+  {% endif %}
 {% endblock %}

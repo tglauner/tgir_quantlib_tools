@@ -1,0 +1,129 @@
+\documentclass[11pt]{article}
+\input{shared/tgir-article-preamble}
+
+\title{Developer Guide\\\large \product}
+\author{TG Investments and Research}
+\date{\docdate}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+\section{Audience And Goal}
+This guide is for developers who need to understand the application structure, local workflow, extension points, and delivery expectations.
+
+\section{Repository Layout}
+\begin{longtable}{p{0.28\textwidth}p{0.66\textwidth}}
+\toprule
+Path & Responsibility \\
+\midrule
+\path{app.py} & Local Flask entrypoint. \\
+\path{portfolio.py} & QuantLib market construction, trade pricing, and analytics logic. \\
+\path{tgir_quantlib_tools/app_factory.py} & Flask app construction. \\
+\path{tgir_quantlib_tools/routes.py} & Route registration and HTTP handlers. \\
+\path{tgir_quantlib_tools/dashboard.py} & Session state, dashboard payload shaping, and trade-editor context building. \\
+\path{tgir_quantlib_tools/quantlib_model.py} & Data-model page and research section context. \\
+\path{tgir_quantlib_tools/research.py} & Curated paper metadata for swaption and cliquet references. \\
+\path{templates/} & Jinja templates for the UI. \\
+\path{tests/} & Smoke, calibration, and identity tests. \\
+\path{docs/latex/} & Audience-specific LaTeX documentation. \\
+\bottomrule
+\end{longtable}
+
+\section{Application Flow}
+\begin{enumerate}[leftmargin=1.5em]
+    \item \code{create\_app()} loads configuration and builds the Flask app.
+    \item Authentication and template filters are registered.
+    \item Requests hit \path{tgir_quantlib_tools/routes.py}.
+    \item Protected routes load session state from \path{tgir_quantlib_tools/dashboard.py}.
+    \item Pricing functions in \path{portfolio.py} normalize state and construct QuantLib objects.
+    \item Templates render the final dashboard, editor, or model/research page.
+\end{enumerate}
+
+\section{State Model}
+The session state is a nested dictionary with:
+\begin{itemize}[leftmargin=1.5em]
+    \item \code{market} for rates, swaption volatility, Bermudan seed, and SPX equity assumptions,
+    \item \code{trades.swap},
+    \item \code{trades.european\_swaption},
+    \item \code{trades.bermudan\_swaption}, and
+    \item \code{trades.equity\_cliquet}.
+\end{itemize}
+Always pass data through \code{normalize\_portfolio\_state()} before constructing pricing objects.
+
+\section{Pricing Responsibilities}
+\subsection{portfolio.py}
+This is the core quantitative module. It owns:
+\begin{itemize}[leftmargin=1.5em]
+    \item curve normalization and construction,
+    \item swaption-volatility matrix normalization,
+    \item swap, swaption, and cliquet instrument creation,
+    \item Bermudan Gaussian short-rate calibration,
+    \item price tables,
+    \item risk ladders, and
+    \item cliquet scenario and Monte Carlo analytics.
+\end{itemize}
+
+\subsection{dashboard.py}
+This module should stay presentation-oriented. It shapes payloads, form definitions, and display-specific summaries, but should not duplicate pricing logic already available in \path{portfolio.py}.
+
+\section{How To Add Or Change A Trade}
+\begin{enumerate}[leftmargin=1.5em]
+    \item Extend \code{default\_portfolio\_state()} and normalization rules.
+    \item Add a human-readable entry in \code{TRADE\_SEQUENCE} and \code{TRADE\_TITLES}.
+    \item Implement instrument creation and pricing in \path{portfolio.py}.
+    \item Add form definitions and update handlers in \path{tgir_quantlib_tools/dashboard.py}.
+    \item Add template support in \path{templates/dashboard.html} and \path{templates/trade\_form.html}.
+    \item Extend smoke and regression tests before merging.
+\end{enumerate}
+
+\section{Local Development Workflow}
+\subsection{Setup}
+\begin{lstlisting}
+python3 -m venv .venv
+./.venv/bin/python -m pip install -r requirements.txt
+cp .env.example .env
+\end{lstlisting}
+
+\subsection{Useful Commands}
+\begin{lstlisting}
+./.venv/bin/python app.py
+./.venv/bin/python build_SOFR_curve.py
+./.venv/bin/python -m unittest discover -s tests
+./.venv/bin/python -m py_compile portfolio.py tgir_quantlib_tools/*.py
+\end{lstlisting}
+
+\section{Documentation Workflow}
+The LaTeX docs are built with:
+\begin{lstlisting}
+make -C docs/latex
+\end{lstlisting}
+Keep audience-specific material separated:
+\begin{itemize}[leftmargin=1.5em]
+    \item end users: workflows and UI,
+    \item quants: models and assumptions,
+    \item developers: architecture and extension points,
+    \item IT: runtime operations,
+    \item testing: regression methodology,
+    \item deployment: CI/CD and DigitalOcean procedures.
+\end{itemize}
+
+\section{Testing Expectations}
+Changes that touch pricing must update tests in one of three layers:
+\begin{itemize}[leftmargin=1.5em]
+    \item \path{tests/test\_sofr\_curve.py} for calibration or rates logic,
+    \item \path{tests/test\_cliquet.py} for cliquet payoff identities, and
+    \item \path{tests/test\_smoke.py} for route and rendering behavior.
+\end{itemize}
+
+\section{Change Review Checklist}
+\begin{itemize}[leftmargin=1.5em]
+    \item Did the change preserve state normalization?
+    \item Is new pricing logic in \path{portfolio.py} rather than duplicated in templates or routes?
+    \item Do calibration instruments still reprice?
+    \item Are tests deterministic?
+    \item Are docs updated in both Markdown and LaTeX where relevant?
+\end{itemize}
+
+\end{document}

@@ -8,7 +8,17 @@ import QuantLib as ql
 from flask import render_template
 
 from tgir_quantlib_tools import create_app
-from portfolio import SOFR_FORWARD_HORIZON_YEARS, build_sofr_curve, default_portfolio_state, price_portfolio
+from portfolio import (
+    DEFAULT_VALUATION_DATE_ISO,
+    SOFR_FORWARD_HORIZON_YEARS,
+    SOFR_CURVE_TENOR_LABELS,
+    SWAPTION_MATRIX_EXPIRY_LABELS,
+    SWAPTION_MATRIX_TENOR_LABELS,
+    build_sofr_curve,
+    default_portfolio_state,
+    price_portfolio,
+    valuation_date,
+)
 
 
 class PortfolioSmokeTests(unittest.TestCase):
@@ -43,7 +53,7 @@ class PortfolioSmokeTests(unittest.TestCase):
 
         self.assertListEqual(
             df["Type"].tolist(),
-            ["Swap", "European Swaption", "Bermudan Swaption"],
+            ["Swap", "European Swaption", "Bermudan Swaption", "Bermudan Swaption 2", "Equity Cliquet"],
         )
         self.assertTrue(df["NPV"].notna().all())
 
@@ -64,11 +74,14 @@ class PortfolioSmokeTests(unittest.TestCase):
         response = self.login()
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b"SOFR zero rates, one-day forwards, ATM vol surface, callable grid.", response.data)
+        self.assertIn(b"SOFR zero rates, one-day forwards, ATM vol surface, callable grid, SPX cliquet.", response.data)
+        self.assertIn(b"Five trades stay on the blotter.", response.data)
+        self.assertIn(DEFAULT_VALUATION_DATE_ISO.encode("utf-8"), response.data)
         self.assertIn(b"Zero rates", response.data)
         self.assertIn(b"Daily one-day forward SOFR", response.data)
         self.assertIn(b"ATM swaption normal-vol matrix", response.data)
-        self.assertIn(b"Bermudan GSR seed", response.data)
+        self.assertIn(b"Hull-White mean reversion", response.data)
+        self.assertIn(b"SPX cliquet assumptions", response.data)
         self.assertIn(self.curve_debug_csv_path.encode("utf-8"), response.data)
 
     def test_market_update_round_trips(self):
@@ -85,17 +98,25 @@ class PortfolioSmokeTests(unittest.TestCase):
                 "rate5": "5.42",
                 "rate6": "5.48",
                 "rate7": "5.52",
-                "callable_normal_vol_bp": "72.5",
-                "vol_1_1": "61.5",
-                "vol_10_10": "89.5",
+                "valuation_date_iso": "2026-03-17",
+                "hw_mean_reversion": "0.0425",
+                "vol_1Y_1Y": "61.5",
+                "vol_10Y_10Y": "89.5",
+                "equity_spot": "5400",
+                "equity_dividend_yield_pct": "1.80",
+                "equity_volatility_pct": "21.25",
             },
             follow_redirects=True,
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b"72.5 bp", response.data)
+        self.assertIn(b"0.0425", response.data)
         self.assertIn(b"4.75%", response.data)
+        self.assertIn(b"2026-03-17", response.data)
         self.assertIn(b'value="61.5"', response.data)
+        self.assertIn(b"5400.00", response.data)
+        self.assertIn(b"21.25%", response.data)
+        self.assertIn(b"1D to 30Y", response.data)
 
     def test_realtime_tick_perturbs_curve_but_not_vol(self):
         self.login()
@@ -110,7 +131,7 @@ class PortfolioSmokeTests(unittest.TestCase):
                 "rate5": "5.22",
                 "rate6": "5.28",
                 "rate7": "5.31",
-                "callable_normal_vol_bp": "60",
+                "hw_mean_reversion": "0.06",
             },
         )
 
@@ -118,10 +139,11 @@ class PortfolioSmokeTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
-        self.assertEqual(payload["market_snapshot"]["callable_normal_vol_bp"], 60.0)
-        self.assertEqual(len(payload["market_snapshot"]["zero_rate_rows"]), 8)
+        self.assertEqual(payload["market_snapshot"]["hw_mean_reversion"], 0.06)
+        self.assertEqual(payload["market_snapshot"]["valuation_date_iso"], DEFAULT_VALUATION_DATE_ISO)
+        self.assertEqual(len(payload["market_snapshot"]["zero_rate_rows"]), len(SOFR_CURVE_TENOR_LABELS))
         self.assertEqual(len(payload["forward_rate_chart"]["x_ticks"]), SOFR_FORWARD_HORIZON_YEARS + 1)
-        self.assertEqual(len(payload["blotter_rows"]), 3)
+        self.assertEqual(len(payload["blotter_rows"]), 5)
         self.assertEqual(len(payload["bermudan_grid_rows"]), 9)
         self.assertEqual(payload["blotter_rows"][0]["Type"], "Swap")
         self.assertNotIn("NaN", response.get_data(as_text=True))
@@ -136,13 +158,53 @@ class PortfolioSmokeTests(unittest.TestCase):
                 "notional": "2500000",
                 "fixed_rate_pct": "3.85",
                 "tenor_years": "6",
+                "payment_frequency_months": "6",
+                "reset_frequency_months": "3",
             },
             follow_redirects=True,
         )
 
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Receive fixed", response.data)
-        self.assertIn(b"Receive fixed | 6Y | 3.85%", response.data)
+        self.assertIn(b"Receive fixed | 6Y | 3.85% | S/Q", response.data)
+
+    def test_trade_editor_updates_bermudan_frequencies_and_fixed_maturity(self):
+        self.login()
+
+        update_response = self.client.post(
+            "/trade/bermudan_swaption",
+            data={
+                "direction": "payer",
+                "notional": "100,000,000.00",
+                "strike_pct": "3.40",
+                "first_exercise_years": "2",
+                "final_maturity_years": "5",
+                "payment_frequency_months": "6",
+                "reset_frequency_months": "3",
+            },
+            follow_redirects=False,
+        )
+        response = self.client.get("/trade/bermudan_swaption")
+
+        self.assertEqual(update_response.status_code, 302)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"5Y NC 2Y with 6 dates", response.data)
+        self.assertIn(b"Payment frequency", response.data)
+        self.assertIn(b"Reset frequency", response.data)
+        self.assertIn(b"Semiannual", response.data)
+        self.assertIn(b"Quarterly", response.data)
+        self.assertIn(b'value="100,000,000.00"', response.data)
+
+    def test_equity_cliquet_trade_editor_renders_analytics(self):
+        self.login()
+
+        response = self.client.get("/trade/equity_cliquet")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"QuantLib mark, reset strip, and scenario risk", response.data)
+        self.assertIn(b"Forward-start decomposition", response.data)
+        self.assertIn(b"Monte Carlo payoff profile", response.data)
+        self.assertIn(b"SPX", response.data)
 
     def test_trade_editor_renders_point_sensitivities(self):
         self.login()
@@ -163,9 +225,9 @@ class PortfolioSmokeTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
         self.assertIn("base_npv", payload)
-        self.assertEqual(len(payload["curve_rows"]), 8)
-        self.assertEqual(len(payload["vega_matrix_rows"]), 10)
-        self.assertEqual(len(payload["vega_matrix_rows"][0]["cells"]), 10)
+        self.assertEqual(len(payload["curve_rows"]), len(SOFR_CURVE_TENOR_LABELS))
+        self.assertEqual(len(payload["vega_matrix_rows"]), len(SWAPTION_MATRIX_EXPIRY_LABELS))
+        self.assertEqual(len(payload["vega_matrix_rows"][0]["cells"]), len(SWAPTION_MATRIX_TENOR_LABELS))
 
     def test_trade_template_falls_back_when_trade_risk_missing(self):
         with self.app.test_request_context("/trade/european_swaption"):
@@ -176,7 +238,8 @@ class PortfolioSmokeTests(unittest.TestCase):
                 trade_fields=[],
                 trade_headline="head",
                 trade_detail="detail",
-                market_snapshot={"zero_rate_rows": [], "callable_normal_vol_bp": 55.0},
+                trade_detail_rows=[],
+                market_snapshot={"zero_rate_rows": [], "hw_mean_reversion": 0.03},
                 selected_matrix_vol_bp=62.0,
             )
 
@@ -197,9 +260,11 @@ class PortfolioSmokeTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Actual object graph used by this workstation.", response.data)
         self.assertIn(b"ql.PiecewiseLogCubicDiscount", response.data)
-        self.assertIn(b"ql.VanillaSwap", response.data)
+        self.assertIn(b"ql.OvernightIndexedSwap", response.data)
         self.assertIn(b"ql.Gsr", response.data)
         self.assertIn(b"ql.Gaussian1dSwaptionEngine", response.data)
+        self.assertIn(b"ql.CliquetOption", response.data)
+        self.assertIn(b"Swaption and cliquet papers behind the workstation", response.data)
 
     def test_curve_debug_csv_downloads(self):
         self.login()
@@ -211,7 +276,7 @@ class PortfolioSmokeTests(unittest.TestCase):
         self.assertIn("attachment; filename=", response.headers["Content-Disposition"])
 
         rows = list(csv.DictReader(StringIO(response.get_data(as_text=True))))
-        today = ql.Date.todaysDate()
+        today = valuation_date(default_portfolio_state())
         ql.Settings.instance().evaluationDate = today
         curve = build_sofr_curve(today, default_portfolio_state()["market"]["curve_quotes_pct"])
         self.assertEqual(
@@ -222,7 +287,7 @@ class PortfolioSmokeTests(unittest.TestCase):
         self.assertEqual(rows[0]["date"], curve.referenceDate().ISO())
         self.assertEqual(rows[-1]["date"], curve.dates()[-1].ISO())
         self.assertEqual(rows[-1]["forward_rate_pct"], "")
-        self.assertEqual(sum(bool(row["sofr_rate_pct"]) for row in rows), 8)
+        self.assertEqual(sum(bool(row["sofr_rate_pct"]) for row in rows), len(SOFR_CURVE_TENOR_LABELS))
         self.assertEqual(Path(self.curve_debug_csv_path).read_text(encoding="utf-8"), response.get_data(as_text=True))
 
 

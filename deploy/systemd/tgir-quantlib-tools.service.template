@@ -1,0 +1,22 @@
+[Unit]
+Description=TGIR QuantLib Tools Gunicorn Service
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/tgir_quantlib_tools/current
+EnvironmentFile=/opt/tgir_quantlib_tools/shared/.env
+ExecStart=/opt/tgir_quantlib_tools/current/.venv/bin/gunicorn \
+    --workers 2 \
+    --bind 127.0.0.1:8008 \
+    --timeout 120 \
+    wsgi:app
+Restart=always
+RestartSec=5
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

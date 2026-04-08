@@ -1,0 +1,44 @@
+{
+  "swap": {
+    "direction": "payer",
+    "notional": 1000000,
+    "fixed_rate_pct": 3.0,
+    "tenor_years": 5,
+    "payment_frequency_months": 12,
+    "reset_frequency_months": 12
+  },
+  "european_swaption": {
+    "direction": "payer",
+    "notional": 1000000,
+    "strike_pct": 3.0,
+    "expiry_years": 1,
+    "swap_tenor_years": 4,
+    "payment_frequency_months": 12,
+    "reset_frequency_months": 12
+  },
+  "bermudan_swaption": {
+    "direction": "payer",
+    "notional": 1000000,
+    "strike_pct": 3.0,
+    "first_exercise_years": 1,
+    "final_maturity_years": 5,
+    "payment_frequency_months": 12,
+    "reset_frequency_months": 12
+  },
+  "bermudan_swaption_2": {
+    "direction": "payer",
+    "notional": 100000000,
+    "strike_pct": 3.4,
+    "first_exercise_years": 2,
+    "final_maturity_years": 5,
+    "payment_frequency_months": 12,
+    "reset_frequency_months": 12
+  },
+  "equity_cliquet": {
+    "option_type": "call",
+    "quantity": 50.0,
+    "moneyness_pct": 100.0,
+    "maturity_months": 12,
+    "reset_frequency_months": 1
+  }
+}

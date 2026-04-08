@@ -1,0 +1,67 @@
+\documentclass[aspectratio=169]{beamer}
+\input{shared/tgir-beamer-preamble}
+
+\title{End User Slides}
+\subtitle{\product}
+\author{TG Investments and Research}
+\date{\docdate}
+
+\begin{document}
+\frame{\titlepage}
+
+\begin{frame}{What Users Need To Know}
+\begin{itemize}
+    \item Login at \code{http://127.0.0.1:5050}.
+    \item Main workflow lives on \code{/dashboard}.
+    \item Five trades are always visible on the blotter.
+    \item Detailed trade changes happen in the dedicated editor pages.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Dashboard Components}
+\begin{itemize}
+    \item Valuation date field shared by all rates analytics.
+    \item SOFR curve inputs and zero-rate chart.
+    \item Ten-year one-day forward SOFR strip.
+    \item Workbook ATM swaption normal-vol matrix.
+    \item Bermudan pricing grid.
+    \item SPX cliquet market assumptions.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Trade Editors}
+\begin{itemize}
+    \item Swap: direction, notional, fixed coupon, tenor.
+    \item European swaption: strike, expiry, underlying tenor.
+    \item Bermudan swaption editors: first exercise, fixed final maturity, pay/reset frequency.
+    \item Equity cliquet: option type, quantity, moneyness, maturity, reset frequency.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Cliquet Page Outputs}
+\begin{itemize}
+    \item Analytic Greeks from QuantLib.
+    \item Reset-by-reset forward-start decomposition.
+    \item Spot-volatility scenario matrix.
+    \item Monte Carlo payoff distribution summary.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Exports And Reference Pages}
+\begin{itemize}
+    \item Download \code{/curve-debug.csv} for audit or spreadsheet work.
+    \item Use \code{/quantlib-data-model} for the full model map.
+    \item The model page also lists the swaption and cliquet research papers.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Troubleshooting}
+\begin{itemize}
+    \item Login issues usually mean the local \code{.env} credentials are wrong.
+    \item Bermudan risk is slow because the model recalibrates on each relevant bump.
+    \item Cliquet rendering is slower than the other trades because it includes scenarios and Monte Carlo analytics.
+    \item Use the reset button to restore the demo state.
+\end{itemize}
+\end{frame}
+
+\end{document}

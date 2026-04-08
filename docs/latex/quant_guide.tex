@@ -1,0 +1,140 @@
+\documentclass[11pt]{article}
+\input{shared/tgir-article-preamble}
+
+\title{Quant Guide\\\large \product}
+\author{TG Investments and Research}
+\date{\docdate}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+\section{Scope}
+This guide is for quantitative users who need to understand the pricing assumptions, calibration logic, risk measures, and research references used in the workstation.
+
+\section{Portfolio Scope}
+The repo prices five instruments:
+\begin{itemize}[leftmargin=1.5em]
+    \item a spot-starting fixed-versus-SOFR swap,
+    \item a European swaption under a normal-volatility convention,
+    \item a Bermudan swaption under a calibrated one-factor Gaussian short-rate model, and
+    \item a second Bermudan swaption matching the workbook benchmark trade, and
+    \item an SPX cliquet under a Black-Scholes-Merton process with analytic cliquet valuation.
+\end{itemize}
+
+\section{Rates Curve Construction}
+\subsection{Inputs}
+The rates market state follows the workbook strip and a configurable valuation date, defaulting to \code{2026-03-10}:
+\begin{center}
+\begin{tabular}{lllllllllll}
+\toprule
+\code{1D} & \code{1W} & \code{2W} & \code{3W} & \code{1M} & \code{2M} & \code{3M} & \code{6M} & \code{9M} & \code{1Y} & \code{\dots 30Y} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Bootstrap}
+The curve is constructed in \path{portfolio.py} with:
+\begin{itemize}[leftmargin=1.5em]
+    \item one \code{ql.DepositRateHelper} for the \code{1D} point, and
+    \item a strip of \code{ql.OISRateHelper} objects for the remaining term SOFR OIS points.
+\end{itemize}
+The term structure is a \code{ql.PiecewiseLogCubicDiscount}. Calibration quality is checked by rebuilding quoted OIS swaps and asserting near-zero NPV.
+
+\section{European Swaption Model}
+The European swaption is priced directly from the editable normal-volatility matrix using \code{ql.BachelierSwaptionEngine}. The matrix follows the workbook surface, with short expiries from \code{1M} onward, annual expiries through \code{10Y}, then \code{12Y}, \code{15Y}, \code{20Y}, and \code{25Y}, against swap tenors through \code{30Y}. The on-screen matrix uses the exact workbook axes. When the Bermudan calibration needs a \code{3Y} expiry, it is linearly interpolated between the workbook \code{2Y} and \code{4Y} rows.
+
+\section{Bermudan Swaption Model}
+\subsection{Calibration}
+The Bermudan stack:
+\begin{enumerate}[leftmargin=1.5em]
+    \item identifies the feasible diagonal strip of the ATM normal-volatility matrix up to the trade's fixed final maturity,
+    \item creates one \code{ql.SwaptionHelper} per diagonal pillar,
+    \item initializes a time-dependent \code{ql.Gsr} model from the dashboard seed level,
+    \item calibrates segment volatilities iteratively, and
+    \item prices the Bermudan with \code{ql.Gaussian1dSwaptionEngine}.
+\end{enumerate}
+All rates trades are modeled as \code{ql.OvernightIndexedSwap} instruments with daily compounded SOFR coupons over the chosen reset period. Payment frequency and reset frequency are explicit trade inputs; the workbook reference trade uses annual pay and annual reset.
+For example, a \code{5Y NC 2Y} Bermudan keeps the same final maturity date and therefore exercises into the remaining \code{3Y}, \code{2Y}, and \code{1Y} swaps along its annual call schedule.
+
+\subsection{Interpretation}
+The seed is \emph{not} the final Bermudan volatility. It is the initial sigma level used before calibration. The calibrated model can differ materially from the seed once fitted to market helpers.
+
+\section{SPX Cliquet Model}
+\subsection{State Variables}
+The cliquet reads:
+\begin{itemize}[leftmargin=1.5em]
+    \item SPX spot,
+    \item flat dividend yield,
+    \item flat Black volatility,
+    \item quantity,
+    \item percentage moneyness,
+    \item maturity in months, and
+    \item reset frequency in months.
+\end{itemize}
+
+\subsection{Process And Engine}
+The market process is a \code{ql.BlackScholesMertonProcess} with:
+\begin{itemize}[leftmargin=1.5em]
+    \item the shared SOFR curve used as the risk-free curve,
+    \item a flat dividend curve, and
+    \item a flat Black volatility surface.
+\end{itemize}
+The instrument is a \code{ql.CliquetOption} with \code{ql.PercentageStrikePayoff} and \code{ql.AnalyticCliquetEngine}.
+
+\subsection{Extra Analytics}
+The cliquet page supplements the QuantLib price with:
+\begin{itemize}[leftmargin=1.5em]
+    \item reset-period decomposition into forward-start option values,
+    \item deterministic spot-volatility scenarios,
+    \item trade-level analytic Greeks, and
+    \item Monte Carlo payoff-distribution diagnostics.
+\end{itemize}
+
+\section{Risk Outputs}
+\subsection{Rates Trades}
+The swap and swaptions expose on-demand point sensitivities:
+\begin{itemize}[leftmargin=1.5em]
+    \item curve ladder from single-point SOFR quote bumps,
+    \item European swaption vega from a single matrix-cell bump,
+    \item Bermudan matrix sensitivity from diagonal helper bumps, and
+    \item a separate Bermudan seed sensitivity.
+\end{itemize}
+
+\subsection{Cliquet Trade}
+The cliquet page reports:
+\begin{itemize}[leftmargin=1.5em]
+    \item delta, gamma, vega, theta, rho, and dividend rho,
+    \item scenario NPVs for spot and volatility shocks, and
+    \item distribution metrics such as 5th percentile PV and expected shortfall.
+\end{itemize}
+
+\section{Validation}
+The test suite validates the pricing stack in three distinct ways:
+\begin{itemize}[leftmargin=1.5em]
+    \item calibration repricing for the SOFR OIS curve,
+    \item calibration repricing for Bermudan diagonal helpers, and
+    \item ten cliquet identity cases where the payoff reduces to simpler known structures.
+\end{itemize}
+
+\section{Research References}
+The curated references live in \path{docs/RESEARCH.md} and on the in-app model page. The swaption list emphasizes:
+\begin{itemize}[leftmargin=1.5em]
+    \item Peter Caspers' QuantLib-linked swaption implementation notes,
+    \item Jamshidian's bond-option decomposition, and
+    \item classic Bermudan exercise papers.
+\end{itemize}
+The cliquet list covers numerical methods, hedging, Levy models, regime-switching, and counterparty-risk extensions.
+
+\section{Model Boundaries}
+This workstation deliberately avoids:
+\begin{itemize}[leftmargin=1.5em]
+    \item live data feeds,
+    \item smile or skew modeling for the cliquet,
+    \item multi-factor rates models beyond the implemented Gaussian short-rate calibration path,
+    \item database-backed trade lifecycle, and
+    \item portfolio aggregation beyond the four-trade sandbox.
+\end{itemize}
+
+\end{document}

@@ -364,6 +364,52 @@
       <div class="panel-inner">
         <div class="panel-header tight-header">
           <div>
+            <span class="section-kicker">Research</span>
+            <h2>Swaption and cliquet papers behind the workstation</h2>
+            <p>
+              This section lists the research papers most relevant to the pricing methods in the app,
+              with a separate emphasis on papers explicitly tied to QuantLib's swaption implementation.
+            </p>
+          </div>
+        </div>
+        <div class="info-grid">
+          {% for section in research_sections %}
+            <div class="detail-card">
+              <span class="section-kicker">Papers</span>
+              <h3>{{ section.title }}</h3>
+              <p>{{ section.intro }}</p>
+              <div class="table-scroll" style="margin-top: 10px;">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Paper</th>
+                      <th>Authors</th>
+                      <th class="numeric">Year</th>
+                      <th>Relevance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for paper in section.papers %}
+                      <tr>
+                        <td><a href="{{ paper.url }}" target="_blank" rel="noopener noreferrer">{{ paper.title }}</a></td>
+                        <td>{{ paper.authors }}</td>
+                        <td class="numeric mono">{{ paper.year }}</td>
+                        <td>{{ paper.notes }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+
+    <section class="panel panel-compact">
+      <div class="panel-inner">
+        <div class="panel-header tight-header">
+          <div>
             <span class="section-kicker">Enums</span>
             <h2>Enumeration values used by the app</h2>
             <p>These are the concrete enum members used in calendars, schedules, swap typing, and rate extraction.</p>

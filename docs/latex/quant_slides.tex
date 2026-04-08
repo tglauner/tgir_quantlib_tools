@@ -1,0 +1,65 @@
+\documentclass[aspectratio=169]{beamer}
+\input{shared/tgir-beamer-preamble}
+
+\title{Quant Slides}
+\subtitle{\product}
+\author{TG Investments and Research}
+\date{\docdate}
+
+\begin{document}
+\frame{\titlepage}
+
+\begin{frame}{Portfolio Model Scope}
+\begin{itemize}
+    \item Spot-starting SOFR swap.
+    \item European normal-volatility swaption.
+    \item Bermudan swaption with calibrated Gaussian short-rate model.
+    \item SPX cliquet under Black-Scholes-Merton dynamics.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Rates Curve}
+\begin{itemize}
+    \item Inputs: workbook SOFR strip from \code{1D} through \code{30Y}.
+    \item Helpers: one deposit plus the workbook OIS helper strip.
+    \item Curve: \code{ql.PiecewiseLogCubicDiscount}.
+    \item Validation: OIS repricing to near-zero NPV.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Swaption Stack}
+\begin{itemize}
+    \item European swaption uses one ATM matrix cell and \code{ql.BachelierSwaptionEngine}.
+    \item Bermudan swaption calibrates \code{ql.Gsr} to the trade-maturity diagonal helper strip.
+    \item Pricing uses \code{ql.Gaussian1dSwaptionEngine}.
+    \item Tests now assert helper repricing after calibration.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Cliquet Stack}
+\begin{itemize}
+    \item Inputs: SPX spot, dividend yield, flat vol, quantity, moneyness, maturity, reset frequency.
+    \item Process: \code{ql.BlackScholesMertonProcess}.
+    \item Instrument: \code{ql.CliquetOption}.
+    \item Engine: \code{ql.AnalyticCliquetEngine}.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Reported Analytics}
+\begin{itemize}
+    \item Rates: curve ladder, matrix vega, Bermudan seed sensitivity.
+    \item Cliquet: analytic Greeks, reset-strip decomposition, deterministic scenarios, Monte Carlo distribution.
+    \item Model page: constructor signatures, enum values, and research lists.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Validation Philosophy}
+\begin{itemize}
+    \item Reprice the exact calibration instruments wherever possible.
+    \item Use deterministic reduction identities for structured products.
+    \item Keep UI smoke tests and model tests separate.
+    \item Prefer explicit tolerances over snapshot-style golden numbers.
+\end{itemize}
+\end{frame}
+
+\end{document}

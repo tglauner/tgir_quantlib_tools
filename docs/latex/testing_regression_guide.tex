@@ -1,0 +1,108 @@
+\documentclass[11pt]{article}
+\input{shared/tgir-article-preamble}
+
+\title{Testing And Regression Guide\\\large \product}
+\author{TG Investments and Research}
+\date{\docdate}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+\section{Purpose}
+This document describes the test suite in detail and defines the regression-testing approach for future changes.
+
+\section{Test Inventory}
+\begin{longtable}{p{0.28\textwidth}p{0.22\textwidth}p{0.42\textwidth}}
+\toprule
+File & Type & Coverage \\
+\midrule
+\path{tests/test_smoke.py} & Route and integration smoke tests & Login flow, protected routes, dashboard rendering, editor rendering, model page rendering, CSV download, and market/trade update round-trips. \\
+\path{tests/test_sofr_curve.py} & Quantitative calibration tests & OIS curve repricing, zero-rate and forward-strip checks, Bermudan helper repricing, workbook-reference Bermudan price checks, matrix shape checks, and risk-ladder sanity checks. \\
+\path{tests/test_cliquet.py} & Structured-product identity tests & Ten cliquet reductions to simpler or deterministic cases with known answers. \\
+\bottomrule
+\end{longtable}
+
+\section{Current Release Gates}
+The current minimum release gate is:
+\begin{lstlisting}
+./.venv/bin/python -m unittest tests.test_cliquet
+./.venv/bin/python -m unittest tests.test_sofr_curve
+./.venv/bin/python -m unittest tests.test_smoke
+\end{lstlisting}
+
+\section{Calibration Tests}
+\subsection{SOFR Curve Repricing}
+The curve regression test rebuilds the quoted OIS strip against the bootstrapped curve and asserts near-zero NPVs. This catches:
+\begin{itemize}[leftmargin=1.5em]
+    \item accidental helper changes,
+    \item day-count or calendar regressions,
+    \item broken quote normalization, and
+    \item curve interpolation changes.
+\end{itemize}
+
+\subsection{Bermudan Helper Repricing}
+The Bermudan calibration test verifies that every diagonal \code{ql.SwaptionHelper} used by the trade calibration strip is repriced after Gaussian short-rate calibration. This is critical because a Bermudan mark can remain numerically plausible even when the calibration is visibly wrong. A separate schedule test confirms that fixed-maturity Bermudans shorten the remaining underlying tenor as exercise dates roll forward.
+
+\section{Cliquet Identity Portfolio}
+The cliquet regression suite does not rely on arbitrary golden numbers. Instead it uses structural identities:
+\begin{enumerate}[leftmargin=1.5em]
+    \item single-period ATM call equals a vanilla call,
+    \item single-period ATM put equals a vanilla put,
+    \item single-period OTM call equals the matching vanilla call,
+    \item single-period ITM put equals the matching vanilla put,
+    \item two-period call equals the sum of two forward-start calls,
+    \item two-period put equals the sum of two forward-start puts,
+    \item four equal-quarter calls collapse to four identical quarter calls when the setup is stationary,
+    \item four equal-quarter puts collapse to four identical quarter puts when the setup is stationary,
+    \item zero-volatility call strip reduces to discounted deterministic intrinsic values, and
+    \item zero-volatility put strip reduces to discounted deterministic intrinsic values.
+\end{enumerate}
+
+\section{Regression Strategy}
+\subsection{Principles}
+\begin{itemize}[leftmargin=1.5em]
+    \item Prefer invariant-based tests over snapshot-style fixed numbers.
+    \item Reprice calibration instruments directly wherever a model is calibrated.
+    \item Keep route tests separate from core pricing tests so failures are easier to localize.
+    \item Use deterministic seeds when Monte Carlo is involved.
+\end{itemize}
+
+\subsection{When To Add A New Regression Test}
+Add a regression test when:
+\begin{itemize}[leftmargin=1.5em]
+    \item a bug was fixed,
+    \item a new instrument or market input was added,
+    \item a pricing identity can be stated cleanly,
+    \item a calibration path changed, or
+    \item a UI route gained material analytical content.
+\end{itemize}
+
+\section{Performance And Runtime}
+The suite contains intentionally heavy tests:
+\begin{itemize}[leftmargin=1.5em]
+    \item Bermudan calibration repricing is computationally expensive.
+    \item The cliquet editor smoke test is slower than typical page renders because it runs scenario and Monte Carlo analytics.
+\end{itemize}
+These tests are still kept in the standard suite because the repo is a quantitative sandbox and correctness matters more than ultra-short CI runtimes.
+
+\section{Recommended Future Extensions}
+\begin{itemize}[leftmargin=1.5em]
+    \item add a deterministic reference test for the cliquet Monte Carlo summary path,
+    \item add page-load budget checks if UI latency becomes a concern,
+    \item add environment-parity smoke checks for the production WSGI entrypoint, and
+    \item add deploy-time smoke checks against a real production health endpoint.
+\end{itemize}
+
+\section{Failure Triage}
+If a regression appears:
+\begin{enumerate}[leftmargin=1.5em]
+    \item identify whether the failing layer is route, calibration, or payoff identity,
+    \item rerun the smallest targeted test file first,
+    \item compare normalized input state before comparing outputs,
+    \item verify calendar and day-count assumptions, and
+    \item only then inspect numerical tolerances.
+\end{enumerate}
+
+\end{document}

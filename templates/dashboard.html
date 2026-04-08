@@ -6,17 +6,19 @@
   <section class="hero workstation-hero">
     <div>
       <span class="section-kicker">TGIR QuantLib Workstation</span>
-      <h1>SOFR zero rates, one-day forwards, ATM vol surface, callable grid.</h1>
+      <h1>SOFR zero rates, one-day forwards, ATM vol surface, callable grid, SPX cliquet.</h1>
       <p>
-        Three trades stay on the blotter. Detailed entry opens in a separate tab, while the workstation
-        keeps the QuantLib-derived zero-rate curve, a ten-year daily one-day forward strip, the full ATM
-        swaption normal-vol matrix, and Bermudan pricing checks on one screen.
+        Five trades stay on the blotter. Detailed entry opens in a separate tab, while the workstation
+        keeps the QuantLib-derived zero-rate curve, a ten-year daily one-day forward strip, the workbook-based
+        ATM swaption normal-vol matrix, Bermudan pricing checks, and the SPX cliquet market inputs on one screen.
       </p>
     </div>
     <div class="hero-meta">
+      <div class="pill mono-pill">Valuation {{ market_snapshot.valuation_date_iso }}</div>
       <div class="pill mono-pill">QuantLib zero-rate nodes</div>
       <div class="pill mono-pill">10Y daily 1D SOFR forwards</div>
       <div class="pill mono-pill">ATM normal-vol matrix</div>
+      <div class="pill mono-pill">SPX cliquet strip</div>
       <div class="pill mono-pill"><span id="live-status-pill">Manual mode</span></div>
       <div class="pill mono-pill">Last tick <span id="live-last-update">{{ last_update_label }}</span></div>
     </div>
@@ -28,10 +30,10 @@
         <div>
           <span class="section-kicker">Portfolio marks</span>
           <h2>Live P&amp;L monitor</h2>
-          <p>Real-time mode only perturbs SOFR OIS quotes. The ATM vol matrix and Bermudan GSR seed stay fixed until you edit them manually.</p>
+          <p>Real-time mode only perturbs SOFR OIS quotes. The ATM vol matrix, Hull-White mean reversion, and SPX equity inputs stay fixed until you edit them manually.</p>
         </div>
         <div class="btn-row top-controls">
-          <a class="btn btn-secondary" href="{{ quantlib_data_model_url }}">QuantLib data model</a>
+          <a class="btn btn-secondary" href="{{ quantlib_data_model_url }}">QuantLib model + research</a>
           <a class="btn btn-secondary" href="{{ curve_debug_csv_url }}">Download debug CSV</a>
           <button class="btn btn-secondary" id="realtime-toggle" type="button">Start real-time</button>
           <form method="post" action="{{ url_for('workbench.reset_portfolio') }}">
@@ -125,7 +127,7 @@
             <div>
               <span class="section-kicker">Volatility</span>
               <h2>ATM swaption normal-vol matrix</h2>
-              <p>Annual expiries on the left, annual swap tenors across the top, all ATM. European swaptions price from this surface at the selected pillar.</p>
+              <p>Short expiries and annual-to-long expiries run down the left, underlying swap tenors across the top, all ATM. European swaptions price from the selected pillar, while Bermudans calibrate to the feasible diagonal strip.</p>
             </div>
           </div>
 
@@ -168,7 +170,7 @@
             <div>
               <span class="section-kicker">Callable grid</span>
               <h2>Bermudan pricing grid</h2>
-              <p>Columns are final maturity. Rows are non-call periods. Cells use the current Bermudan trade direction, strike, notional, and the GSR model calibrated to the feasible diagonal ATM strip. Inapplicable cells are shown as <span class="mono">-</span>.</p>
+              <p>Columns are final maturity. Rows are non-call periods. Cells use the current Bermudan trade direction, strike, notional, payment frequency, reset frequency, and the calibrated Gaussian short-rate model. Inapplicable cells are shown as <span class="mono">-</span>.</p>
             </div>
           </div>
           <div class="table-scroll">
@@ -216,7 +218,7 @@
 
           <div class="metric-strip compact-metrics">
             <div class="metric">
-              <span class="label">ON to 12Y</span>
+              <span class="label">1D to 30Y</span>
               <span class="value mono" id="zero-rate-slope">
                 <span class="signed-value {{ market_snapshot.zero_rate_steepness_bp|sign_class }}">{{ "%+.0f"|format(market_snapshot.zero_rate_steepness_bp) }} bp</span>
               </span>
@@ -230,8 +232,16 @@
               <span class="value mono" id="curve-diag-strip">{{ market_snapshot.bermudan_calibration_helper_count }} pillars</span>
             </div>
             <div class="metric">
-              <span class="label">GSR seed</span>
-              <span class="value mono" id="curve-gsr-seed">{{ "%.1f"|format(market_snapshot.callable_normal_vol_bp) }} bp</span>
+              <span class="label">H&amp;W mean rev</span>
+              <span class="value mono" id="curve-hw-mean-reversion">{{ "%.4f"|format(market_snapshot.hw_mean_reversion) }}</span>
+            </div>
+            <div class="metric">
+              <span class="label">Valuation date</span>
+              <span class="value mono">{{ market_snapshot.valuation_date_iso }}</span>
+            </div>
+            <div class="metric">
+              <span class="label">SPX spot</span>
+              <span class="value mono">{{ "%.2f"|format(market_snapshot.equity_spot) }}</span>
             </div>
           </div>
 
@@ -270,6 +280,10 @@
 
           <form method="post" action="{{ url_for('workbench.update_market') }}" id="market-form">
             <div class="form-grid workstation-form-grid">
+              <div class="field">
+                <label for="{{ valuation_date_input.name }}">{{ valuation_date_input.label }}</label>
+                <input id="{{ valuation_date_input.name }}" name="{{ valuation_date_input.name }}" type="date" value="{{ valuation_date_input.value }}">
+              </div>
               {% for curve_input in curve_inputs %}
                 <div class="field">
                   <label for="{{ curve_input.name }}">{{ curve_input.label }}</label>
@@ -277,13 +291,56 @@
                 </div>
               {% endfor %}
               <div class="field">
-                <label for="callable_normal_vol_bp">Bermudan GSR seed (bp)</label>
-                <input id="callable_normal_vol_bp" name="callable_normal_vol_bp" type="number" step="0.1" value="{{ market_snapshot.callable_normal_vol_bp }}">
+                <label for="hw_mean_reversion">Hull-White mean reversion</label>
+                <input id="hw_mean_reversion" name="hw_mean_reversion" type="number" step="0.0001" value="{{ market_snapshot.hw_mean_reversion }}">
               </div>
             </div>
             <p class="table-note">{{ normal_vol_note }}</p>
+            <p class="table-note">{{ defaults_note }}</p>
+            <p class="table-note mono">Defaults: {{ default_market_data_json_path }} and {{ default_trade_data_json_path }}</p>
             <div class="btn-row">
-              <button class="btn" type="submit">Apply curve and callable vol update</button>
+              <button class="btn" type="submit">Apply curve and model update</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section class="panel panel-compact">
+        <div class="panel-inner">
+          <div class="panel-header tight-header">
+            <div>
+              <span class="section-kicker">Equity Market</span>
+              <h2>SPX cliquet assumptions</h2>
+              <p>{{ equity_market_note }}</p>
+            </div>
+          </div>
+
+          <div class="metric-strip compact-metrics">
+            <div class="metric">
+              <span class="label">Spot</span>
+              <span class="value mono">{{ "%.2f"|format(market_snapshot.equity_spot) }}</span>
+            </div>
+            <div class="metric">
+              <span class="label">Dividend</span>
+              <span class="value mono">{{ market_snapshot.equity_dividend_yield_pct|pct }}</span>
+            </div>
+            <div class="metric">
+              <span class="label">Flat vol</span>
+              <span class="value mono">{{ market_snapshot.equity_volatility_pct|pct }}</span>
+            </div>
+          </div>
+
+          <form method="post" action="{{ url_for('workbench.update_market') }}">
+            <div class="form-grid workstation-form-grid">
+              {% for field in equity_market_inputs %}
+                <div class="field">
+                  <label for="{{ field.name }}">{{ field.label }}</label>
+                  <input id="{{ field.name }}" name="{{ field.name }}" type="number" step="{{ field.step }}" value="{{ field.value }}">
+                </div>
+              {% endfor %}
+            </div>
+            <div class="btn-row">
+              <button class="btn" type="submit">Apply SPX update</button>
             </div>
           </form>
         </div>
@@ -424,16 +481,16 @@
         return `<span class="signed-value ${signClass(value)}">${sign}${Number(value).toFixed(0)} bp</span>`;
       }
 
-      function applyCurveInputs(curveInputs, callableNormalVolBp) {
+      function applyCurveInputs(curveInputs, hwMeanReversion) {
         for (const input of curveInputs) {
           const field = document.getElementById(input.name);
           if (field && document.activeElement !== field) {
             field.value = Number(input.value).toFixed(2);
           }
         }
-        const callableField = document.getElementById("callable_normal_vol_bp");
-        if (callableField && document.activeElement !== callableField) {
-          callableField.value = Number(callableNormalVolBp).toFixed(1);
+        const meanReversionField = document.getElementById("hw_mean_reversion");
+        if (meanReversionField && document.activeElement !== meanReversionField) {
+          meanReversionField.value = Number(hwMeanReversion).toFixed(4);
         }
       }
 
@@ -529,7 +586,7 @@
         document.getElementById("zero-rate-slope").innerHTML = signedBpMarkup(snapshot.zero_rate_steepness_bp);
         document.getElementById("curve-atm-matrix").textContent = `${Number(snapshot.atm_5y5y_bp).toFixed(1)} bp`;
         document.getElementById("curve-diag-strip").textContent = `${Number(snapshot.bermudan_calibration_helper_count)} pillars`;
-        document.getElementById("curve-gsr-seed").textContent = `${Number(snapshot.callable_normal_vol_bp).toFixed(1)} bp`;
+        document.getElementById("curve-hw-mean-reversion").textContent = Number(snapshot.hw_mean_reversion).toFixed(4);
         document.getElementById("forward-start").textContent = pct(snapshot.forward_rate_summary.start_pct);
         document.getElementById("forward-3m").textContent = pct(snapshot.forward_rate_summary.three_month_pct);
         document.getElementById("forward-6m").textContent = pct(snapshot.forward_rate_summary.six_month_pct);
@@ -555,7 +612,7 @@
         renderLineChart("zero-rate-chart-wrap", payload.zero_rate_chart, "Zero rate chart");
         renderLineChart("forward-rate-chart-wrap", payload.forward_rate_chart, "Daily one-day forward SOFR chart");
         renderZeroRateLegend(payload.market_snapshot.zero_rate_rows);
-        applyCurveInputs(payload.curve_inputs, payload.market_snapshot.callable_normal_vol_bp);
+        applyCurveInputs(payload.curve_inputs, payload.market_snapshot.hw_mean_reversion);
         liveLastUpdate.textContent = payload.last_update_label;
       }
 

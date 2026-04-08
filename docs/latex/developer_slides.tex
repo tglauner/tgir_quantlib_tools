@@ -1,0 +1,59 @@
+\documentclass[aspectratio=169]{beamer}
+\input{shared/tgir-beamer-preamble}
+
+\title{Developer Slides}
+\subtitle{\product}
+\author{TG Investments and Research}
+\date{\docdate}
+
+\begin{document}
+\frame{\titlepage}
+
+\begin{frame}{Repo Structure}
+\begin{itemize}
+    \item \path{portfolio.py}: pricing and analytics.
+    \item \path{tgir_quantlib_tools/}: Flask app, routes, state, and model context.
+    \item \path{templates/}: UI layer.
+    \item \path{tests/}: smoke, calibration, and identity tests.
+    \item \path{docs/latex/}: audience documentation set.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Application Flow}
+\begin{itemize}
+    \item \code{create\_app()} builds the Flask app.
+    \item Routes load and save normalized session state.
+    \item Pricing calls stay centralized in \path{portfolio.py}.
+    \item Templates should render prepared context, not calculate prices.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Extension Rules}
+\begin{itemize}
+    \item Add new state defaults and normalization first.
+    \item Extend \code{TRADE\_SEQUENCE}, titles, pricing, forms, and templates together.
+    \item Keep the Flask app thin.
+    \item Add tests before considering the change complete.
+\end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Developer Commands}
+\begin{lstlisting}
+./.venv/bin/python app.py
+./.venv/bin/python -m unittest discover -s tests
+./.venv/bin/python -m py_compile portfolio.py tgir_quantlib_tools/*.py
+make -C docs/latex
+\end{lstlisting}
+\end{frame}
+
+\begin{frame}{Review Checklist}
+\begin{itemize}
+    \item Pricing logic centralized in \path{portfolio.py}.
+    \item State normalized before use.
+    \item Calibration still reprices.
+    \item Route smoke tests pass.
+    \item Docs updated for the right audience.
+\end{itemize}
+\end{frame}
+
+\end{document}

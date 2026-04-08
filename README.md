@@ -8,16 +8,20 @@ This repository showcases small examples of using [QuantLib](https://www.quantli
 | --- | --- |
 | `app.py` | Thin Flask entrypoint that creates the web app and starts the local server. |
 | `tgir_quantlib_tools/` | Internal Flask package with app factory, config loading, auth helpers, route registration, and dashboard/session utilities. |
-| `portfolio.py` | Functions for bootstrapping a SOFR OIS curve, repricing quoted OIS swaps, storing the ATM swaption vol matrix, creating interest-rate swaps and swaptions, and pricing the three-trade portfolio. |
+| `portfolio.py` | Functions for bootstrapping a SOFR OIS curve, repricing quoted OIS swaps, storing the ATM swaption vol matrix, creating interest-rate swaps and swaptions, building the SPX cliquet trade analytics, and pricing the four-trade portfolio. |
 | `build_SOFR_curve.py` | Script that constructs a SOFR OIS term structure from market quotes, prints discount factors for select maturities, and shows a repricing table for calibration swaps. |
 | `price_bermudan_swaption.py` | Prints the Bermudan swaption mark from the shared portfolio pricing path. |
 | `today.py` | Minimal example showing how to set QuantLib's evaluation date. |
-| `templates/` | HTML templates used by the web app. `login.html` renders the sign-in screen, `dashboard.html` renders the workstation with QuantLib-derived zero-rate and forward-rate charts, `quantlib_model.html` renders the data-model page, `trade_form.html` renders the detailed trade editors, and `base.html` holds the shared styling. |
-| `tests/` | Smoke tests for the Flask route and portfolio plus OIS curve repricing checks. |
-| `docs/` | Architecture notes and a local runbook aligned to the sibling `app_architecture` guidance, with explicit repo-specific deviations. |
+| `templates/` | HTML templates used by the web app. `login.html` renders the sign-in screen, `dashboard.html` renders the workstation with rates and SPX market panels, `quantlib_model.html` renders the data-model and research page, `trade_form.html` renders the detailed trade editors, and `base.html` holds the shared styling. |
+| `tests/` | Smoke tests for the Flask route and portfolio, OIS and Bermudan calibration repricing checks, and a dedicated cliquet identity suite. |
+| `docs/` | Architecture notes, runbook notes, a research memo, and a full LaTeX documentation set for end users, quants, developers, IT, testing, and deployment. |
+| `deploy/` | Example production environment, systemd, and Apache templates for DigitalOcean deployment. |
+| `.github/workflows/` | GitHub Actions workflows for CI and DigitalOcean CD. |
 | `AGENTS.md` | Repo-specific Codex guidance for working in this codebase. |
 | `.codex/config.toml` | Codex workspace defaults for this repository. |
 | `.env.example` | Example local configuration for Flask secret and login credentials. |
+| `requirements-production.txt` | Production dependency set, extending the base requirements with `gunicorn`. |
+| `wsgi.py` | Production WSGI entrypoint for the local app service. |
 | `requirements.txt` | Python dependencies. |
 | `LICENSE` | Apache 2.0 license. |
 
@@ -54,17 +58,29 @@ Run the Flask app and open `http://127.0.0.1:5050` in a browser:
 ./.venv/bin/python app.py
 ```
 
-The root route shows a login screen. After signing in, the workstation displays the marks of a swap, a European swaption, and a Bermudan swaption. You can adjust:
+The root route shows a login screen. After signing in, the workstation displays the marks of a swap, a European swaption, two Bermudan swaptions, and an SPX equity cliquet. You can adjust:
 
-- Overnight SOFR plus `1Y`, `2Y`, `3Y`, `5Y`, `7Y`, `10Y`, and `12Y` OIS quotes
-- A full ATM normal-vol matrix with annual expiries `1Y..10Y` and annual swap tenors `1Y..10Y`
-- A separate Bermudan GSR sigma seed used to initialize diagonal swaption calibration
+- A configurable valuation date, defaulting to `2026-03-10`, that anchors all curve builds, pricing, and schedule generation
+- A workbook-based SOFR strip from `1D`, `1W`, `2W`, `3W`, `1M`, `2M`, `3M`, `6M`, `9M`, `1Y`, `2Y`, `3Y`, `4Y`, `5Y`, `6Y`, `7Y`, `8Y`, `10Y`, `12Y`, `15Y`, `20Y`, and `30Y`
+- A full ATM normal-vol matrix on the exact workbook expiry and tenor axes, with any internal `3Y` expiry interpolation reserved for model calibration rather than the on-screen matrix
+- A Hull-White mean-reversion input used while Bermudan sigma buckets calibrate to the ATM swaption matrix
+- SPX spot, flat dividend yield, and flat Black volatility inputs used by the cliquet trade
+
+The swap, European swaption, and Bermudan swaption editors all expose payment frequency and reset frequency. Bermudan trades are entered with a fixed final maturity rather than a fixed underlying tenor, so a `5Y NC 2Y` structure exercises into the remaining `3Y`, `2Y`, and `1Y` swaps along its annual call schedule. `Bermudan Swaption 2` is seeded with the QL workbook benchmark trade so you can compare model marks against the spreadsheet reference out of the box.
+
+Default market and trade values are loaded from:
+
+- `data/default_market_data.json`
+- `data/default_trades.json`
+
+The default market-data JSON now carries lightweight metadata as well as quotes: the SOFR curve block includes `ccy` and `index`, the swaption surface includes a market `key`, and the SPX equity block includes the ticker plus a flat-volatility `key`.
 
 The dashboard then derives and displays:
 
-- QuantLib zero rates at the actual curve node dates
+- QuantLib zero rates at the actual curve node dates, reported as continuous-compounded spot rates on an Actual/365 basis so that `df(x) = exp(-z * x / 365)` for `x` actual calendar days from the valuation date
 - A separate daily one-day SOFR forward strip over the next ten years with annual date ticks
-- A dedicated QuantLib data-model page at `/quantlib-data-model` showing the live object graph, constructor signatures, dependencies, and enum values used by the app
+- A dedicated QuantLib data-model page at `/quantlib-data-model` showing the live object graph, constructor signatures, dependencies, enum values, and the curated swaption / cliquet research lists used in this repo
+- An SPX cliquet editor page with analytic Greeks, reset-by-reset decomposition, a spot-vol scenario grid, and a Monte Carlo payoff profile
 - A generated repo copy of the curve debug file at `debug/curve_debug.csv`, refreshed by the app and also downloadable at `/curve-debug.csv`
 
 The app defaults to port `5050` because port `5000` is often occupied by macOS services on local machines.
@@ -99,6 +115,34 @@ Run the smoke tests with:
 ./.venv/bin/python -m unittest discover -s tests
 ```
 
+The suite now covers:
+
+- OIS calibration repricing
+- Bermudan diagonal helper repricing after Gaussian short-rate calibration
+- Fixed-maturity Bermudan exercise schedule checks
+- Bermudan workbook-reference pricing against the QL screenshot
+- Flask route and session smoke tests
+- A ten-case cliquet identity portfolio where the cliquet collapses to simpler instruments or deterministic limits
+
+## LaTeX Documentation
+
+The audience-specific LaTeX documentation set lives under `docs/latex/`.
+
+Build all PDFs with:
+
+```bash
+make -C docs/latex
+```
+
+That directory now includes:
+
+- End-user guide and slides
+- Quant guide and slides
+- Developer guide and slides
+- IT operations guide and slides
+- A separate testing and regression guide
+- A separate CI/CD and DigitalOcean deployment guide
+
 Useful route checks:
 
 ```bash
@@ -132,7 +176,11 @@ Source references:
 - https://idd.ice.com/IRHelp/Content/FM/Swaption_Volatility_Surf.htm
 - https://idd.ice.com/IRHelp/Content/FM/Swaption_Forward_Rates.htm
 
-This repository does not auto-download live ICE data. The matrix is an editable demo surface laid out on those same annual ATM pillars so the QuantLib examples remain self-contained.
+This repository does not auto-download live ICE data. The matrix is an editable workbook-derived demo surface, including the interpolated `3Y` expiry row that keeps the annual diagonal strip continuous for Bermudan calibration.
+
+## Research Note
+
+The full paper list used for the swaption and equity cliquet extension lives in [docs/RESEARCH.md](docs/RESEARCH.md). The data-model page also renders the same references directly in the web UI.
 
 ## Deviations From `app_architecture`
 

@@ -9,23 +9,30 @@ from flask import current_app, session, url_for
 
 from portfolio import (
     BERMUDAN_GRID_MATURITIES_YEARS,
+    DEFAULT_MARKET_DATA_JSON_PATH,
+    DEFAULT_TRADE_DATA_JSON_PATH,
+    CLIQUET_SCENARIO_VOL_SHOCKS_PCT,
+    IR_FREQUENCY_MONTH_OPTIONS,
     SOFR_CURVE_TENOR_LABELS,
     SOFR_FORWARD_HORIZON_YEARS,
-    SWAPTION_MATRIX_EXPIRY_YEARS,
-    SWAPTION_MATRIX_TENOR_YEARS,
+    SWAPTION_MATRIX_EXPIRY_LABELS,
+    SWAPTION_MATRIX_TENOR_LABELS,
     TRADE_TITLES,
     bermudan_diagonal_calibration_pillars,
     build_bermudan_pricing_grid,
     build_bermudan_gsr_model,
     build_sofr_curve,
+    cliquet_analytics,
     curve_zero_rate_points,
     daily_one_day_forward_points,
     default_portfolio_state,
+    frequency_label,
     lookup_swaption_normal_vol_bp,
     normalize_portfolio_state,
     price_portfolio,
     reprice_sofr_calibration_swaps,
     trade_card_summary,
+    valuation_date,
 )
 
 
@@ -33,15 +40,16 @@ REALTIME_MOVE_MIN_BP = 1.0
 REALTIME_MOVE_MAX_BP = 2.0
 
 MATRIX_SOURCE_NOTE = (
-    "ATM normal-vol pillars are editable demo values on a 1Y to 10Y by 1Y to 10Y grid. "
-    "The layout follows the expiry-by-underlying swap structure described by ICE SDX "
-    "Swaption Forward Rates and Swaption Volatility Surface pages. The repo does not "
-    "download live vendor data."
+    "ATM normal-vol pillars are loaded from the workbook surface used for the QL comparison: "
+    "short expiries from 1M onward, annual expiries through 10Y, then 12Y, 15Y, 20Y, and 25Y, "
+    "against underlying swap tenors from 1Y to 30Y. The on-screen matrix matches the workbook axes "
+    "exactly. When the Bermudan calibration needs a 3Y expiry, the model linearly interpolates it "
+    "between the 2Y and 4Y workbook rows."
 )
 
 ZERO_RATE_NOTE = (
-    "This graph uses zero rates derived from the QuantLib PiecewiseLogCubicDiscount curve at "
-    "the actual helper node dates, not the raw SOFR input quotes."
+    "This graph uses continuous-compounded spot zero rates on an Actual/365 basis, derived from "
+    "the QuantLib discount curve at the actual helper node dates: df(x) = exp(-z * x / 365)."
 )
 
 FORWARD_RATE_NOTE = (
@@ -49,12 +57,59 @@ FORWARD_RATE_NOTE = (
     "same QuantLib SOFR term structure using forwardRate(start, start + 1D, Actual360, Simple)."
 )
 
+EQUITY_MARKET_NOTE = (
+    "The SPX cliquet uses the same SOFR curve for discounting, plus editable SPX spot, flat "
+    "dividend yield, and flat Black volatility inputs. QuantLib prices the strip as a "
+    "CliquetOption with an AnalyticCliquetEngine."
+)
+
+IR_FREQUENCY_OPTIONS = list(IR_FREQUENCY_MONTH_OPTIONS)
+
+BERMUDAN_FORM_FIELDS = [
+    {
+        "name": "direction",
+        "label": "Option style",
+        "type": "select",
+        "options": [("payer", "Payer"), ("receiver", "Receiver")],
+    },
+    {"name": "notional", "label": "Notional", "type": "number", "step": "100000", "format": "grouped_decimal"},
+    {"name": "strike_pct", "label": "Strike (%)", "type": "number", "step": "0.01"},
+    {
+        "name": "first_exercise_years",
+        "label": "First exercise (years)",
+        "type": "number",
+        "step": "1",
+        "min": "1",
+        "max": "9",
+    },
+    {
+        "name": "final_maturity_years",
+        "label": "Final maturity (years)",
+        "type": "number",
+        "step": "1",
+        "min": "2",
+        "max": "10",
+    },
+    {
+        "name": "payment_frequency_months",
+        "label": "Payment frequency",
+        "type": "select",
+        "options": IR_FREQUENCY_OPTIONS,
+    },
+    {
+        "name": "reset_frequency_months",
+        "label": "Reset frequency",
+        "type": "select",
+        "options": IR_FREQUENCY_OPTIONS,
+    },
+]
+
 TRADE_FORM_DEFINITIONS = {
     "swap": {
         "title": "Interest Rate Swap",
         "description": (
-            "Spot-starting fixed versus SOFR swap. Keep the surface clean on the dashboard "
-            "and edit the actual terms here."
+            "Spot-starting fixed versus daily compounded SOFR OIS. Keep the market surface clean "
+            "on the dashboard and edit the actual deal conventions here."
         ),
         "fields": [
             {
@@ -63,7 +118,7 @@ TRADE_FORM_DEFINITIONS = {
                 "type": "select",
                 "options": [("payer", "Pay fixed"), ("receiver", "Receive fixed")],
             },
-            {"name": "notional", "label": "Notional", "type": "number", "step": "100000"},
+            {"name": "notional", "label": "Notional", "type": "number", "step": "100000", "format": "grouped_decimal"},
             {
                 "name": "fixed_rate_pct",
                 "label": "Fixed rate (%)",
@@ -78,12 +133,24 @@ TRADE_FORM_DEFINITIONS = {
                 "min": "1",
                 "max": "30",
             },
+            {
+                "name": "payment_frequency_months",
+                "label": "Payment frequency",
+                "type": "select",
+                "options": IR_FREQUENCY_OPTIONS,
+            },
+            {
+                "name": "reset_frequency_months",
+                "label": "Reset frequency",
+                "type": "select",
+                "options": IR_FREQUENCY_OPTIONS,
+            },
         ],
     },
     "european_swaption": {
         "title": "European Swaption",
         "description": (
-            "Single exercise into a forward-starting swap. Priced off the editable ATM "
+            "Single exercise into a forward-starting SOFR OIS. Priced off the editable ATM "
             "normal-vol matrix at the selected expiry and swap tenor."
         ),
         "fields": [
@@ -93,7 +160,7 @@ TRADE_FORM_DEFINITIONS = {
                 "type": "select",
                 "options": [("payer", "Payer"), ("receiver", "Receiver")],
             },
-            {"name": "notional", "label": "Notional", "type": "number", "step": "100000"},
+            {"name": "notional", "label": "Notional", "type": "number", "step": "100000", "format": "grouped_decimal"},
             {"name": "strike_pct", "label": "Strike (%)", "type": "number", "step": "0.01"},
             {
                 "name": "expiry_years",
@@ -111,47 +178,77 @@ TRADE_FORM_DEFINITIONS = {
                 "min": "1",
                 "max": "10",
             },
+            {
+                "name": "payment_frequency_months",
+                "label": "Payment frequency",
+                "type": "select",
+                "options": IR_FREQUENCY_OPTIONS,
+            },
+            {
+                "name": "reset_frequency_months",
+                "label": "Reset frequency",
+                "type": "select",
+                "options": IR_FREQUENCY_OPTIONS,
+            },
         ],
     },
     "bermudan_swaption": {
         "title": "Bermudan Swaption",
         "description": (
-            "Multi-exercise callable structure into a fixed versus SOFR swap. Priced with "
-            "a time-dependent GSR model calibrated to the feasible diagonal of the ATM "
-            "normal-vol matrix."
+            "Multi-exercise callable structure into a fixed versus daily compounded SOFR OIS. "
+            "The trade is booked off a fixed final maturity, with exercise opportunities on each "
+            "payment date from first exercise up to the period before maturity. Pricing uses a "
+            "time-dependent Gaussian short-rate model calibrated to the feasible diagonal of the "
+            "ATM normal-vol matrix with user-controlled Hull-White mean reversion."
+        ),
+        "fields": BERMUDAN_FORM_FIELDS,
+    },
+    "bermudan_swaption_2": {
+        "title": "Bermudan Swaption 2",
+        "description": (
+            "Workbook benchmark trade matching the QL.xlsx comparison setup. Use this deal to "
+            "compare model marks and risk against the spreadsheet reference while keeping the "
+            "same market data and valuation date as the rest of the workstation."
+        ),
+        "fields": BERMUDAN_FORM_FIELDS,
+    },
+    "equity_cliquet": {
+        "title": "Equity Cliquet",
+        "description": (
+            "SPX forward-start cliquet strip priced with QuantLib's analytic cliquet engine. "
+            "Each reset starts a new percentage-strike option on the S&P 500 index."
         ),
         "fields": [
             {
-                "name": "direction",
+                "name": "option_type",
                 "label": "Option style",
                 "type": "select",
-                "options": [("payer", "Payer"), ("receiver", "Receiver")],
+                "options": [("call", "Call"), ("put", "Put")],
             },
-            {"name": "notional", "label": "Notional", "type": "number", "step": "100000"},
-            {"name": "strike_pct", "label": "Strike (%)", "type": "number", "step": "0.01"},
+            {"name": "quantity", "label": "Index units", "type": "number", "step": "1"},
             {
-                "name": "first_exercise_years",
-                "label": "First exercise (years)",
+                "name": "moneyness_pct",
+                "label": "Moneyness (%)",
+                "type": "number",
+                "step": "0.1",
+                "min": "1",
+                "max": "200",
+            },
+            {
+                "name": "maturity_months",
+                "label": "Maturity (months)",
                 "type": "number",
                 "step": "1",
                 "min": "1",
-                "max": "9",
+                "max": "36",
             },
             {
-                "name": "swap_tenor_years",
-                "label": "Underlying tenor (years)",
+                "name": "reset_frequency_months",
+                "label": "Reset frequency (months)",
                 "type": "number",
                 "step": "1",
                 "min": "1",
-                "max": "10",
-            },
-            {
-                "name": "exercise_count",
-                "label": "Exercise dates",
-                "type": "number",
-                "step": "1",
-                "min": "1",
-                "max": "9",
+                "max": "12",
             },
         ],
     },
@@ -199,16 +296,22 @@ def save_portfolio_state(state) -> None:
     session.modified = True
 
 
+def _clean_numeric_text(value):
+    if value is None:
+        return value
+    return str(value).replace(",", "").strip()
+
+
 def parse_float(form, name, default):
     try:
-        return float(form.get(name, default))
+        return float(_clean_numeric_text(form.get(name, default)))
     except (TypeError, ValueError):
         return default
 
 
 def parse_int(form, name, default):
     try:
-        return int(float(form.get(name, default)))
+        return int(float(_clean_numeric_text(form.get(name, default))))
     except (TypeError, ValueError):
         return default
 
@@ -224,23 +327,45 @@ def curve_inputs(state):
     ]
 
 
+def valuation_date_input(state):
+    return {"label": "Valuation date", "name": "valuation_date_iso", "value": state["valuation_date_iso"]}
+
+
+def equity_market_inputs(state):
+    return [
+        {"label": "SPX spot", "name": "equity_spot", "value": state["market"]["equity_spot"], "step": "0.1"},
+        {
+            "label": "Dividend yield (%)",
+            "name": "equity_dividend_yield_pct",
+            "value": state["market"]["equity_dividend_yield_pct"],
+            "step": "0.01",
+        },
+        {
+            "label": "Flat vol (%)",
+            "name": "equity_volatility_pct",
+            "value": state["market"]["equity_volatility_pct"],
+            "step": "0.01",
+        },
+    ]
+
+
 def swaption_matrix_headers():
-    return [f"{tenor}Y" for tenor in SWAPTION_MATRIX_TENOR_YEARS]
+    return list(SWAPTION_MATRIX_TENOR_LABELS)
 
 
 def swaption_matrix_rows(state):
     matrix = state["market"]["swaption_vol_matrix_bp"]
     rows = []
-    for expiry_index, expiry_years in enumerate(SWAPTION_MATRIX_EXPIRY_YEARS):
+    for expiry_index, expiry_label in enumerate(SWAPTION_MATRIX_EXPIRY_LABELS):
         rows.append(
             {
-                "expiry_label": f"{expiry_years}Y",
+                "expiry_label": expiry_label,
                 "cells": [
                     {
-                        "name": f"vol_{expiry_years}_{tenor_years}",
+                        "name": f"vol_{expiry_label}_{tenor_label}",
                         "value": matrix[expiry_index][tenor_index],
                     }
-                    for tenor_index, tenor_years in enumerate(SWAPTION_MATRIX_TENOR_YEARS)
+                    for tenor_index, tenor_label in enumerate(SWAPTION_MATRIX_TENOR_LABELS)
                 ],
             }
         )
@@ -347,7 +472,7 @@ def _line_chart(
 
 
 def _curve_analytics(state):
-    today = ql.Date.todaysDate()
+    today = valuation_date(state)
     ql.Settings.instance().evaluationDate = today
     calendar = ql.UnitedStates(ql.UnitedStates.Settlement)
     curve = build_sofr_curve(today, state["market"]["curve_quotes_pct"])
@@ -392,7 +517,7 @@ def _zero_rate_chart(zero_points):
         label_key="label",
         value_key="rate_pct",
         marker_indexes=list(range(len(zero_points))),
-        x_tick_indexes=list(range(len(zero_points))),
+        x_tick_indexes=_sample_indexes(len(zero_points), min(len(zero_points), 8)),
     )
 
 
@@ -434,12 +559,16 @@ def market_snapshot(state, zero_points, forward_points, bermudan_pillars):
             }
             for point in zero_points
         ],
+        "valuation_date_iso": state["valuation_date_iso"],
         "zero_rate_steepness_bp": zero_steepness_bp,
         "atm_5y5y_bp": lookup_swaption_normal_vol_bp(state, 5, 5),
-        "callable_normal_vol_bp": float(state["market"]["callable_normal_vol_bp"]),
+        "hw_mean_reversion": float(state["market"]["hw_mean_reversion"]),
         "bermudan_calibration_helper_count": len(bermudan_pillars),
         "bermudan_last_diagonal_label": last_pillar,
         "forward_rate_summary": _forward_summary(forward_points),
+        "equity_spot": float(state["market"]["equity_spot"]),
+        "equity_dividend_yield_pct": float(state["market"]["equity_dividend_yield_pct"]),
+        "equity_volatility_pct": float(state["market"]["equity_volatility_pct"]),
     }
 
 
@@ -447,7 +576,14 @@ def prepare_trade_form(definition, trade):
     fields = []
     for field in definition["fields"]:
         field_context = dict(field)
-        field_context["value"] = trade[field["name"]]
+        raw_value = trade[field["name"]]
+        field_context["value"] = raw_value
+        field_context["input_type"] = field["type"]
+        field_context["inputmode"] = None
+        if field.get("format") == "grouped_decimal":
+            field_context["input_type"] = "text"
+            field_context["inputmode"] = "decimal"
+            field_context["value"] = f"{float(raw_value):,.2f}"
         if field["type"] == "select":
             field_context["options"] = [
                 {
@@ -461,26 +597,55 @@ def prepare_trade_form(definition, trade):
     return fields
 
 
+def trade_detail_rows(trade_type, trade):
+    if trade_type == "swap":
+        return [
+            {"label": "Payment frequency", "value": frequency_label(trade["payment_frequency_months"])},
+            {"label": "Reset frequency", "value": frequency_label(trade["reset_frequency_months"])},
+        ]
+
+    if trade_type == "european_swaption":
+        return [
+            {"label": "Expiry", "value": f"{trade['expiry_years']}Y"},
+            {"label": "Underlying tenor", "value": f"{trade['swap_tenor_years']}Y"},
+            {"label": "Payment frequency", "value": frequency_label(trade["payment_frequency_months"])},
+            {"label": "Reset frequency", "value": frequency_label(trade["reset_frequency_months"])},
+        ]
+
+    if trade_type in {"bermudan_swaption", "bermudan_swaption_2"}:
+        return [
+            {"label": "First exercise", "value": f"{trade['first_exercise_years']}Y"},
+            {"label": "Final maturity", "value": f"{trade['final_maturity_years']}Y"},
+            {"label": "Payment frequency", "value": frequency_label(trade["payment_frequency_months"])},
+            {"label": "Reset frequency", "value": frequency_label(trade["reset_frequency_months"])},
+        ]
+
+    return [
+        {"label": "Reset frequency", "value": f"{trade['reset_frequency_months']}M"},
+    ]
+
+
 def update_market_state(state, form) -> None:
+    state["valuation_date_iso"] = form.get("valuation_date_iso", state["valuation_date_iso"]) or state["valuation_date_iso"]
     state["market"]["curve_quotes_pct"] = [
         parse_float(form, f"rate{index}", state["market"]["curve_quotes_pct"][index])
         for index in range(len(SOFR_CURVE_TENOR_LABELS))
     ]
-    state["market"]["callable_normal_vol_bp"] = max(
-        parse_float(form, "callable_normal_vol_bp", state["market"]["callable_normal_vol_bp"]),
+    state["market"]["hw_mean_reversion"] = max(
+        parse_float(form, "hw_mean_reversion", state["market"]["hw_mean_reversion"]),
         0.0,
     )
 
     current_matrix = state["market"]["swaption_vol_matrix_bp"]
     updated_matrix = []
-    for expiry_index, expiry_years in enumerate(SWAPTION_MATRIX_EXPIRY_YEARS):
+    for expiry_index, expiry_label in enumerate(SWAPTION_MATRIX_EXPIRY_LABELS):
         row = []
-        for tenor_index, tenor_years in enumerate(SWAPTION_MATRIX_TENOR_YEARS):
+        for tenor_index, tenor_label in enumerate(SWAPTION_MATRIX_TENOR_LABELS):
             row.append(
                 max(
                     parse_float(
                         form,
-                        f"vol_{expiry_years}_{tenor_years}",
+                        f"vol_{expiry_label}_{tenor_label}",
                         current_matrix[expiry_index][tenor_index],
                     ),
                     0.0,
@@ -488,13 +653,55 @@ def update_market_state(state, form) -> None:
             )
         updated_matrix.append(row)
     state["market"]["swaption_vol_matrix_bp"] = updated_matrix
+    state["market"]["equity_spot"] = max(
+        parse_float(form, "equity_spot", state["market"]["equity_spot"]),
+        1.0,
+    )
+    state["market"]["equity_dividend_yield_pct"] = parse_float(
+        form,
+        "equity_dividend_yield_pct",
+        state["market"]["equity_dividend_yield_pct"],
+    )
+    state["market"]["equity_volatility_pct"] = max(
+        parse_float(form, "equity_volatility_pct", state["market"]["equity_volatility_pct"]),
+        0.0,
+    )
 
 
 def update_trade_state(state, trade_type, form) -> None:
     trade = state["trades"][trade_type]
+    if trade_type == "equity_cliquet":
+        option_type = form.get("option_type", trade["option_type"])
+        trade["option_type"] = option_type if option_type in {"call", "put"} else trade["option_type"]
+        trade["quantity"] = max(parse_float(form, "quantity", trade["quantity"]), 0.01)
+        trade["moneyness_pct"] = max(parse_float(form, "moneyness_pct", trade["moneyness_pct"]), 0.01)
+        trade["maturity_months"] = clamp_int(
+            parse_int(form, "maturity_months", trade["maturity_months"]),
+            1,
+            36,
+        )
+        trade["reset_frequency_months"] = clamp_int(
+            parse_int(form, "reset_frequency_months", trade["reset_frequency_months"]),
+            1,
+            12,
+        )
+        if trade["reset_frequency_months"] > trade["maturity_months"]:
+            trade["reset_frequency_months"] = trade["maturity_months"]
+        return
+
     direction = form.get("direction", trade["direction"])
     trade["direction"] = direction if direction in {"payer", "receiver"} else trade["direction"]
     trade["notional"] = max(parse_float(form, "notional", trade["notional"]), 1.0)
+    trade["payment_frequency_months"] = parse_int(
+        form,
+        "payment_frequency_months",
+        trade.get("payment_frequency_months", 12),
+    )
+    trade["reset_frequency_months"] = parse_int(
+        form,
+        "reset_frequency_months",
+        trade.get("reset_frequency_months", 12),
+    )
 
     if trade_type == "swap":
         trade["fixed_rate_pct"] = parse_float(form, "fixed_rate_pct", trade["fixed_rate_pct"])
@@ -502,13 +709,13 @@ def update_trade_state(state, trade_type, form) -> None:
         return
 
     trade["strike_pct"] = parse_float(form, "strike_pct", trade["strike_pct"])
-    trade["swap_tenor_years"] = clamp_int(
-        parse_int(form, "swap_tenor_years", trade["swap_tenor_years"]),
-        1,
-        10,
-    )
 
     if trade_type == "european_swaption":
+        trade["swap_tenor_years"] = clamp_int(
+            parse_int(form, "swap_tenor_years", trade["swap_tenor_years"]),
+            1,
+            10,
+        )
         trade["expiry_years"] = clamp_int(parse_int(form, "expiry_years", trade["expiry_years"]), 1, 10)
         return
 
@@ -517,10 +724,10 @@ def update_trade_state(state, trade_type, form) -> None:
         1,
         9,
     )
-    trade["exercise_count"] = clamp_int(
-        parse_int(form, "exercise_count", trade["exercise_count"]),
-        1,
-        9,
+    trade["final_maturity_years"] = clamp_int(
+        parse_int(form, "final_maturity_years", trade["final_maturity_years"]),
+        trade["first_exercise_years"] + 1,
+        10,
     )
 
 
@@ -533,7 +740,7 @@ def pricing_tables(state):
     try:
         state, today, calendar, curve, curve_handle = (
             normalize_portfolio_state(state),
-            ql.Date.todaysDate(),
+            valuation_date(state),
             ql.UnitedStates(ql.UnitedStates.Settlement),
             None,
             None,
@@ -558,7 +765,6 @@ def pricing_tables(state):
         bermudan_grid_rows = build_bermudan_pricing_grid(
             state,
             market_context=market_context,
-            bermudan_pricing_engine=bermudan_engine,
         ).to_dict("records")
     except Exception as exc:
         pricing_error = str(exc)
@@ -649,18 +855,24 @@ def build_dashboard_context(state):
         {
             "swaption_matrix_headers": swaption_matrix_headers(),
             "swaption_matrix_rows": swaption_matrix_rows(state),
+            "valuation_date_input": valuation_date_input(state),
+            "equity_market_inputs": equity_market_inputs(state),
             "bermudan_grid_headers": [f"{year}Y" for year in BERMUDAN_GRID_MATURITIES_YEARS],
             "normal_vol_note": (
                 "European swaptions read ATM normal vols from the editable matrix. "
-                "Bermudans calibrate a time-dependent GSR model to the feasible diagonal of that "
-                "same matrix. The seed below initializes the sigma term structure and the tail segment."
+                "Bermudans calibrate the time-dependent sigma term structure to the feasible diagonal "
+                "of that same matrix while holding the user-specified Hull-White mean reversion fixed."
             ),
             "matrix_source_note": MATRIX_SOURCE_NOTE,
             "zero_rate_note": ZERO_RATE_NOTE,
             "forward_rate_note": FORWARD_RATE_NOTE,
+            "equity_market_note": EQUITY_MARKET_NOTE,
             "quantlib_data_model_url": url_for("workbench.quantlib_data_model"),
             "curve_debug_csv_url": url_for("workbench.curve_debug_download"),
             "curve_debug_csv_repo_path": current_app.config["CURVE_DEBUG_CSV_PATH"],
+            "default_market_data_json_path": str(DEFAULT_MARKET_DATA_JSON_PATH.relative_to(DEFAULT_MARKET_DATA_JSON_PATH.parent.parent)),
+            "default_trade_data_json_path": str(DEFAULT_TRADE_DATA_JSON_PATH.relative_to(DEFAULT_TRADE_DATA_JSON_PATH.parent.parent)),
+            "defaults_note": "Panels show the current session market state. Reset demo reloads the JSON defaults.",
         }
     )
     return payload
@@ -678,12 +890,18 @@ def build_trade_editor_context(state, trade_type):
     headline, detail = trade_card_summary(trade_type, trade, state["market"])
     selected_matrix_vol_bp = None
     trade_page_error = None
+    cliquet_context = None
     if trade_type == "european_swaption":
         selected_matrix_vol_bp = lookup_swaption_normal_vol_bp(
             state,
             trade["expiry_years"],
             trade["swap_tenor_years"],
         )
+    elif trade_type == "equity_cliquet":
+        try:
+            cliquet_context = cliquet_analytics(state)
+        except Exception as exc:
+            trade_page_error = str(exc)
 
     zero_points = []
     forward_points = []
@@ -700,10 +918,12 @@ def build_trade_editor_context(state, trade_type):
         "trade_fields": prepare_trade_form(definition, trade),
         "trade_headline": headline,
         "trade_detail": detail,
+        "trade_detail_rows": trade_detail_rows(trade_type, trade),
         "market_snapshot": market_snapshot(state, zero_points, forward_points, bermudan_pillars),
         "selected_matrix_vol_bp": selected_matrix_vol_bp,
+        "cliquet_context": cliquet_context,
         "trade_page_error": trade_page_error,
-        "trade_risk_api_url": url_for("workbench.trade_risk", trade_type=trade_type),
+        "trade_risk_api_url": "" if trade_type == "equity_cliquet" else url_for("workbench.trade_risk", trade_type=trade_type),
         "trade_risk_matrix_headers": swaption_matrix_headers(),
     }
 

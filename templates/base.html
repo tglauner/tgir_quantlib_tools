@@ -44,9 +44,9 @@
     }
 
     .shell {
-      width: min(1520px, calc(100vw - 18px));
+      width: min(1520px, calc(100vw - 26px));
       margin: 0 auto;
-      padding: 12px 0 24px;
+      padding: 14px 0 26px;
     }
 
     .shell-header {
@@ -135,7 +135,7 @@
 
     .grid {
       display: grid;
-      gap: 12px;
+      gap: 14px;
     }
 
     .panel {
@@ -275,7 +275,7 @@
 
     .stack {
       display: grid;
-      gap: 12px;
+      gap: 14px;
     }
 
     .metric-strip {
@@ -441,6 +441,62 @@
       height: 1px;
       margin: 10px 0;
       background: linear-gradient(90deg, rgba(19, 33, 48, 0.02), rgba(19, 33, 48, 0.10), rgba(19, 33, 48, 0.02));
+    }
+
+    .panel-section + .panel-section {
+      margin-top: 12px;
+    }
+
+    .curve-rate-input {
+      max-width: 88px;
+      margin-left: auto;
+      text-align: right;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      padding: 6px 7px;
+    }
+
+    .curve-rate-table {
+      table-layout: fixed;
+    }
+
+    .curve-rate-table col.curve-col-term {
+      width: 54px;
+    }
+
+    .curve-rate-table col.curve-col-market,
+    .curve-rate-table col.curve-col-zero {
+      width: 94px;
+    }
+
+    .chart-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    .chart-legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+
+    .chart-swatch {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+    }
+
+    .chart-swatch-blue {
+      background: #2a6fd6;
+    }
+
+    .chart-swatch-green {
+      background: var(--accent);
     }
 
     .editor-layout {
@@ -668,7 +724,9 @@
     }
 
     .workstation-grid {
-      grid-template-columns: minmax(0, 1.42fr) minmax(420px, 0.92fr);
+      grid-template-columns: minmax(360px, 0.47fr) minmax(720px, 1.65fr);
+      column-gap: 24px;
+      row-gap: 14px;
       align-items: start;
     }
 
@@ -685,6 +743,14 @@
     }
 
     .top-controls {
+      align-items: center;
+      justify-content: flex-end;
+    }
+
+    .header-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
       align-items: center;
       justify-content: flex-end;
     }
@@ -910,8 +976,19 @@
       <div class="auth-strip">
         {% if auth_state.is_authenticated %}
           <div class="auth-cluster">
-            <a class="btn btn-secondary btn-mini {% if request.endpoint == 'workbench.dashboard' %}btn-active{% endif %}" href="{{ url_for('workbench.dashboard') }}">Dashboard</a>
-            <a class="btn btn-secondary btn-mini {% if request.endpoint == 'workbench.quantlib_data_model' %}btn-active{% endif %}" href="{{ url_for('workbench.quantlib_data_model') }}">QuantLib Model</a>
+            <div class="header-toolbar">
+              <a class="btn btn-secondary btn-mini {% if request.endpoint == 'workbench.dashboard' %}btn-active{% endif %}" href="{{ url_for('workbench.dashboard') }}">Dashboard</a>
+              <a class="btn btn-secondary btn-mini {% if request.endpoint == 'workbench.quantlib_data_model' %}btn-active{% endif %}" href="{{ url_for('workbench.quantlib_data_model') }}" target="_blank" rel="noopener noreferrer">QuantLib Model</a>
+              <a class="btn btn-secondary btn-mini" href="{{ url_for('workbench.quantlib_data_model') }}#research-library" target="_blank" rel="noopener noreferrer">Research</a>
+              <a class="btn btn-secondary btn-mini" href="https://github.com/lballabio/QuantLib" target="_blank" rel="noopener noreferrer">QuantLib GitHub</a>
+              {% if request.endpoint == 'workbench.dashboard' %}
+                <a class="btn btn-secondary btn-mini" href="{{ url_for('workbench.curve_debug_download') }}">Download debug CSV</a>
+                <button class="btn btn-secondary btn-mini" id="realtime-toggle" type="button">Start real-time</button>
+                <form method="post" action="{{ url_for('workbench.reset_portfolio') }}">
+                  <button class="btn btn-secondary btn-mini" type="submit">Reset demo</button>
+                </form>
+              {% endif %}
+            </div>
             <div class="pill mono-pill">Signed in as {{ auth_state.username }}</div>
             <form method="post" action="{{ url_for('workbench.logout') }}">
               <button class="btn btn-ghost btn-mini" type="submit">Sign out</button>

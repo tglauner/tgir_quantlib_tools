@@ -44,7 +44,7 @@
   </section>
 
   <div class="grid">
-    <section class="panel panel-compact">
+    <section class="panel panel-compact" id="research-library">
       <div class="panel-inner">
         <div class="panel-header tight-header">
           <div>
@@ -210,14 +210,15 @@
             <table>
               <thead>
                 <tr>
-                  <th colspan="5">Bermudan Diagonal Calibration Strip</th>
+                  <th colspan="6">Bermudan Diagonal Calibration Strip</th>
                 </tr>
                 <tr>
                   <th>Pillar</th>
                   <th>Exercise</th>
                   <th>Maturity</th>
                   <th class="numeric">Market vol (bp)</th>
-                  <th class="numeric">Sigma seg (bp)</th>
+                  <th class="numeric">Model value</th>
+                  <th class="numeric">Error</th>
                 </tr>
               </thead>
               <tbody>
@@ -227,7 +228,8 @@
                     <td class="mono">{{ row.exercise_date_iso }}</td>
                     <td class="mono">{{ row.maturity_date_iso }}</td>
                     <td class="numeric mono">{{ "%.1f"|format(row.market_normal_vol_bp) }}</td>
-                    <td class="numeric mono">{{ "%.2f"|format(row.segment_sigma_bp) }}</td>
+                    <td class="numeric mono">{{ "%.6f"|format(row.model_value) }}</td>
+                    <td class="numeric mono">{{ "%.6g"|format(row.calibration_error) }}</td>
                   </tr>
                 {% endfor %}
               </tbody>

@@ -1,6 +1,6 @@
 sandbox_mode = "workspace-write"
-approval_policy = "never"
+approval_policy = "on-request"
 model_reasoning_effort = "high"
 
 [sandbox_workspace_write]
-network_access = false
+network_access = true

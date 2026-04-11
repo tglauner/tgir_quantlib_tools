@@ -5,6 +5,8 @@ import QuantLib as ql
 import pandas as pd
 
 from portfolio import (
+    BERMUDAN_MODEL_G2PP,
+    BERMUDAN_MODEL_HULL_WHITE_1F,
     BERMUDAN_GRID_MATURITIES_YEARS,
     BERMUDAN_GRID_NONCALL_YEARS,
     DEFAULT_VALUATION_DATE_ISO,
@@ -17,8 +19,9 @@ from portfolio import (
     _create_bermudan_swaption,
     _default_swaption_normal_vol_matrix_bp,
     bermudan_diagonal_calibration_pillars,
+    bermudan_exercise_schedule_rows,
     build_bermudan_pricing_grid,
-    build_bermudan_gsr_model,
+    build_bermudan_short_rate_model,
     build_sofr_curve,
     curve_debug_rows,
     curve_zero_rate_points,
@@ -95,16 +98,18 @@ class SofrCurveTests(unittest.TestCase):
         state = default_portfolio_state()
         state["market"]["curve_quotes_pct"] = sofr_quotes
         bermudan_pillars = bermudan_diagonal_calibration_pillars(state)
-        self.assertEqual(len(bermudan_pillars), 5)
-        self.assertEqual(bermudan_pillars[-1]["label"], "5Y x 5Y")
+        self.assertEqual(len(bermudan_pillars), 4)
+        self.assertEqual(bermudan_pillars[-1]["label"], "4Y x 1Y")
 
-        gsr_model = build_bermudan_gsr_model(state)
-        self.assertEqual(len(gsr_model["calibration_rows"]), 5)
-        self.assertEqual(gsr_model["calibration_rows"][0]["label"], "1Y x 1Y")
-        self.assertGreater(gsr_model["sigma_rows"][0]["sigma_bp"], 0.0)
-        for row in gsr_model["calibration_rows"]:
-            self.assertAlmostEqual(row["market_value"], row["model_value"], delta=1e-6)
-            self.assertLess(abs(row["calibration_error"]), 1e-4)
+        short_rate_model = build_bermudan_short_rate_model(state)
+        self.assertEqual(short_rate_model["model_name"], BERMUDAN_MODEL_HULL_WHITE_1F)
+        self.assertEqual(len(short_rate_model["calibration_rows"]), 4)
+        self.assertEqual(short_rate_model["calibration_rows"][0]["label"], "1Y x 4Y")
+        self.assertGreater(short_rate_model["parameter_rows"][-1]["value"], 0.0)
+        for row in short_rate_model["calibration_rows"]:
+            self.assertGreater(row["market_value"], 0.0)
+            self.assertGreater(row["model_value"], 0.0)
+            self.assertLess(abs(row["calibration_error"]), 0.10)
 
     def test_default_state_exposes_workbook_surface_and_bermudan_grid(self):
         state = default_portfolio_state()
@@ -116,6 +121,9 @@ class SofrCurveTests(unittest.TestCase):
         self.assertEqual(state["valuation_date_iso"], DEFAULT_VALUATION_DATE_ISO)
         self.assertNotIn("3Y", SWAPTION_MATRIX_EXPIRY_LABELS)
         self.assertAlmostEqual(lookup_swaption_normal_vol_bp(state, 3, 3), 77.355, places=3)
+        self.assertEqual(state["trades"]["swap"]["notional"], 100_000_000)
+        self.assertEqual(state["trades"]["european_swaption"]["notional"], 100_000_000)
+        self.assertEqual(state["trades"]["bermudan_swaption"]["notional"], 100_000_000)
         self.assertEqual(state["trades"]["bermudan_swaption_2"]["notional"], 100_000_000)
         self.assertListEqual(
             grid.columns.tolist(),
@@ -157,12 +165,35 @@ class SofrCurveTests(unittest.TestCase):
         ]
 
         self.assertListEqual(nonzero_labels, ["1Y x 4Y"])
-        self.assertEqual(sensitivities["model_parameter_row"]["delta_npv"], 0.0)
+        self.assertEqual(sensitivities["model_parameter_row"]["label"], "Hull-White mean reversion")
+        self.assertNotEqual(sensitivities["model_parameter_row"]["delta_npv"], 0.0)
 
     def test_bermudan_swaption_uses_diagonal_calibration_strip_only(self):
         labels = [pillar["label"] for pillar in bermudan_diagonal_calibration_pillars(default_portfolio_state())]
+        sensitivities = trade_point_sensitivities("bermudan_swaption", default_portfolio_state())
+        nonzero_vega_labels = [
+            cell["label"]
+            for row in sensitivities["vega_matrix_rows"]
+            for cell in row["cells"]
+            if cell["delta_npv"] != 0.0
+        ]
 
-        self.assertListEqual(labels, ["1Y x 1Y", "2Y x 2Y", "3Y x 3Y", "4Y x 4Y", "5Y x 5Y"])
+        self.assertListEqual(labels, ["1Y x 4Y", "2Y x 3Y", "3Y x 2Y", "4Y x 1Y"])
+        self.assertListEqual(nonzero_vega_labels, ["1Y x 4Y", "2Y x 2Y", "2Y x 3Y", "4Y x 1Y", "4Y x 2Y"])
+
+    def test_workbook_bermudan_calibration_strip_matches_call_schedule(self):
+        rows = bermudan_exercise_schedule_rows(default_portfolio_state(), trade_key="bermudan_swaption_2")
+
+        self.assertListEqual(
+            [row["schedule_label"] for row in rows],
+            ["2Y x 3Y", "3Y x 2Y", "4Y x 1Y"],
+        )
+        self.assertEqual(rows[1]["calibration_label"], "3Y x 2Y")
+        self.assertEqual(rows[1]["source_market_points"], [("2Y", "2Y"), ("4Y", "2Y")])
+        self.assertEqual(
+            rows[1]["exercise_probability_label"],
+            "Not exposed by QuantLib tree swaption engines",
+        )
 
     def test_bermudan_schedule_keeps_fixed_final_maturity_and_shortens_underlying_tenor(self):
         today = ql.Date(10, 3, 2026)
@@ -205,6 +236,7 @@ class SofrCurveTests(unittest.TestCase):
                         "final_maturity_years": 5,
                         "payment_frequency_months": 12,
                         "reset_frequency_months": 12,
+                        "model_name": BERMUDAN_MODEL_HULL_WHITE_1F,
                     }
                 },
             }
@@ -215,7 +247,7 @@ class SofrCurveTests(unittest.TestCase):
         curve = build_sofr_curve(today, state["market"]["curve_quotes_pct"])
         curve_handle = ql.YieldTermStructureHandle(curve)
         market_context = (state, today, calendar, curve, curve_handle)
-        bermudan_engine = build_bermudan_gsr_model(state, market_context=market_context)["engine"]
+        bermudan_engine = build_bermudan_short_rate_model(state, market_context=market_context)["engine"]
         npv = _create_bermudan_swaption(
             state["trades"]["bermudan_swaption"],
             today,
@@ -224,7 +256,18 @@ class SofrCurveTests(unittest.TestCase):
             bermudan_engine,
         ).NPV()
 
-        self.assertAlmostEqual(npv, 1_400_815.06, delta=20_000.0)
+        self.assertGreater(npv, 0.0)
+        self.assertAlmostEqual(npv, 1_414_296.66, delta=20_000.0)
+
+    def test_g2pp_bermudan_model_builds_with_two_factor_parameters(self):
+        state = default_portfolio_state()
+        state["trades"]["bermudan_swaption"]["model_name"] = BERMUDAN_MODEL_G2PP
+
+        model = build_bermudan_short_rate_model(state, trade_key="bermudan_swaption")
+
+        self.assertEqual(model["model_name"], BERMUDAN_MODEL_G2PP)
+        parameter_names = [row["parameter"] for row in model["parameter_rows"]]
+        self.assertListEqual(parameter_names, ["a", "sigma", "b", "eta", "rho"])
 
 
 if __name__ == "__main__":

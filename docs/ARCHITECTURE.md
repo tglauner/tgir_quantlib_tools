@@ -14,7 +14,7 @@
 - Stand-alone scripts for curve inspection and isolated pricing checks
 
 ## Data Flow
-Browser -> login route -> Flask session auth -> protected route -> shared portfolio state -> SOFR OIS curve bootstrap + swaption-vol inputs + SPX equity inputs -> QuantLib pricing engines -> zero-rate / forward-rate charts + workstation HTML response
+Browser -> login route -> Flask session auth -> protected route -> shared portfolio state -> SOFR OIS curve bootstrap + swaption-vol inputs + SPX equity inputs -> QuantLib pricing engines -> curve table / optional forward diagnostics / vol matrix / callable grid + workstation HTML response
 
 Browser -> QuantLib data-model route -> shared portfolio state -> QuantLib object manifest builder + research metadata -> educational / QA page with constructors, dependencies, enum values, and paper lists
 
@@ -25,17 +25,19 @@ Script -> shared QuantLib helpers -> stdout tables and diagnostics
 - The curve is bootstrapped from the workbook SOFR strip: `1D`, `1W`, `2W`, `3W`, `1M`, `2M`, `3M`, `6M`, `9M`, `1Y`, `2Y`, `3Y`, `4Y`, `5Y`, `6Y`, `7Y`, `8Y`, `10Y`, `12Y`, `15Y`, `20Y`, and `30Y`.
 - The front-end `1D` point is modeled as an overnight deposit helper and the rest of the curve as SOFR OIS helpers.
 - Calibration checks reprice each quoted OIS pillar to near-zero NPV.
-- The dashboard curve panel now shows QuantLib-derived zero rates at the actual node dates, reported as continuous-compounded spot rates on an Actual/365 basis rather than raw input quotes.
-- A separate dashboard panel shows daily one-day simple forward rates implied by that same SOFR curve over the next ten years, with annual date ticks on the x-axis.
+- The dashboard curve panel now shows a compact `term / market rate / zero rate` table, with QuantLib-derived zero rates at the actual node dates reported as continuous-compounded spot rates on an Actual/365 basis rather than raw input quotes.
+- The dashboard header keeps the core controls at the top of the screen: dashboard and model navigation, a direct research shortcut into the paper list, the upstream QuantLib GitHub link, the curve CSV export, the realtime toggle, and the reset action.
+- A separate on-demand dashboard panel shows daily one-day simple forward rates implied by that same SOFR curve over the next ten years, with annual date ticks on the x-axis.
 - The live demo swap starts on a spot business date so the app does not depend on loading historical SOFR fixings.
 
 ## Volatility Conventions
-- European swaptions are priced from a full ATM normal-vol matrix with short expiries from `1M` onward, annual expiries through `10Y`, then `12Y`, `15Y`, `20Y`, and `25Y`, against underlying swap tenors `1Y..10Y`, `12Y`, `15Y`, `20Y`, `25Y`, and `30Y`.
+- European swaptions calibrate `ql.HullWhite` to a full ATM normal-vol matrix with short expiries from `1M` onward, annual expiries through `10Y`, then `12Y`, `15Y`, `20Y`, and `25Y`, against underlying swap tenors `1Y..10Y`, `12Y`, `15Y`, `20Y`, `25Y`, and `30Y`, then price with `ql.JamshidianSwaptionEngine`.
 - The dashboard matrix uses the exact workbook expiry and tenor axes. When the Bermudan calibration needs a `3Y` expiry, the model linearly interpolates it between the workbook `2Y` and `4Y` rows.
-- Bermudan swaptions calibrate a time-dependent `ql.Gsr` model to the feasible diagonal of that same ATM matrix up to the trade's fixed final maturity, using the Bermudan seed input only as the initial sigma guess and tail segment level.
-- The UI shows both concepts separately so the European matrix selection and the Bermudan calibration seed are not conflated.
+- Bermudan swaptions default to `ql.HullWhite` calibrated to the trade's own fixed-maturity call schedule and priced with `ql.TreeSwaptionEngine`. The detail page also lets the user switch the same trade to `ql.G2` to compare value and risk differences under the same market data.
+- Each exercise date is matched to the remaining underlying swap tenor implied by the common final maturity, so a `5Y NC 2Y` strip calibrates to `2Y x 3Y`, `3Y x 2Y`, and `4Y x 1Y` rather than `2Y x 2Y`, `3Y x 3Y`, and `4Y x 4Y`.
+- When a required expiry is not on the workbook axes, the model interpolates that expiry in the expiry dimension only and records the exact matrix source points used by the helper.
 - All rates trades are modeled as `ql.OvernightIndexedSwap` instruments with daily compounded SOFR coupons and editable payment/reset frequencies. The workbook comparison uses annual pay and annual reset.
-- Default market data and trade defaults are stored in `data/default_market_data.json` and `data/default_trades.json`, then copied into the Flask session for interactive edits.
+- Default market data and trade defaults are stored in `data/default_market_data.json` and `data/default_trades.json`, then copied into the Flask session for interactive edits. The four rates trades seed at `100,000,000.00` notionals by default; the cliquet remains quantity based.
 
 ## Equity Cliquet Conventions
 - The SPX trade is modeled as a `ql.CliquetOption` priced with `ql.AnalyticCliquetEngine`.
@@ -48,6 +50,7 @@ Script -> shared QuantLib helpers -> stdout tables and diagnostics
 - Rows are non-call periods `1Y..9Y`.
 - For a valid cell, the trade is booked off a fixed final maturity. The remaining underlying tenor at each exercise date is implied by that fixed maturity, and call dates are generated off the payment schedule through the remaining life of the deal.
 - Example: `5Y NC 2Y` means the trade can exercise after `2Y` into the remaining `3Y` swap, after `3Y` into the remaining `2Y` swap, and after `4Y` into the remaining `1Y` swap when annual payment dates are used.
+- The Bermudan trade-detail page also shows this mapping directly, including the exercised-into swap, the calibration pillar label, and the matrix source points used for each exercise date. QuantLib's Python bindings do not expose exact Bermudan exercise probabilities from the tree swaption engines, so the UI reports that limitation explicitly instead of inventing probabilities.
 
 ## Testing Strategy
 - Route smoke test for the login screen and protected dashboard
@@ -55,7 +58,7 @@ Script -> shared QuantLib helpers -> stdout tables and diagnostics
 - Login flow test for session-protected workstation access
 - Portfolio smoke test for returned instruments and NPVs
 - Curve calibration test for all quoted SOFR OIS pillars plus derived zero-rate and forward-rate outputs
-- Bermudan Gaussian short-rate calibration repricing test for every diagonal helper used by the trade calibration strip
+- Bermudan short-rate calibration sanity test for every helper used by the fixed-maturity trade calibration strip
 - Shape test for the workbook ATM normal-vol matrix and the Bermudan grid
 - Bermudan fixed-maturity schedule test for rolling exercise tenors
 - Workbook-reference Bermudan price check against the QL screenshot

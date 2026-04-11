@@ -14,6 +14,7 @@
     \item Login at \code{http://127.0.0.1:5050}.
     \item Main workflow lives on \code{/dashboard}.
     \item Five trades are always visible on the blotter.
+    \item The top bar keeps nav, research, GitHub, export, realtime, and reset controls together.
     \item Detailed trade changes happen in the dedicated editor pages.
 \end{itemize}
 \end{frame}
@@ -21,10 +22,11 @@
 \begin{frame}{Dashboard Components}
 \begin{itemize}
     \item Valuation date field shared by all rates analytics.
-    \item SOFR curve inputs and zero-rate chart.
-    \item Ten-year one-day forward SOFR strip.
+    \item SOFR curve inputs plus a compact market-rate / zero-rate table.
+    \item Market-versus-zero-rate chart plus mean reversion shown as a percentage.
     \item Workbook ATM swaption normal-vol matrix.
     \item Bermudan pricing grid.
+    \item On-demand forward-strip and OIS-repricing diagnostics.
     \item SPX cliquet market assumptions.
 \end{itemize}
 \end{frame}
@@ -32,8 +34,10 @@
 \begin{frame}{Trade Editors}
 \begin{itemize}
     \item Swap: direction, notional, fixed coupon, tenor.
-    \item European swaption: strike, expiry, underlying tenor.
-    \item Bermudan swaption editors: first exercise, fixed final maturity, pay/reset frequency.
+    \item European swaption: strike, expiry, underlying tenor, then Hull-White 1F + Jamshidian pricing.
+    \item The four rates trades start at \code{100,000,000.00} notionals by default.
+    \item Bermudan swaption editors: first exercise, fixed final maturity, pay/reset frequency, model choice.
+    \item Bermudan detail view shows the exercise-to-swap mapping, helper source points, and Hull-White versus G2++ comparison.
     \item Equity cliquet: option type, quantity, moneyness, maturity, reset frequency.
 \end{itemize}
 \end{frame}

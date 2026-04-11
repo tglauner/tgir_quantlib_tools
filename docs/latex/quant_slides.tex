@@ -12,8 +12,8 @@
 \begin{frame}{Portfolio Model Scope}
 \begin{itemize}
     \item Spot-starting SOFR swap.
-    \item European normal-volatility swaption.
-    \item Bermudan swaption with calibrated Gaussian short-rate model.
+    \item European normal-volatility swaption under Hull-White 1F + Jamshidian.
+    \item Bermudan swaption with calibrated Hull-White 1F or G2++.
     \item SPX cliquet under Black-Scholes-Merton dynamics.
 \end{itemize}
 \end{frame}
@@ -29,10 +29,10 @@
 
 \begin{frame}{Swaption Stack}
 \begin{itemize}
-    \item European swaption uses one ATM matrix cell and \code{ql.BachelierSwaptionEngine}.
-    \item Bermudan swaption calibrates \code{ql.Gsr} to the trade-maturity diagonal helper strip.
-    \item Pricing uses \code{ql.Gaussian1dSwaptionEngine}.
-    \item Tests now assert helper repricing after calibration.
+    \item European swaption uses one ATM matrix cell, calibrates \code{ql.HullWhite}, and prices with \code{ql.JamshidianSwaptionEngine}.
+    \item Bermudan swaption calibrates \code{ql.HullWhite} or \code{ql.G2} to the trade call schedule and remaining-tenor strip.
+    \item Pricing uses \code{ql.TreeSwaptionEngine}.
+    \item Tests now assert helper repricing after calibration and the fixed-maturity call mapping.
 \end{itemize}
 \end{frame}
 
@@ -47,7 +47,7 @@
 
 \begin{frame}{Reported Analytics}
 \begin{itemize}
-    \item Rates: curve ladder, matrix vega, Bermudan seed sensitivity.
+    \item Rates: curve ladder, matrix vega, Bermudan mean-reversion sensitivity.
     \item Cliquet: analytic Greeks, reset-strip decomposition, deterministic scenarios, Monte Carlo distribution.
     \item Model page: constructor signatures, enum values, and research lists.
 \end{itemize}

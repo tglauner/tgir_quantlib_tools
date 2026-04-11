@@ -44,10 +44,11 @@ Path & Responsibility \\
 \section{State Model}
 The session state is a nested dictionary with:
 \begin{itemize}[leftmargin=1.5em]
-    \item \code{market} for rates, swaption volatility, Bermudan seed, and SPX equity assumptions,
+    \item \code{market} for rates, swaption volatility, shared mean reversion, and SPX equity assumptions,
     \item \code{trades.swap},
     \item \code{trades.european\_swaption},
     \item \code{trades.bermudan\_swaption}, and
+    \item \code{trades.bermudan\_swaption\_2}, and
     \item \code{trades.equity\_cliquet}.
 \end{itemize}
 Always pass data through \code{normalize\_portfolio\_state()} before constructing pricing objects.
@@ -59,7 +60,8 @@ This is the core quantitative module. It owns:
     \item curve normalization and construction,
     \item swaption-volatility matrix normalization,
     \item swap, swaption, and cliquet instrument creation,
-    \item Bermudan Gaussian short-rate calibration,
+    \item European Hull-White 1F + Jamshidian pricing,
+    \item Bermudan Hull-White 1F / G2++ calibration and tree pricing,
     \item price tables,
     \item risk ladders, and
     \item cliquet scenario and Monte Carlo analytics.

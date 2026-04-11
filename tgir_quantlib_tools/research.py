@@ -5,8 +5,8 @@ SWAPTION_RESEARCH_SECTIONS = [
             "These are the papers and notes most directly tied to the QuantLib swaption "
             "machinery used or referenced by this repository. The Jamshidian engine docs "
             "explicitly point to Caspers' note on start-delay handling, while the "
-            "Gaussian1d and GSR stack is closely aligned with Caspers' Gaussian and "
-            "Markov-functional implementation papers."
+            "short-rate calibration workflow is closely aligned with Caspers' QuantLib "
+            "implementation papers on Gaussian and Markov-functional models."
         ),
         "papers": [
             {
@@ -25,8 +25,8 @@ SWAPTION_RESEARCH_SECTIONS = [
                 "year": 2013,
                 "url": "https://www.econbiz.de/10013083737",
                 "notes": (
-                    "Directly relevant to the repo's Bermudan GSR calibration stack and "
-                    "piecewise-constant Gaussian short-rate setup."
+                    "Directly relevant to the repo's one-factor short-rate swaption "
+                    "calibration workflow in QuantLib."
                 ),
             },
             {
@@ -35,7 +35,7 @@ SWAPTION_RESEARCH_SECTIONS = [
                 "year": 2013,
                 "url": "https://www.deriscope.com/docs/Markov_Functional_Peter_Caspers_2013.pdf",
                 "notes": (
-                    "QuantLib-focused paper for the Gaussian1d and Markov-functional "
+                    "QuantLib-focused paper for the Gaussian and Markov-functional "
                     "framework used by the broader swaption engine family."
                 ),
             },

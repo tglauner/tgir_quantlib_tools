@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from datetime import datetime
 import math
 import random
@@ -8,7 +9,12 @@ import QuantLib as ql
 from flask import current_app, session, url_for
 
 from portfolio import (
+    BERMUDAN_TRADE_KEYS,
     BERMUDAN_GRID_MATURITIES_YEARS,
+    BERMUDAN_MODEL_G2PP,
+    BERMUDAN_MODEL_HULL_WHITE_1F,
+    BERMUDAN_MODEL_OPTIONS,
+    CURVE_POINT_BUMP_BP,
     DEFAULT_MARKET_DATA_JSON_PATH,
     DEFAULT_TRADE_DATA_JSON_PATH,
     CLIQUET_SCENARIO_VOL_SHOCKS_PCT,
@@ -18,9 +24,12 @@ from portfolio import (
     SWAPTION_MATRIX_EXPIRY_LABELS,
     SWAPTION_MATRIX_TENOR_LABELS,
     TRADE_TITLES,
+    VOL_POINT_BUMP_BP,
     bermudan_diagonal_calibration_pillars,
+    bermudan_model_label,
+    bermudan_exercise_schedule_rows,
     build_bermudan_pricing_grid,
-    build_bermudan_gsr_model,
+    build_bermudan_short_rate_model,
     build_sofr_curve,
     cliquet_analytics,
     curve_zero_rate_points,
@@ -31,7 +40,9 @@ from portfolio import (
     normalize_portfolio_state,
     price_portfolio,
     reprice_sofr_calibration_swaps,
+    swaption_matrix_market_sources,
     trade_card_summary,
+    trade_npv,
     valuation_date,
 )
 
@@ -102,6 +113,12 @@ BERMUDAN_FORM_FIELDS = [
         "type": "select",
         "options": IR_FREQUENCY_OPTIONS,
     },
+    {
+        "name": "model_name",
+        "label": "Pricing model",
+        "type": "select",
+        "options": list(BERMUDAN_MODEL_OPTIONS),
+    },
 ]
 
 TRADE_FORM_DEFINITIONS = {
@@ -150,8 +167,9 @@ TRADE_FORM_DEFINITIONS = {
     "european_swaption": {
         "title": "European Swaption",
         "description": (
-            "Single exercise into a forward-starting SOFR OIS. Priced off the editable ATM "
-            "normal-vol matrix at the selected expiry and swap tenor."
+            "Single exercise into a forward-starting SOFR OIS. The editable ATM normal-vol "
+            "matrix is converted into a Hull-White 1F calibration target, then priced and risked "
+            "with Jamshidian's decomposition."
         ),
         "fields": [
             {
@@ -197,9 +215,9 @@ TRADE_FORM_DEFINITIONS = {
         "description": (
             "Multi-exercise callable structure into a fixed versus daily compounded SOFR OIS. "
             "The trade is booked off a fixed final maturity, with exercise opportunities on each "
-            "payment date from first exercise up to the period before maturity. Pricing uses a "
-            "time-dependent Gaussian short-rate model calibrated to the feasible diagonal of the "
-            "ATM normal-vol matrix with user-controlled Hull-White mean reversion."
+            "payment date from first exercise up to the period before maturity. Pricing defaults "
+            "to Hull-White 1F calibrated to the trade call schedule and uses a tree engine for the "
+            "Bermudan exercise feature. You can switch to G2++ here to compare value and risk."
         ),
         "fields": BERMUDAN_FORM_FIELDS,
     },
@@ -208,7 +226,8 @@ TRADE_FORM_DEFINITIONS = {
         "description": (
             "Workbook benchmark trade matching the QL.xlsx comparison setup. Use this deal to "
             "compare model marks and risk against the spreadsheet reference while keeping the "
-            "same market data and valuation date as the rest of the workstation."
+            "same market data and valuation date as the rest of the workstation. Hull-White 1F is "
+            "the default model, with G2++ available for direct comparison."
         ),
         "fields": BERMUDAN_FORM_FIELDS,
     },
@@ -325,6 +344,31 @@ def curve_inputs(state):
         {"label": label, "name": f"rate{index}", "value": state["market"]["curve_quotes_pct"][index]}
         for index, label in enumerate(SOFR_CURVE_TENOR_LABELS)
     ]
+
+
+def curve_market_zero_rows(state, zero_points):
+    zero_point_by_label = {point["label"]: point for point in zero_points}
+    rows = []
+    for index, label in enumerate(SOFR_CURVE_TENOR_LABELS):
+        zero_point = zero_point_by_label.get(label)
+        rows.append(
+            {
+                "label": label,
+                "market_rate_pct": state["market"]["curve_quotes_pct"][index],
+                "zero_rate_pct": 0.0 if zero_point is None else zero_point["rate_pct"],
+            }
+        )
+    return rows
+
+
+def _empty_multi_line_chart():
+    return {
+        "width": 500,
+        "height": 220,
+        "x_ticks": [],
+        "y_ticks": [],
+        "series": [],
+    }
 
 
 def valuation_date_input(state):
@@ -478,11 +522,7 @@ def _curve_analytics(state):
     curve = build_sofr_curve(today, state["market"]["curve_quotes_pct"])
     zero_points = curve_zero_rate_points(curve)
     forward_points = daily_one_day_forward_points(curve)
-    bermudan_pillars = bermudan_diagonal_calibration_pillars(
-        state,
-        market_context=(state, today, calendar, curve, ql.YieldTermStructureHandle(curve)),
-    )
-    return zero_points, forward_points, bermudan_pillars
+    return zero_points, forward_points
 
 
 def _forward_summary(forward_points):
@@ -511,14 +551,83 @@ def _forward_summary(forward_points):
     }
 
 
-def _zero_rate_chart(zero_points):
-    return _line_chart(
-        zero_points,
-        label_key="label",
-        value_key="rate_pct",
-        marker_indexes=list(range(len(zero_points))),
-        x_tick_indexes=_sample_indexes(len(zero_points), min(len(zero_points), 8)),
-    )
+def _curve_comparison_chart(curve_rate_rows):
+    if not curve_rate_rows:
+        return _empty_multi_line_chart()
+
+    width = 620
+    height = 240
+    padding_left = 36
+    padding_right = 18
+    padding_top = 20
+    padding_bottom = 34
+    plot_width = width - padding_left - padding_right
+    plot_height = height - padding_top - padding_bottom
+
+    market_values = [row["market_rate_pct"] for row in curve_rate_rows]
+    zero_values = [row["zero_rate_pct"] for row in curve_rate_rows]
+    all_values = market_values + zero_values
+    min_value = min(all_values)
+    max_value = max(all_values)
+    buffer = max((max_value - min_value) * 0.15, 0.12)
+    y_min = min_value - buffer
+    y_max = max_value + buffer
+    denominator = max(len(curve_rate_rows) - 1, 1)
+
+    def project_series(value_key, color):
+        points = []
+        for index, row in enumerate(curve_rate_rows):
+            x_position = padding_left + index * plot_width / denominator
+            ratio = 0.5 if y_max == y_min else (row[value_key] - y_min) / (y_max - y_min)
+            y_position = padding_top + (1 - ratio) * plot_height
+            points.append(
+                {
+                    "label": row["label"],
+                    "value": row[value_key],
+                    "x": round(x_position, 2),
+                    "y": round(y_position, 2),
+                }
+            )
+        return {
+            "color": color,
+            "polyline": " ".join(f"{point['x']},{point['y']}" for point in points),
+            "markers": points,
+        }
+
+    y_ticks = []
+    for step in range(4):
+        tick_value = y_min + (y_max - y_min) * step / 3
+        tick_ratio = 0.0 if y_max == y_min else (tick_value - y_min) / (y_max - y_min)
+        tick_y = padding_top + (1 - tick_ratio) * plot_height
+        y_ticks.append({"value": tick_value, "y": round(tick_y, 2)})
+
+    x_tick_indexes = _sample_indexes(len(curve_rate_rows), min(len(curve_rate_rows), 8))
+    projected_market = project_series("market_rate_pct", "#2a6fd6")
+    projected_zero = project_series("zero_rate_pct", "#0b7463")
+
+    return {
+        "width": width,
+        "height": height,
+        "x_ticks": [
+            {"label": curve_rate_rows[index]["label"], "x": projected_market["markers"][index]["x"]}
+            for index in x_tick_indexes
+        ],
+        "y_ticks": y_ticks,
+        "series": [
+            {
+                "label": "Market rates",
+                "color": projected_market["color"],
+                "polyline": projected_market["polyline"],
+                "markers": projected_market["markers"],
+            },
+            {
+                "label": "Zero rates",
+                "color": projected_zero["color"],
+                "polyline": projected_zero["polyline"],
+                "markers": projected_zero["markers"],
+            },
+        ],
+    }
 
 
 def _forward_rate_chart(forward_points):
@@ -544,11 +653,7 @@ def _forward_rate_chart(forward_points):
     )
 
 
-def market_snapshot(state, zero_points, forward_points, bermudan_pillars):
-    zero_rates = [point["rate_pct"] for point in zero_points]
-    zero_steepness_bp = (zero_rates[-1] - zero_rates[0]) * 100.0 if len(zero_rates) >= 2 else 0.0
-    last_pillar = bermudan_pillars[-1]["label"] if bermudan_pillars else "-"
-
+def market_snapshot(state, zero_points, forward_points):
     return {
         "zero_rate_rows": [
             {
@@ -560,11 +665,7 @@ def market_snapshot(state, zero_points, forward_points, bermudan_pillars):
             for point in zero_points
         ],
         "valuation_date_iso": state["valuation_date_iso"],
-        "zero_rate_steepness_bp": zero_steepness_bp,
-        "atm_5y5y_bp": lookup_swaption_normal_vol_bp(state, 5, 5),
         "hw_mean_reversion": float(state["market"]["hw_mean_reversion"]),
-        "bermudan_calibration_helper_count": len(bermudan_pillars),
-        "bermudan_last_diagonal_label": last_pillar,
         "forward_rate_summary": _forward_summary(forward_points),
         "equity_spot": float(state["market"]["equity_spot"]),
         "equity_dividend_yield_pct": float(state["market"]["equity_dividend_yield_pct"]),
@@ -608,6 +709,9 @@ def trade_detail_rows(trade_type, trade):
         return [
             {"label": "Expiry", "value": f"{trade['expiry_years']}Y"},
             {"label": "Underlying tenor", "value": f"{trade['swap_tenor_years']}Y"},
+            {"label": "Pricing model", "value": "Hull-White 1F + Jamshidian"},
+            {"label": "Calibration method", "value": "ql.BlackCalibrationHelper.RelativePriceError"},
+            {"label": "Volatility type", "value": "ql.Normal"},
             {"label": "Payment frequency", "value": frequency_label(trade["payment_frequency_months"])},
             {"label": "Reset frequency", "value": frequency_label(trade["reset_frequency_months"])},
         ]
@@ -616,12 +720,175 @@ def trade_detail_rows(trade_type, trade):
         return [
             {"label": "First exercise", "value": f"{trade['first_exercise_years']}Y"},
             {"label": "Final maturity", "value": f"{trade['final_maturity_years']}Y"},
+            {"label": "Pricing model", "value": bermudan_model_label(trade.get("model_name"))},
+            {"label": "Calibration method", "value": "ql.BlackCalibrationHelper.RelativePriceError"},
+            {"label": "Volatility type", "value": "ql.Normal"},
             {"label": "Payment frequency", "value": frequency_label(trade["payment_frequency_months"])},
             {"label": "Reset frequency", "value": frequency_label(trade["reset_frequency_months"])},
         ]
 
     return [
         {"label": "Reset frequency", "value": f"{trade['reset_frequency_months']}M"},
+    ]
+
+
+def _trade_market_context(state):
+    state = normalize_portfolio_state(state)
+    today = valuation_date(state)
+    ql.Settings.instance().evaluationDate = today
+    calendar = ql.UnitedStates(ql.UnitedStates.Settlement)
+    curve = build_sofr_curve(today, state["market"]["curve_quotes_pct"])
+    curve_handle = ql.YieldTermStructureHandle(curve)
+    return state, today, calendar, curve, curve_handle
+
+
+def _trade_bermudan_engine(trade_type, state, market_context):
+    if trade_type not in BERMUDAN_TRADE_KEYS:
+        return None
+    return build_bermudan_short_rate_model(
+        state,
+        market_context=market_context,
+        calibration_horizon_years=state["trades"][trade_type]["final_maturity_years"],
+        trade_key=trade_type,
+    )["engine"]
+
+
+def _sensitive_swaption_matrix_points(trade_type, state, market_context):
+    if trade_type == "european_swaption":
+        trade = state["trades"][trade_type]
+        return set(
+            swaption_matrix_market_sources(
+                state,
+                trade["expiry_years"],
+                trade["swap_tenor_years"],
+            )["source_market_points"]
+        )
+    if trade_type in BERMUDAN_TRADE_KEYS:
+        return {
+            point
+            for pillar in bermudan_diagonal_calibration_pillars(
+                state,
+                market_context=market_context,
+                calibration_horizon_years=state["trades"][trade_type]["final_maturity_years"],
+                trade_key=trade_type,
+            )
+            for point in pillar["source_market_points"]
+        }
+    return set()
+
+
+def _parallel_trade_summary_metrics(state, trade_type):
+    state, today, calendar, curve, curve_handle = _trade_market_context(state)
+    base_market_context = (state, today, calendar, curve, curve_handle)
+    base_bermudan_engine = _trade_bermudan_engine(trade_type, state, base_market_context)
+    base_npv = trade_npv(
+        trade_type,
+        state,
+        market_context=base_market_context,
+        bermudan_pricing_engine=base_bermudan_engine,
+    )
+
+    curve_bump_pct = float(CURVE_POINT_BUMP_BP) / 100.0
+    curve_up_state = normalize_portfolio_state(copy.deepcopy(state))
+    curve_up_state["market"]["curve_quotes_pct"] = [
+        quote + curve_bump_pct for quote in curve_up_state["market"]["curve_quotes_pct"]
+    ]
+    up_state, up_today, up_calendar, up_curve, up_curve_handle = _trade_market_context(curve_up_state)
+    up_market_context = (up_state, up_today, up_calendar, up_curve, up_curve_handle)
+    up_npv = trade_npv(
+        trade_type,
+        up_state,
+        market_context=up_market_context,
+        bermudan_pricing_engine=_trade_bermudan_engine(trade_type, up_state, up_market_context),
+    )
+
+    curve_down_state = normalize_portfolio_state(copy.deepcopy(state))
+    curve_down_state["market"]["curve_quotes_pct"] = [
+        quote - curve_bump_pct for quote in curve_down_state["market"]["curve_quotes_pct"]
+    ]
+    down_state, down_today, down_calendar, down_curve, down_curve_handle = _trade_market_context(curve_down_state)
+    down_market_context = (down_state, down_today, down_calendar, down_curve, down_curve_handle)
+    down_npv = trade_npv(
+        trade_type,
+        down_state,
+        market_context=down_market_context,
+        bermudan_pricing_engine=_trade_bermudan_engine(trade_type, down_state, down_market_context),
+    )
+
+    vega_npv = 0.0
+    sensitive_points = _sensitive_swaption_matrix_points(trade_type, state, base_market_context)
+    if sensitive_points:
+        expiry_indexes = {label: index for index, label in enumerate(SWAPTION_MATRIX_EXPIRY_LABELS)}
+        tenor_indexes = {label: index for index, label in enumerate(SWAPTION_MATRIX_TENOR_LABELS)}
+        shocked_state = normalize_portfolio_state(copy.deepcopy(state))
+        for expiry_label, tenor_label in sensitive_points:
+            shocked_state["market"]["swaption_vol_matrix_bp"][expiry_indexes[expiry_label]][tenor_indexes[tenor_label]] += float(
+                VOL_POINT_BUMP_BP
+            )
+        shocked_state, shocked_today, shocked_calendar, shocked_curve, shocked_curve_handle = _trade_market_context(
+            shocked_state
+        )
+        shocked_market_context = (
+            shocked_state,
+            shocked_today,
+            shocked_calendar,
+            shocked_curve,
+            shocked_curve_handle,
+        )
+        shocked_npv = trade_npv(
+            trade_type,
+            shocked_state,
+            market_context=shocked_market_context,
+            bermudan_pricing_engine=_trade_bermudan_engine(trade_type, shocked_state, shocked_market_context),
+        )
+        vega_npv = shocked_npv - base_npv
+
+    return [
+        {
+            "label": "MTM",
+            "value": base_npv,
+            "subtitle": "Current trade mark",
+        },
+        {
+            "label": "Delta",
+            "value": up_npv - base_npv,
+            "subtitle": f"+{float(CURVE_POINT_BUMP_BP):.0f} bp parallel SOFR",
+        },
+        {
+            "label": "Convexity",
+            "value": up_npv + down_npv - (2.0 * base_npv),
+            "subtitle": f"Symmetric +/-{float(CURVE_POINT_BUMP_BP):.0f} bp SOFR",
+        },
+        {
+            "label": "Vega",
+            "value": vega_npv,
+            "subtitle": f"+{float(VOL_POINT_BUMP_BP):.0f} bp relevant ATM vols",
+        },
+    ]
+
+
+def _cliquet_summary_metrics(cliquet_context):
+    return [
+        {
+            "label": "MTM",
+            "value": cliquet_context["base_npv"],
+            "subtitle": "Current trade mark",
+        },
+        {
+            "label": "Delta",
+            "value": cliquet_context["greeks"]["delta"],
+            "subtitle": "Analytic QuantLib delta",
+        },
+        {
+            "label": "Convexity",
+            "value": cliquet_context["greeks"]["gamma"],
+            "subtitle": "Analytic QuantLib gamma",
+        },
+        {
+            "label": "Vega",
+            "value": cliquet_context["greeks"]["vega"],
+            "subtitle": "Analytic QuantLib vega",
+        },
     ]
 
 
@@ -632,7 +899,7 @@ def update_market_state(state, form) -> None:
         for index in range(len(SOFR_CURVE_TENOR_LABELS))
     ]
     state["market"]["hw_mean_reversion"] = max(
-        parse_float(form, "hw_mean_reversion", state["market"]["hw_mean_reversion"]),
+        parse_float(form, "hw_mean_reversion", state["market"]["hw_mean_reversion"] * 100.0) / 100.0,
         0.0,
     )
 
@@ -729,6 +996,12 @@ def update_trade_state(state, trade_type, form) -> None:
         trade["first_exercise_years"] + 1,
         10,
     )
+    model_name = form.get("model_name", trade.get("model_name"))
+    trade["model_name"] = (
+        model_name
+        if model_name in {BERMUDAN_MODEL_HULL_WHITE_1F, BERMUDAN_MODEL_G2PP}
+        else trade.get("model_name", BERMUDAN_MODEL_HULL_WHITE_1F)
+    )
 
 
 def pricing_tables(state):
@@ -749,7 +1022,7 @@ def pricing_tables(state):
         curve = build_sofr_curve(today, state["market"]["curve_quotes_pct"])
         curve_handle = ql.YieldTermStructureHandle(curve)
         market_context = (state, today, calendar, curve, curve_handle)
-        bermudan_engine = build_bermudan_gsr_model(
+        bermudan_engine = build_bermudan_short_rate_model(
             state,
             market_context=market_context,
         )["engine"]
@@ -798,53 +1071,29 @@ def enrich_portfolio_rows(portfolio_rows):
     return enriched_rows
 
 
-def portfolio_marks(portfolio_rows):
-    if not portfolio_rows:
-        return {
-            "total_npv": 0.0,
-            "total_mtm": 0.0,
-            "gross_mtm": 0.0,
-            "best_trade": {"type": "-", "mtm": 0.0},
-            "worst_trade": {"type": "-", "mtm": 0.0},
-        }
-
-    total_mtm = sum(row["MTM"] for row in portfolio_rows)
-    best_trade = max(portfolio_rows, key=lambda row: row["MTM"])
-    worst_trade = min(portfolio_rows, key=lambda row: row["MTM"])
-    return {
-        "total_npv": sum(row["NPV"] for row in portfolio_rows),
-        "total_mtm": total_mtm,
-        "gross_mtm": sum(abs(row["MTM"]) for row in portfolio_rows),
-        "best_trade": {"type": best_trade["Type"], "mtm": best_trade["MTM"]},
-        "worst_trade": {"type": worst_trade["Type"], "mtm": worst_trade["MTM"]},
-    }
-
-
 def dynamic_dashboard_payload(state):
     portfolio_rows, calibration_rows, bermudan_grid_rows, pricing_error = pricing_tables(state)
 
     analytics_error = None
     zero_points = []
     forward_points = []
-    bermudan_pillars = []
     try:
-        zero_points, forward_points, bermudan_pillars = _curve_analytics(state)
+        zero_points, forward_points = _curve_analytics(state)
     except Exception as exc:
         analytics_error = str(exc)
 
     return _json_safe(
         {
-        "portfolio_rows": portfolio_rows,
-        "blotter_rows": enrich_portfolio_rows(portfolio_rows),
-        "calibration_rows": calibration_rows,
-        "bermudan_grid_rows": bermudan_grid_rows,
-        "curve_inputs": curve_inputs(state),
-        "zero_rate_chart": _zero_rate_chart(zero_points),
-        "forward_rate_chart": _forward_rate_chart(forward_points),
-        "market_snapshot": market_snapshot(state, zero_points, forward_points, bermudan_pillars),
-        "portfolio_marks": portfolio_marks(portfolio_rows),
-        "pricing_error": pricing_error or analytics_error,
-        "last_update_label": datetime.now().strftime("%H:%M:%S"),
+            "blotter_rows": enrich_portfolio_rows(portfolio_rows),
+            "calibration_rows": calibration_rows,
+            "bermudan_grid_rows": bermudan_grid_rows,
+            "curve_inputs": curve_inputs(state),
+            "curve_rate_rows": curve_market_zero_rows(state, zero_points),
+            "curve_comparison_chart": _curve_comparison_chart(curve_market_zero_rows(state, zero_points)),
+            "forward_rate_chart": _forward_rate_chart(forward_points),
+            "market_snapshot": market_snapshot(state, zero_points, forward_points),
+            "pricing_error": pricing_error or analytics_error,
+            "last_update_label": datetime.now().strftime("%H:%M:%S"),
         }
     )
 
@@ -859,17 +1108,14 @@ def build_dashboard_context(state):
             "equity_market_inputs": equity_market_inputs(state),
             "bermudan_grid_headers": [f"{year}Y" for year in BERMUDAN_GRID_MATURITIES_YEARS],
             "normal_vol_note": (
-                "European swaptions read ATM normal vols from the editable matrix. "
-                "Bermudans calibrate the time-dependent sigma term structure to the feasible diagonal "
-                "of that same matrix while holding the user-specified Hull-White mean reversion fixed."
+                "European swaptions calibrate Hull-White 1F to the selected ATM normal-vol pillar and "
+                "price with Jamshidian's decomposition. Bermudans calibrate either Hull-White 1F or G2++ "
+                "to the trade call-schedule diagonal from the same matrix, holding the mean reversion input fixed."
             ),
             "matrix_source_note": MATRIX_SOURCE_NOTE,
             "zero_rate_note": ZERO_RATE_NOTE,
             "forward_rate_note": FORWARD_RATE_NOTE,
             "equity_market_note": EQUITY_MARKET_NOTE,
-            "quantlib_data_model_url": url_for("workbench.quantlib_data_model"),
-            "curve_debug_csv_url": url_for("workbench.curve_debug_download"),
-            "curve_debug_csv_repo_path": current_app.config["CURVE_DEBUG_CSV_PATH"],
             "default_market_data_json_path": str(DEFAULT_MARKET_DATA_JSON_PATH.relative_to(DEFAULT_MARKET_DATA_JSON_PATH.parent.parent)),
             "default_trade_data_json_path": str(DEFAULT_TRADE_DATA_JSON_PATH.relative_to(DEFAULT_TRADE_DATA_JSON_PATH.parent.parent)),
             "defaults_note": "Panels show the current session market state. Reset demo reloads the JSON defaults.",
@@ -891,6 +1137,9 @@ def build_trade_editor_context(state, trade_type):
     selected_matrix_vol_bp = None
     trade_page_error = None
     cliquet_context = None
+    bermudan_schedule_rows = []
+    bermudan_model_comparison = None
+    trade_summary_metrics = None
     if trade_type == "european_swaption":
         selected_matrix_vol_bp = lookup_swaption_normal_vol_bp(
             state,
@@ -900,16 +1149,85 @@ def build_trade_editor_context(state, trade_type):
     elif trade_type == "equity_cliquet":
         try:
             cliquet_context = cliquet_analytics(state)
+            trade_summary_metrics = _cliquet_summary_metrics(cliquet_context)
         except Exception as exc:
             trade_page_error = str(exc)
 
     zero_points = []
     forward_points = []
-    bermudan_pillars = []
     try:
-        zero_points, forward_points, bermudan_pillars = _curve_analytics(state)
+        zero_points, forward_points = _curve_analytics(state)
     except Exception as exc:
         trade_page_error = str(exc)
+
+    if trade_type in {"bermudan_swaption", "bermudan_swaption_2"}:
+        try:
+            for row in bermudan_exercise_schedule_rows(state, trade_key=trade_type):
+                bermudan_schedule_rows.append(
+                    {
+                        "exercise_number": row["exercise_number"],
+                        "exercise_date_iso": row["exercise_date_iso"],
+                        "underlying_start_date_iso": row["underlying_start_date_iso"],
+                        "maturity_date_iso": row["maturity_date_iso"],
+                        "remaining_swap_tenor_label": row["remaining_swap_tenor_label"],
+                        "calibration_label": row["calibration_label"],
+                        "source_market_points_label": row["source_market_points_label"],
+                        "market_normal_vol_bp": row["market_normal_vol_bp"],
+                        "exercise_probability_label": row["exercise_probability_label"],
+                    }
+                )
+            state, today, calendar, curve, curve_handle = normalize_portfolio_state(state), valuation_date(state), ql.UnitedStates(ql.UnitedStates.Settlement), None, None
+            ql.Settings.instance().evaluationDate = today
+            curve = build_sofr_curve(today, state["market"]["curve_quotes_pct"])
+            curve_handle = ql.YieldTermStructureHandle(curve)
+            market_context = (state, today, calendar, curve, curve_handle)
+            selected_model_name = trade.get("model_name", BERMUDAN_MODEL_HULL_WHITE_1F)
+            comparison_order = [selected_model_name]
+            alternate_model_name = (
+                BERMUDAN_MODEL_G2PP
+                if selected_model_name == BERMUDAN_MODEL_HULL_WHITE_1F
+                else BERMUDAN_MODEL_HULL_WHITE_1F
+            )
+            comparison_order.append(alternate_model_name)
+            comparison_rows = []
+            selected_value = None
+            for model_name in comparison_order:
+                model_context = build_bermudan_short_rate_model(
+                    state,
+                    market_context=market_context,
+                    calibration_horizon_years=trade["final_maturity_years"],
+                    trade_key=trade_type,
+                    model_name=model_name,
+                )
+                model_npv = trade_npv(
+                    trade_type,
+                    state,
+                    market_context=market_context,
+                    bermudan_pricing_engine=model_context["engine"],
+                )
+                if model_name == selected_model_name:
+                    selected_value = model_npv
+                comparison_rows.append(
+                    {
+                        "model_name": model_name,
+                        "model_label": bermudan_model_label(model_name),
+                        "selected": model_name == selected_model_name,
+                        "npv": model_npv,
+                        "calibration_method": "ql.BlackCalibrationHelper.RelativePriceError",
+                        "parameter_rows": model_context["parameter_rows"],
+                    }
+                )
+            for row in comparison_rows:
+                row["delta_vs_selected"] = 0.0 if selected_value is None else row["npv"] - selected_value
+            bermudan_model_comparison = {"rows": comparison_rows}
+        except Exception as exc:
+            trade_page_error = str(exc)
+
+    if trade_summary_metrics is None and trade_page_error is None:
+        try:
+            trade_summary_metrics = _parallel_trade_summary_metrics(state, trade_type)
+        except Exception as exc:
+            trade_page_error = str(exc)
 
     return {
         "trade_type": trade_type,
@@ -919,8 +1237,16 @@ def build_trade_editor_context(state, trade_type):
         "trade_headline": headline,
         "trade_detail": detail,
         "trade_detail_rows": trade_detail_rows(trade_type, trade),
-        "market_snapshot": market_snapshot(state, zero_points, forward_points, bermudan_pillars),
+        "trade_summary_metrics": trade_summary_metrics,
+        "market_snapshot": market_snapshot(state, zero_points, forward_points),
         "selected_matrix_vol_bp": selected_matrix_vol_bp,
+        "bermudan_schedule_rows": bermudan_schedule_rows,
+        "bermudan_model_comparison": bermudan_model_comparison,
+        "bermudan_probability_note": (
+            "QuantLib's tree swaption engines do not expose Bermudan exercise probabilities in Python, "
+            "so the table below shows the exact exercise mapping and the matrix source points used for "
+            "calibration instead of guessed probabilities."
+        ),
         "cliquet_context": cliquet_context,
         "trade_page_error": trade_page_error,
         "trade_risk_api_url": "" if trade_type == "equity_cliquet" else url_for("workbench.trade_risk", trade_type=trade_type),

@@ -17,8 +17,8 @@ This guide is for quantitative users who need to understand the pricing assumpti
 The repo prices five instruments:
 \begin{itemize}[leftmargin=1.5em]
     \item a spot-starting fixed-versus-SOFR swap,
-    \item a European swaption under a normal-volatility convention,
-    \item a Bermudan swaption under a calibrated one-factor Gaussian short-rate model, and
+    \item a European swaption under a normal-volatility convention priced with Hull-White 1F plus Jamshidian's decomposition,
+    \item a Bermudan swaption under a calibrated short-rate model,
     \item a second Bermudan swaption matching the workbook benchmark trade, and
     \item an SPX cliquet under a Black-Scholes-Merton process with analytic cliquet valuation.
 \end{itemize}
@@ -43,23 +43,23 @@ The curve is constructed in \path{portfolio.py} with:
 The term structure is a \code{ql.PiecewiseLogCubicDiscount}. Calibration quality is checked by rebuilding quoted OIS swaps and asserting near-zero NPV.
 
 \section{European Swaption Model}
-The European swaption is priced directly from the editable normal-volatility matrix using \code{ql.BachelierSwaptionEngine}. The matrix follows the workbook surface, with short expiries from \code{1M} onward, annual expiries through \code{10Y}, then \code{12Y}, \code{15Y}, \code{20Y}, and \code{25Y}, against swap tenors through \code{30Y}. The on-screen matrix uses the exact workbook axes. When the Bermudan calibration needs a \code{3Y} expiry, it is linearly interpolated between the workbook \code{2Y} and \code{4Y} rows.
+The European swaption calibrates \code{ql.HullWhite} to the selected ATM normal-volatility matrix pillar and prices with \code{ql.JamshidianSwaptionEngine}. The matrix follows the workbook surface, with short expiries from \code{1M} onward, annual expiries through \code{10Y}, then \code{12Y}, \code{15Y}, \code{20Y}, and \code{25Y}, against swap tenors through \code{30Y}. The on-screen matrix uses the exact workbook axes. When the Bermudan calibration needs a \code{3Y} expiry, it is linearly interpolated between the workbook \code{2Y} and \code{4Y} rows.
 
 \section{Bermudan Swaption Model}
 \subsection{Calibration}
 The Bermudan stack:
 \begin{enumerate}[leftmargin=1.5em]
-    \item identifies the feasible diagonal strip of the ATM normal-volatility matrix up to the trade's fixed final maturity,
+    \item identifies the trade's Bermudan call schedule and the remaining swap tenor implied by the common fixed final maturity,
     \item creates one \code{ql.SwaptionHelper} per diagonal pillar,
-    \item initializes a time-dependent \code{ql.Gsr} model from the dashboard seed level,
-    \item calibrates segment volatilities iteratively, and
-    \item prices the Bermudan with \code{ql.Gaussian1dSwaptionEngine}.
+    \item calibrates either \code{ql.HullWhite} or \code{ql.G2} while holding the mean-reversion input fixed, and
+    \item prices the Bermudan with \code{ql.TreeSwaptionEngine}.
 \end{enumerate}
 All rates trades are modeled as \code{ql.OvernightIndexedSwap} instruments with daily compounded SOFR coupons over the chosen reset period. Payment frequency and reset frequency are explicit trade inputs; the workbook reference trade uses annual pay and annual reset.
 For example, a \code{5Y NC 2Y} Bermudan keeps the same final maturity date and therefore exercises into the remaining \code{3Y}, \code{2Y}, and \code{1Y} swaps along its annual call schedule.
+The workstation defaults Bermudans to Hull-White 1F, and the detail page allows a switch to G2++ so users can compare values and risk outputs under the same market data.
 
 \subsection{Interpretation}
-The seed is \emph{not} the final Bermudan volatility. It is the initial sigma level used before calibration. The calibrated model can differ materially from the seed once fitted to market helpers.
+The calibration helpers are labeled by the booked Bermudan schedule, for example \code{1Y x 4Y}, \code{2Y x 3Y}, \code{3Y x 2Y}, \code{4Y x 1Y} for a five-year annual Bermudan. When a booked expiry is not on the editable matrix axes, the helper linearly interpolates in the expiry dimension and keeps the exact source matrix points for audit purposes.
 
 \section{SPX Cliquet Model}
 \subsection{State Variables}
@@ -98,8 +98,8 @@ The swap and swaptions expose on-demand point sensitivities:
 \begin{itemize}[leftmargin=1.5em]
     \item curve ladder from single-point SOFR quote bumps,
     \item European swaption vega from a single matrix-cell bump,
-    \item Bermudan matrix sensitivity from diagonal helper bumps, and
-    \item a separate Bermudan seed sensitivity.
+    \item Bermudan matrix sensitivity from the trade schedule's helper source points, and
+    \item a separate short-rate mean-reversion sensitivity for European and Bermudan swaptions.
 \end{itemize}
 
 \subsection{Cliquet Trade}
@@ -114,7 +114,7 @@ The cliquet page reports:
 The test suite validates the pricing stack in three distinct ways:
 \begin{itemize}[leftmargin=1.5em]
     \item calibration repricing for the SOFR OIS curve,
-    \item calibration repricing for Bermudan diagonal helpers, and
+    \item calibration repricing for Bermudan helpers implied by the fixed-maturity call schedule, and
     \item ten cliquet identity cases where the payoff reduces to simpler known structures.
 \end{itemize}
 
@@ -132,9 +132,9 @@ This workstation deliberately avoids:
 \begin{itemize}[leftmargin=1.5em]
     \item live data feeds,
     \item smile or skew modeling for the cliquet,
-    \item multi-factor rates models beyond the implemented Gaussian short-rate calibration path,
+    \item short-rate models beyond the implemented Hull-White 1F and G2++ calibration paths,
     \item database-backed trade lifecycle, and
-    \item portfolio aggregation beyond the four-trade sandbox.
+    \item portfolio aggregation beyond the five-trade sandbox.
 \end{itemize}
 
 \end{document}

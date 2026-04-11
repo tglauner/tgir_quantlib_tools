@@ -83,8 +83,8 @@
               </div>
             {% endfor %}
             <div class="summary-list-item">
-              <span>Hull-White mean reversion</span>
-              <strong>{{ "%.4f"|format(market_snapshot.hw_mean_reversion) }}</strong>
+              <span>Mean reversion</span>
+              <strong>{{ "%.2f"|format(market_snapshot.hw_mean_reversion * 100.0) }}%</strong>
             </div>
             {% if selected_matrix_vol_bp is not none %}
               <div class="summary-list-item">
@@ -103,7 +103,87 @@
               </div>
             {% endif %}
           </div>
-          <p class="table-note">Curve, ATM matrix vols, Hull-White mean reversion, and the SPX equity inputs are shared across the dashboard market panels.</p>
+          <p class="table-note">Curve, ATM matrix vols, the shared mean-reversion input, and the SPX equity inputs are shared across the dashboard market panels.</p>
+
+          {% if bermudan_model_comparison %}
+            <div class="subtle-divider"></div>
+            <div class="panel-header" style="margin-bottom: 6px;">
+              <div>
+                <span class="section-kicker">Model Comparison</span>
+                <h3>Hull-White 1F versus G2++</h3>
+                <p>Saving the pricing-model field changes the trade mark and all on-demand risk analytics. The table below shows both model values against the same curve and swaption matrix.</p>
+              </div>
+            </div>
+            <div class="table-scroll">
+              <table class="blotter-table">
+                <thead>
+                  <tr>
+                    <th>Status</th>
+                    <th>Model</th>
+                    <th class="numeric">NPV</th>
+                    <th class="numeric">Δ vs selected</th>
+                    <th>Calibrated parameters</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in bermudan_model_comparison.rows %}
+                    <tr>
+                      <td><strong>{{ "Selected" if row.selected else "Alternative" }}</strong></td>
+                      <td>{{ row.model_label }}</td>
+                      <td class="numeric mono">{{ row.npv|money }}</td>
+                      <td class="numeric mono">
+                        <span class="signed-value {{ row.delta_vs_selected|sign_class }}">{{ row.delta_vs_selected|signed_money }}</span>
+                      </td>
+                      <td class="mono">
+                        {% for parameter in row.parameter_rows %}
+                          {{ parameter.parameter }}={{ "%.6f"|format(parameter.value) }}{% if parameter.fixed %} fixed{% endif %}{% if not loop.last %}, {% endif %}
+                        {% endfor %}
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% endif %}
+
+          {% if bermudan_schedule_rows %}
+            <div class="subtle-divider"></div>
+            <div class="panel-header" style="margin-bottom: 6px;">
+              <div>
+                <span class="section-kicker">Call Schedule</span>
+                <h3>Exercise mapping</h3>
+                <p>{{ bermudan_probability_note }}</p>
+              </div>
+            </div>
+            <div class="table-scroll">
+              <table class="blotter-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Option expiry</th>
+                    <th>Exercises into</th>
+                    <th>Calibration pillar</th>
+                    <th>Source matrix points</th>
+                    <th class="numeric">ATM vol</th>
+                    <th>Exercise prob.</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in bermudan_schedule_rows %}
+                    <tr>
+                      <td><strong>{{ row.exercise_number }}</strong></td>
+                      <td class="mono">{{ row.exercise_date_iso }}</td>
+                      <td class="mono">{{ row.remaining_swap_tenor_label }} from {{ row.underlying_start_date_iso }} to {{ row.maturity_date_iso }}</td>
+                      <td class="mono">{{ row.calibration_label }}</td>
+                      <td class="mono">{{ row.source_market_points_label }}</td>
+                      <td class="numeric mono">{{ "%.1f"|format(row.market_normal_vol_bp) }} bp</td>
+                      <td>{{ row.exercise_probability_label }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% endif %}
         </div>
       </section>
     </div>
@@ -328,13 +408,13 @@
             <strong id="trade-risk-vol-bump">+1 bp single-cell bump</strong>
           </div>
           <div class="summary-list-item">
-            <span id="trade-risk-callable-label">Hull-White mean reversion sensitivity</span>
+            <span id="trade-risk-callable-label">Short-rate mean reversion sensitivity</span>
             <strong class="mono" id="trade-risk-callable-delta">$0.00</strong>
           </div>
         </div>
         <p class="table-note">
-          The Hull-White mean reversion is bumped separately from the ATM matrix. For trades that do not
-          use that model parameter, the sensitivity remains <span class="mono">$0.00</span>.
+          The shared short-rate mean reversion input is bumped separately from the ATM matrix. For trades
+          that do not use that model parameter, the sensitivity remains <span class="mono">$0.00</span>.
         </p>
 
         <div class="subtle-divider"></div>

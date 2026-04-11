@@ -4,13 +4,12 @@ import QuantLib as ql
 from flask import current_app, url_for
 
 from portfolio import (
-    BERMUDAN_GSR_INTEGRATION_POINTS,
-    BERMUDAN_GSR_STDDEVS,
     SOFR_CURVE_POINT_SPECS,
     SOFR_CURVE_TENOR_LABELS,
     SWAPTION_MATRIX_EXPIRY_LABELS,
     SWAPTION_MATRIX_TENOR_LABELS,
-    build_bermudan_gsr_model,
+    build_bermudan_short_rate_model,
+    build_european_hull_white_model,
     cliquet_analytics,
     cliquet_reset_schedule,
     build_sofr_curve,
@@ -77,7 +76,11 @@ def build_quantlib_model_context(portfolio_state=None):
     curve_handle = ql.YieldTermStructureHandle(curve)
     zero_points = curve_zero_rate_points(curve)
     forward_points = daily_one_day_forward_points(curve)
-    bermudan_model = build_bermudan_gsr_model(
+    european_model = build_european_hull_white_model(
+        state,
+        market_context=(state, today, calendar, curve, curve_handle),
+    )
+    bermudan_model = build_bermudan_short_rate_model(
         state,
         market_context=(state, today, calendar, curve, curve_handle),
     )
@@ -86,7 +89,7 @@ def build_quantlib_model_context(portfolio_state=None):
         market_context=(state, today, calendar, curve, curve_handle),
     )
     bermudan_calibration_rows = bermudan_model["calibration_rows"]
-    gsr_sigma_rows = bermudan_model["sigma_rows"]
+    bermudan_parameter_rows = bermudan_model["parameter_rows"]
     cliquet_reset_dates, cliquet_maturity = cliquet_reset_schedule(
         trades["equity_cliquet"],
         today,
@@ -227,18 +230,18 @@ def build_quantlib_model_context(portfolio_state=None):
         {
             "step": "5",
             "title": "European swaption stack",
-            "function": "_create_european_swaption",
-            "depends_on": "forward swap, exercise date, ATM matrix vol",
-            "produces": "ql.EuropeanExercise, ql.Swaption, ql.BachelierSwaptionEngine",
-            "description": "Prices the European swaption directly from the selected normal-vol pillar in the editable matrix.",
+            "function": "build_european_hull_white_model / _create_european_swaption",
+            "depends_on": "forward swap, exercise date, ATM matrix vol, curve handle",
+            "produces": "ql.SwaptionHelper, ql.HullWhite, ql.JamshidianSwaptionEngine, ql.Swaption",
+            "description": "Calibrates Hull-White 1F to the selected ATM normal-vol pillar and prices the European swaption with Jamshidian's decomposition.",
         },
         {
             "step": "6",
             "title": "Bermudan swaption stack",
-            "function": "_create_bermudan_swaption",
+            "function": "build_bermudan_short_rate_model / _create_bermudan_swaption",
             "depends_on": "forward swap, exercise dates, diagonal swaption strip, curve handle",
-            "produces": "ql.SwaptionHelper strip, ql.Gsr, ql.Gaussian1dSwaptionEngine, ql.Swaption",
-            "description": "Calibrates a time-dependent Gaussian short-rate model to the feasible diagonal ATM swaption strip and prices the Bermudan with that calibrated engine.",
+            "produces": "ql.SwaptionHelper strip, ql.HullWhite or ql.G2, ql.TreeSwaptionEngine, ql.Swaption",
+            "description": "Calibrates the selected short-rate model to the feasible diagonal ATM swaption strip and prices the Bermudan with a tree engine aligned to the fixed-final-maturity call schedule.",
         },
         {
             "step": "7",
@@ -271,14 +274,14 @@ def build_quantlib_model_context(portfolio_state=None):
                 {
                     "field": "hw_mean_reversion",
                     "type": "float",
-                    "value": f"{market['hw_mean_reversion']:.4f}",
-                    "used_by": "build_bermudan_gsr_model -> fixed mean-reversion input during calibration",
+                    "value": f"{market['hw_mean_reversion'] * 100.0:.2f}%",
+                    "used_by": "build_european_hull_white_model and build_bermudan_short_rate_model -> fixed mean-reversion input during calibration",
                 },
                 {
                     "field": "swaption_vol_matrix_bp",
                     "type": f"{len(SWAPTION_MATRIX_EXPIRY_LABELS)}x{len(SWAPTION_MATRIX_TENOR_LABELS)} list[list[float]]",
                     "value": f"matrix[5Y][5Y]={lookup_swaption_normal_vol_bp(state, 5, 5):.1f} bp",
-                    "used_by": "_create_european_swaption -> ql.BachelierSwaptionEngine",
+                    "used_by": "Hull-White/Jamshidian calibration target for European swaptions and diagonal calibration target for Bermudans",
                 },
                 {
                     "field": "equity_spot / equity_dividend_yield_pct / equity_volatility_pct",
@@ -325,7 +328,8 @@ def build_quantlib_model_context(portfolio_state=None):
                         f"strike_pct={trades['bermudan_swaption']['strike_pct']:.2f}, first_exercise_years={trades['bermudan_swaption']['first_exercise_years']}, "
                         f"final_maturity_years={trades['bermudan_swaption']['final_maturity_years']}, "
                         f"payment_frequency_months={trades['bermudan_swaption']['payment_frequency_months']}, "
-                        f"reset_frequency_months={trades['bermudan_swaption']['reset_frequency_months']}"
+                        f"reset_frequency_months={trades['bermudan_swaption']['reset_frequency_months']}, "
+                        f"model_name={trades['bermudan_swaption']['model_name']}"
                     ),
                     "used_by": "_create_bermudan_swaption",
                 },
@@ -570,15 +574,15 @@ def build_quantlib_model_context(portfolio_state=None):
             ],
         ),
         _component_card(
-            title="ql.EuropeanExercise + ql.BachelierSwaptionEngine",
+            title="ql.HullWhite + ql.JamshidianSwaptionEngine",
             family="European option stack",
-            factory="_create_european_swaption",
+            factory="build_european_hull_white_model / _create_european_swaption",
             signature=(
-                "ql.EuropeanExercise(date), ql.Swaption(underlying, exercise), "
-                "ql.BachelierSwaptionEngine(discountCurve, vol)"
+                "ql.HullWhite(termStructure, a, sigma), ql.JamshidianSwaptionEngine(model), "
+                "ql.EuropeanExercise(date), ql.Swaption(underlying, exercise)"
             ),
-            purpose="Prices the European swaption from the current ATM normal-vol matrix pillar.",
-            dependencies=["forward-starting ql.OvernightIndexedSwap", "selected matrix vol", "curve handle"],
+            purpose="Calibrates Hull-White 1F to the selected ATM normal-vol pillar and prices the European swaption with Jamshidian's decomposition.",
+            dependencies=["forward-starting ql.OvernightIndexedSwap", "selected matrix vol", "curve handle", "mean reversion"],
             fields=[
                 {"name": "exerciseDate", "value": european_exercise.ISO(), "notes": "Spot plus option expiry"},
                 {
@@ -587,9 +591,14 @@ def build_quantlib_model_context(portfolio_state=None):
                     "notes": "Selected from market.swaption_vol_matrix_bp",
                 },
                 {
-                    "name": "volHandle",
-                    "value": "ql.QuoteHandle(ql.SimpleQuote(normalVol / 10000.0))",
-                    "notes": "Bachelier engine expects decimal normal vol",
+                    "name": "meanReversion a",
+                    "value": f"{market['hw_mean_reversion']:.6f}",
+                    "notes": "Fixed Hull-White mean reversion input",
+                },
+                {
+                    "name": "sigma",
+                    "value": f"{european_model['parameter_rows'][-1]['value']:.6f}",
+                    "notes": "Calibrated Hull-White volatility from the selected pillar",
                 },
             ],
         ),
@@ -690,13 +699,13 @@ def build_quantlib_model_context(portfolio_state=None):
         _component_card(
             title="ql.SwaptionHelper",
             family="Calibration helper strip",
-            factory="build_bermudan_gsr_model",
+            factory="build_bermudan_short_rate_model",
             signature=(
                 "ql.SwaptionHelper(maturity, length, volatility, index, fixedLegTenor, "
                 "fixedLegDayCounter, floatingLegDayCounter, termStructure, errorType, strike, "
                 "nominal, type, shift, settlementDays, averagingMethod)"
             ),
-            purpose="Builds the diagonal ATM swaption strip used to calibrate the Bermudan Gaussian short-rate model.",
+            purpose="Builds the diagonal ATM swaption strip used to calibrate the Bermudan short-rate model against the fixed-final-maturity call schedule.",
             dependencies=["diagonal market.swaption_vol_matrix_bp", "ql.Sofr(curveHandle)", "curve handle"],
             fields=[
                 {"name": "index", "value": "ql.Sofr(curveHandle)", "notes": "Overnight index on the bootstrapped curve"},
@@ -707,14 +716,14 @@ def build_quantlib_model_context(portfolio_state=None):
                 {"name": "errorType", "value": "ql.BlackCalibrationHelper.RelativePriceError", "notes": "Calibration objective used by QuantLib"},
             ],
             table={
-                "headers": ["Pillar", "Exercise", "Maturity", "Market vol (bp)", "Sigma seg (bp)", "Error"],
+                "headers": ["Pillar", "Exercise", "Maturity", "Market vol (bp)", "Model value", "Error"],
                 "rows": [
                     {
                         "c1": row["label"],
                         "c2": row["exercise_date_iso"],
                         "c3": row["maturity_date_iso"],
                         "c4": f"{row['market_normal_vol_bp']:.1f}",
-                        "c5": f"{row['segment_sigma_bp']:.2f}",
+                        "c5": f"{row['model_value']:.6f}",
                         "c6": f"{row['calibration_error']:.6g}",
                     }
                     for row in bermudan_calibration_rows
@@ -726,36 +735,25 @@ def build_quantlib_model_context(portfolio_state=None):
             ],
         ),
         _component_card(
-            title="ql.Gsr + ql.Gaussian1dSwaptionEngine",
+            title="ql.HullWhite or ql.G2 + ql.TreeSwaptionEngine",
             family="Callable calibration model",
-            factory="build_bermudan_gsr_model",
+            factory="build_bermudan_short_rate_model",
             signature=(
-                "ql.Gsr(termStructure, volstepdates, volatilities, reversions, T), "
-                "ql.Gaussian1dSwaptionEngine(model, integrationPoints, stddevs, "
-                "extrapolatePayoff, flatPayoffExtrapolation, discountCurve)"
+                "ql.HullWhite(termStructure, a, sigma) or ql.G2(termStructure, a, sigma, b, eta, rho), "
+                "ql.TreeSwaptionEngine(model, timeSteps)"
             ),
-            purpose="Fits a time-dependent sigma term structure to the feasible diagonal ATM strip and prices the Bermudan with the calibrated Gaussian model.",
-            dependencies=["curve handle", "ql.SwaptionHelper strip", "Hull-White mean reversion"],
+            purpose="Calibrates the selected Bermudan short-rate model to the feasible diagonal ATM strip and prices the callable swaption with a lattice engine.",
+            dependencies=["curve handle", "ql.SwaptionHelper strip", "mean reversion", "selected Bermudan model"],
             fields=[
                 {
-                    "name": "volstepdates",
-                    "value": ", ".join(row["exercise_date_iso"] for row in bermudan_calibration_rows) or "-",
-                    "notes": "Annual diagonal expiry dates used as model volatility step dates",
+                    "name": "selectedModel",
+                    "value": bermudan_model["model_label"],
+                    "notes": "Current Bermudan pricing model selected in the trade editor",
                 },
                 {
-                    "name": "meanReversion a",
-                    "value": f"{bermudan_model['mean_reversion']:.4f}",
-                    "notes": "Constant Hull-White mean reversion kept fixed during calibration",
-                },
-                {
-                    "name": "integrationPoints",
-                    "value": str(BERMUDAN_GSR_INTEGRATION_POINTS),
-                    "notes": "Gaussian integration grid for the pricing engine",
-                },
-                {
-                    "name": "stddevs",
-                    "value": f"{BERMUDAN_GSR_STDDEVS:.1f}",
-                    "notes": "Integration truncation width in standard deviations",
+                    "name": "meanReversion",
+                    "value": f"{bermudan_model['mean_reversion']:.6f}",
+                    "notes": "Shared mean-reversion input held fixed during calibration",
                 },
                 {
                     "name": "curveMaxDate",
@@ -764,15 +762,15 @@ def build_quantlib_model_context(portfolio_state=None):
                 },
             ],
             table={
-                "headers": ["Segment", "Start", "End", "Sigma (bp)"],
+                "headers": ["Parameter", "Value", "Fixed", "Notes"],
                 "rows": [
                     {
-                        "c1": row["segment"],
-                        "c2": row["start_date_iso"],
-                        "c3": row["end_date_iso"],
-                        "c4": f"{row['sigma_bp']:.2f}",
+                        "c1": row["parameter"],
+                        "c2": f"{row['value']:.6f}",
+                        "c3": "Yes" if row["fixed"] else "No",
+                        "c4": row["note"],
                     }
-                    for row in gsr_sigma_rows
+                    for row in bermudan_parameter_rows
                 ],
             },
         ),
@@ -781,8 +779,8 @@ def build_quantlib_model_context(portfolio_state=None):
             family="Callable option stack",
             factory="_create_bermudan_swaption",
             signature="ql.BermudanExercise(dates), ql.Swaption(underlying, exercise)",
-            purpose="Defines the Bermudan exercise schedule on top of the forward-starting swap; pricing is delegated to the calibrated Gaussian engine.",
-            dependencies=["forward-starting ql.OvernightIndexedSwap", "exercise-date list", "ql.Gaussian1dSwaptionEngine"],
+            purpose="Defines the Bermudan exercise schedule on top of the forward-starting swap; pricing is delegated to the calibrated tree engine.",
+            dependencies=["forward-starting ql.OvernightIndexedSwap", "exercise-date list", "ql.TreeSwaptionEngine"],
             fields=[
                 {"name": "exerciseDates", "value": ", ".join(bermudan_exercise_dates), "notes": "Annual exercise dates until maturity"},
                 {"name": "exerciseCount", "value": str(len(bermudan_exercise_dates)), "notes": "Actual exercise opportunities in the current trade"},
@@ -853,7 +851,7 @@ def build_quantlib_model_context(portfolio_state=None):
             "detail": "1 deposit helper plus the workbook OIS strip",
         },
         {"label": "Priced instruments", "value": "4", "detail": "swap + European swaption + Bermudan swaption + SPX cliquet"},
-        {"label": "Pricing engines", "value": "4", "detail": "discounting, Bachelier, Gaussian1d, analytic cliquet"},
+        {"label": "Pricing engines", "value": "4", "detail": "discounting, Jamshidian, tree swaption, analytic cliquet"},
         {
             "label": "Bermudan diag helpers",
             "value": str(len(bermudan_calibration_rows)),

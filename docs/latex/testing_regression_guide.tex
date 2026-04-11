@@ -43,7 +43,7 @@ The curve regression test rebuilds the quoted OIS strip against the bootstrapped
 \end{itemize}
 
 \subsection{Bermudan Helper Repricing}
-The Bermudan calibration test verifies that every diagonal \code{ql.SwaptionHelper} used by the trade calibration strip is repriced after Gaussian short-rate calibration. This is critical because a Bermudan mark can remain numerically plausible even when the calibration is visibly wrong. A separate schedule test confirms that fixed-maturity Bermudans shorten the remaining underlying tenor as exercise dates roll forward.
+The Bermudan calibration test verifies that every \code{ql.SwaptionHelper} implied by the trade's fixed-maturity call schedule remains numerically well aligned after short-rate calibration. This is critical because a Bermudan mark can remain numerically plausible even when the calibration strip is visibly wrong. Separate schedule tests confirm that fixed-maturity Bermudans shorten the remaining underlying tenor as exercise dates roll forward, that interpolated expiries retain the correct matrix source points, and that the alternate G2++ path still builds the expected parameter set.
 
 \section{Cliquet Identity Portfolio}
 The cliquet regression suite does not rely on arbitrary golden numbers. Instead it uses structural identities:

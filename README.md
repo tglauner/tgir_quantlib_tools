@@ -8,7 +8,7 @@ This repository showcases small examples of using [QuantLib](https://www.quantli
 | --- | --- |
 | `app.py` | Thin Flask entrypoint that creates the web app and starts the local server. |
 | `tgir_quantlib_tools/` | Internal Flask package with app factory, config loading, auth helpers, route registration, and dashboard/session utilities. |
-| `portfolio.py` | Functions for bootstrapping a SOFR OIS curve, repricing quoted OIS swaps, storing the ATM swaption vol matrix, creating interest-rate swaps and swaptions, building the SPX cliquet trade analytics, and pricing the four-trade portfolio. |
+| `portfolio.py` | Functions for bootstrapping a SOFR OIS curve, repricing quoted OIS swaps, storing the ATM swaption vol matrix, creating interest-rate swaps and swaptions, building the SPX cliquet trade analytics, and pricing the five-trade portfolio. |
 | `build_SOFR_curve.py` | Script that constructs a SOFR OIS term structure from market quotes, prints discount factors for select maturities, and shows a repricing table for calibration swaps. |
 | `price_bermudan_swaption.py` | Prints the Bermudan swaption mark from the shared portfolio pricing path. |
 | `today.py` | Minimal example showing how to set QuantLib's evaluation date. |
@@ -58,15 +58,15 @@ Run the Flask app and open `http://127.0.0.1:5050` in a browser:
 ./.venv/bin/python app.py
 ```
 
-The root route shows a login screen. After signing in, the workstation displays the marks of a swap, a European swaption, two Bermudan swaptions, and an SPX equity cliquet. You can adjust:
+The root route shows a login screen. After signing in, the workstation displays the marks of a swap, a European swaption, two Bermudan swaptions, and an SPX equity cliquet. The top bar keeps dashboard navigation, the QuantLib model view, a direct research shortcut, the official QuantLib GitHub link, the curve CSV export, the realtime toggle, and reset controls in one place. You can adjust:
 
 - A configurable valuation date, defaulting to `2026-03-10`, that anchors all curve builds, pricing, and schedule generation
 - A workbook-based SOFR strip from `1D`, `1W`, `2W`, `3W`, `1M`, `2M`, `3M`, `6M`, `9M`, `1Y`, `2Y`, `3Y`, `4Y`, `5Y`, `6Y`, `7Y`, `8Y`, `10Y`, `12Y`, `15Y`, `20Y`, and `30Y`
 - A full ATM normal-vol matrix on the exact workbook expiry and tenor axes, with any internal `3Y` expiry interpolation reserved for model calibration rather than the on-screen matrix
-- A Hull-White mean-reversion input used while Bermudan sigma buckets calibrate to the ATM swaption matrix
+- A shared mean-reversion input, shown as a percentage on screen, used while the rates models calibrate to the ATM swaption matrix
 - SPX spot, flat dividend yield, and flat Black volatility inputs used by the cliquet trade
 
-The swap, European swaption, and Bermudan swaption editors all expose payment frequency and reset frequency. Bermudan trades are entered with a fixed final maturity rather than a fixed underlying tenor, so a `5Y NC 2Y` structure exercises into the remaining `3Y`, `2Y`, and `1Y` swaps along its annual call schedule. `Bermudan Swaption 2` is seeded with the QL workbook benchmark trade so you can compare model marks against the spreadsheet reference out of the box.
+The swap, European swaption, and Bermudan swaption editors all expose payment frequency and reset frequency. The four rates trades now default to `100,000,000.00` notionals, while the equity cliquet keeps its quantity-based setup. Bermudan trades are entered with a fixed final maturity rather than a fixed underlying tenor, so a `5Y NC 2Y` structure exercises into the remaining `3Y`, `2Y`, and `1Y` swaps along its annual call schedule. `Bermudan Swaption 2` is seeded with the QL workbook benchmark trade so you can compare model marks against the spreadsheet reference out of the box.
 
 Default market and trade values are loaded from:
 
@@ -77,11 +77,13 @@ The default market-data JSON now carries lightweight metadata as well as quotes:
 
 The dashboard then derives and displays:
 
-- QuantLib zero rates at the actual curve node dates, reported as continuous-compounded spot rates on an Actual/365 basis so that `df(x) = exp(-z * x / 365)` for `x` actual calendar days from the valuation date
-- A separate daily one-day SOFR forward strip over the next ten years with annual date ticks
-- A dedicated QuantLib data-model page at `/quantlib-data-model` showing the live object graph, constructor signatures, dependencies, enum values, and the curated swaption / cliquet research lists used in this repo
+- A compact SOFR curve table with `term / market rate / zero rate`, where zero rates are QuantLib spot zeros at the actual node dates, reported as continuous-compounded rates on an Actual/365 basis so that `df(x) = exp(-z * x / 365)` for `x` actual calendar days from the valuation date
+- An on-demand daily one-day SOFR forward strip over the next ten years with annual date ticks
+- An on-demand OIS repricing table across the quoted SOFR pillars
+- A Bermudan pricing grid plus Bermudan trade-detail call-schedule rows showing each exercise date, the remaining swap it exercises into, and the matrix source points used by calibration
+- A dedicated QuantLib data-model page at `/quantlib-data-model`, with a top-bar `Research` shortcut to the paper list and a `QuantLib GitHub` link to the upstream library repo
 - An SPX cliquet editor page with analytic Greeks, reset-by-reset decomposition, a spot-vol scenario grid, and a Monte Carlo payoff profile
-- A generated repo copy of the curve debug file at `debug/curve_debug.csv`, refreshed by the app and also downloadable at `/curve-debug.csv`
+- A downloadable curve debug file at `/curve-debug.csv`
 
 The app defaults to port `5050` because port `5000` is often occupied by macOS services on local machines.
 
@@ -118,15 +120,18 @@ Run the smoke tests with:
 The suite now covers:
 
 - OIS calibration repricing
-- Bermudan diagonal helper repricing after Gaussian short-rate calibration
+- Hull-White and G2++ Bermudan calibration sanity checks against the fixed-maturity call schedule
 - Fixed-maturity Bermudan exercise schedule checks
-- Bermudan workbook-reference pricing against the QL screenshot
+- Bermudan benchmark call-schedule mapping and interpolated matrix-source checks
+- Bermudan workbook-reference pricing under the default Hull-White 1F setup
 - Flask route and session smoke tests
 - A ten-case cliquet identity portfolio where the cliquet collapses to simpler instruments or deterministic limits
 
 ## LaTeX Documentation
 
 The audience-specific LaTeX documentation set lives under `docs/latex/`.
+
+For a concise production deploy checklist specific to `quant.tglauner.com`, see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 Build all PDFs with:
 

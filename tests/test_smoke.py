@@ -74,15 +74,21 @@ class PortfolioSmokeTests(unittest.TestCase):
         response = self.login()
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b"SOFR zero rates, one-day forwards, ATM vol surface, callable grid, SPX cliquet.", response.data)
+        self.assertIn(b"SOFR market and zero rates, ATM vol surface, callable grid, SPX cliquet.", response.data)
         self.assertIn(b"Five trades stay on the blotter.", response.data)
         self.assertIn(DEFAULT_VALUATION_DATE_ISO.encode("utf-8"), response.data)
-        self.assertIn(b"Zero rates", response.data)
-        self.assertIn(b"Daily one-day forward SOFR", response.data)
+        self.assertIn(b"Research", response.data)
+        self.assertIn(b"QuantLib GitHub", response.data)
+        self.assertIn(b"Download debug CSV", response.data)
+        self.assertIn(b"SOFR market and zero rates", response.data)
+        self.assertIn(b"Show daily one-day forward SOFR", response.data)
+        self.assertIn(b"Show OIS SOFR repricing", response.data)
         self.assertIn(b"ATM swaption normal-vol matrix", response.data)
-        self.assertIn(b"Hull-White mean reversion", response.data)
+        self.assertIn(b"Mean reversion (%)", response.data)
+        self.assertIn(b"Market rates", response.data)
+        self.assertIn(b"Zero rates", response.data)
         self.assertIn(b"SPX cliquet assumptions", response.data)
-        self.assertIn(self.curve_debug_csv_path.encode("utf-8"), response.data)
+        self.assertNotIn(self.curve_debug_csv_path.encode("utf-8"), response.data)
 
     def test_market_update_round_trips(self):
         self.login()
@@ -99,7 +105,7 @@ class PortfolioSmokeTests(unittest.TestCase):
                 "rate6": "5.48",
                 "rate7": "5.52",
                 "valuation_date_iso": "2026-03-17",
-                "hw_mean_reversion": "0.0425",
+                "hw_mean_reversion": "4.25",
                 "vol_1Y_1Y": "61.5",
                 "vol_10Y_10Y": "89.5",
                 "equity_spot": "5400",
@@ -110,13 +116,14 @@ class PortfolioSmokeTests(unittest.TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b"0.0425", response.data)
-        self.assertIn(b"4.75%", response.data)
+        self.assertIn(b'value="4.25"', response.data)
+        self.assertIn(b'id="rate0"', response.data)
+        self.assertIn(b"value=\"4.75", response.data)
         self.assertIn(b"2026-03-17", response.data)
         self.assertIn(b'value="61.5"', response.data)
         self.assertIn(b"5400.00", response.data)
         self.assertIn(b"21.25%", response.data)
-        self.assertIn(b"1D to 30Y", response.data)
+        self.assertIn(b"Market rates", response.data)
 
     def test_realtime_tick_perturbs_curve_but_not_vol(self):
         self.login()
@@ -131,7 +138,7 @@ class PortfolioSmokeTests(unittest.TestCase):
                 "rate5": "5.22",
                 "rate6": "5.28",
                 "rate7": "5.31",
-                "hw_mean_reversion": "0.06",
+                "hw_mean_reversion": "6.00",
             },
         )
 
@@ -168,6 +175,14 @@ class PortfolioSmokeTests(unittest.TestCase):
         self.assertIn(b"Receive fixed", response.data)
         self.assertIn(b"Receive fixed | 6Y | 3.85% | S/Q", response.data)
 
+    def test_default_rates_trades_start_at_100mm_notional(self):
+        state = default_portfolio_state()
+
+        self.assertEqual(state["trades"]["swap"]["notional"], 100_000_000)
+        self.assertEqual(state["trades"]["european_swaption"]["notional"], 100_000_000)
+        self.assertEqual(state["trades"]["bermudan_swaption"]["notional"], 100_000_000)
+        self.assertEqual(state["trades"]["bermudan_swaption_2"]["notional"], 100_000_000)
+
     def test_trade_editor_updates_bermudan_frequencies_and_fixed_maturity(self):
         self.login()
 
@@ -181,6 +196,7 @@ class PortfolioSmokeTests(unittest.TestCase):
                 "final_maturity_years": "5",
                 "payment_frequency_months": "6",
                 "reset_frequency_months": "3",
+                "model_name": "g2pp",
             },
             follow_redirects=False,
         )
@@ -193,6 +209,11 @@ class PortfolioSmokeTests(unittest.TestCase):
         self.assertIn(b"Reset frequency", response.data)
         self.assertIn(b"Semiannual", response.data)
         self.assertIn(b"Quarterly", response.data)
+        self.assertIn(b"G2++", response.data)
+        self.assertIn(b"Hull-White 1F versus G2++", response.data)
+        self.assertIn(b"Exercise mapping", response.data)
+        self.assertIn(b"2Y from", response.data)
+        self.assertIn(b"Not exposed by QuantLib tree swaption engines", response.data)
         self.assertIn(b'value="100,000,000.00"', response.data)
 
     def test_equity_cliquet_trade_editor_renders_analytics(self):
@@ -261,8 +282,10 @@ class PortfolioSmokeTests(unittest.TestCase):
         self.assertIn(b"Actual object graph used by this workstation.", response.data)
         self.assertIn(b"ql.PiecewiseLogCubicDiscount", response.data)
         self.assertIn(b"ql.OvernightIndexedSwap", response.data)
-        self.assertIn(b"ql.Gsr", response.data)
-        self.assertIn(b"ql.Gaussian1dSwaptionEngine", response.data)
+        self.assertIn(b"ql.HullWhite", response.data)
+        self.assertIn(b"ql.JamshidianSwaptionEngine", response.data)
+        self.assertIn(b"ql.G2", response.data)
+        self.assertIn(b"ql.TreeSwaptionEngine", response.data)
         self.assertIn(b"ql.CliquetOption", response.data)
         self.assertIn(b"Swaption and cliquet papers behind the workstation", response.data)
 

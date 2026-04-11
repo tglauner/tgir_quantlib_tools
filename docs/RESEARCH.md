@@ -3,9 +3,9 @@
 ## Swaption Pricing
 
 ### Repo-relevant modeling takeaways
-- The repo's European swaption uses `ql.BachelierSwaptionEngine`, so the workstation is explicitly in normal-vol space.
-- The repo's Bermudan swaption uses `ql.Gsr` plus `ql.Gaussian1dSwaptionEngine`, calibrated to a diagonal ATM strip via `ql.SwaptionHelper`.
-- QuantLib's Jamshidian engine documentation explicitly points to Peter Caspers' note on start-delay handling, and the broader Gaussian1d / Markov-functional stack is closely tied to Caspers' 2013 implementation papers.
+- The repo's European swaption calibrates `ql.HullWhite` to the selected ATM normal-vol matrix pillar and prices with `ql.JamshidianSwaptionEngine`.
+- The repo's Bermudan swaption calibrates either `ql.HullWhite` or `ql.G2` to a diagonal ATM strip built from the fixed-final-maturity call schedule and prices with `ql.TreeSwaptionEngine`.
+- QuantLib's Jamshidian engine documentation explicitly points to Peter Caspers' note on start-delay handling, and the broader one-factor Gaussian / Markov-functional implementation papers remain directly relevant to the repo's short-rate calibration workflow.
 
 ### QuantLib-linked swaption references
 1. Peter Caspers (2013), [Jamshidian Swaption Formula Fine Tuned](https://ssrn.com/abstract=2246054).

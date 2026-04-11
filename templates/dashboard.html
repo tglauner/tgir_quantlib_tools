@@ -6,293 +6,132 @@
   <section class="hero workstation-hero">
     <div>
       <span class="section-kicker">TGIR QuantLib Workstation</span>
-      <h1>SOFR zero rates, one-day forwards, ATM vol surface, callable grid, SPX cliquet.</h1>
+      <h1>SOFR market and zero rates, ATM vol surface, callable grid, SPX cliquet.</h1>
       <p>
         Five trades stay on the blotter. Detailed entry opens in a separate tab, while the workstation
-        keeps the QuantLib-derived zero-rate curve, a ten-year daily one-day forward strip, the workbook-based
-        ATM swaption normal-vol matrix, Bermudan pricing checks, and the SPX cliquet market inputs on one screen.
+        keeps the QuantLib-derived SOFR curve view, the workbook ATM normal-vol matrix, Bermudan pricing
+        checks, and the SPX cliquet market inputs on one screen. Forward and OIS repricing diagnostics stay
+        available on demand.
       </p>
     </div>
     <div class="hero-meta">
       <div class="pill mono-pill">Valuation {{ market_snapshot.valuation_date_iso }}</div>
-      <div class="pill mono-pill">QuantLib zero-rate nodes</div>
-      <div class="pill mono-pill">10Y daily 1D SOFR forwards</div>
-      <div class="pill mono-pill">ATM normal-vol matrix</div>
-      <div class="pill mono-pill">SPX cliquet strip</div>
       <div class="pill mono-pill"><span id="live-status-pill">Manual mode</span></div>
       <div class="pill mono-pill">Last tick <span id="live-last-update">{{ last_update_label }}</span></div>
     </div>
   </section>
 
+  <div class="stack">
   <section class="panel panel-compact">
     <div class="panel-inner">
       <div class="panel-header tight-header">
         <div>
-          <span class="section-kicker">Portfolio marks</span>
-          <h2>Live P&amp;L monitor</h2>
-          <p>Real-time mode only perturbs SOFR OIS quotes. The ATM vol matrix, Hull-White mean reversion, and SPX equity inputs stay fixed until you edit them manually.</p>
+          <span class="section-kicker">Blotter</span>
+          <h2>Deal blotter</h2>
+          <p>Positive marks print green with an up arrow, negative marks red with a down arrow. Editors open in a new tab so the workstation stays anchored.</p>
         </div>
-        <div class="btn-row top-controls">
-          <a class="btn btn-secondary" href="{{ quantlib_data_model_url }}">QuantLib model + research</a>
-          <a class="btn btn-secondary" href="{{ curve_debug_csv_url }}">Download debug CSV</a>
-          <button class="btn btn-secondary" id="realtime-toggle" type="button">Start real-time</button>
-          <form method="post" action="{{ url_for('workbench.reset_portfolio') }}">
-            <button class="btn btn-secondary" type="submit">Reset demo</button>
-          </form>
-        </div>
-        <p class="table-note mono">Repo copy: {{ curve_debug_csv_repo_path }}</p>
       </div>
 
-      <div class="summary-strip">
-        <div class="summary-card">
-          <span class="label">Net MTM</span>
-          <strong class="mono" id="mark-total-mtm">
-            <span class="signed-value {{ portfolio_marks.total_mtm|sign_class }}">{{ portfolio_marks.total_mtm|signed_money }}</span>
-          </strong>
-        </div>
-        <div class="summary-card">
-          <span class="label">Gross MTM</span>
-          <strong class="mono neutral-value" id="mark-gross-mtm">{{ portfolio_marks.gross_mtm|money }}</strong>
-        </div>
-        <div class="summary-card">
-          <span class="label">Best trade</span>
-          <strong id="mark-best-label">{{ portfolio_marks.best_trade.type }}</strong>
-          <span class="summary-sub mono" id="mark-best-mtm">
-            <span class="signed-value {{ portfolio_marks.best_trade.mtm|sign_class }}">{{ portfolio_marks.best_trade.mtm|signed_money }}</span>
-          </span>
-        </div>
-        <div class="summary-card">
-          <span class="label">Worst trade</span>
-          <strong id="mark-worst-label">{{ portfolio_marks.worst_trade.type }}</strong>
-          <span class="summary-sub mono" id="mark-worst-mtm">
-            <span class="signed-value {{ portfolio_marks.worst_trade.mtm|sign_class }}">{{ portfolio_marks.worst_trade.mtm|signed_money }}</span>
-          </span>
-        </div>
+      <div id="pricing-error-box">
+        {% if pricing_error %}
+          <div class="flash error">{{ pricing_error }}</div>
+        {% endif %}
       </div>
+
+      <table class="blotter-table">
+        <thead>
+          <tr>
+            <th>Deal</th>
+            <th>Structure</th>
+            <th class="numeric">MTM</th>
+            <th class="numeric">NPV</th>
+            <th class="numeric">Edit</th>
+          </tr>
+        </thead>
+        <tbody id="blotter-body">
+          {% for row in blotter_rows %}
+            <tr>
+              <td><strong>{{ row.Type }}</strong></td>
+              <td>{{ row.Structure }}</td>
+              <td class="numeric mono">
+                <span class="signed-value {{ row.MTM|sign_class }}">{{ row.MTM|signed_money }}</span>
+              </td>
+              <td class="numeric mono">
+                <span class="signed-value {{ row.NPV|sign_class }}">{{ row.NPV|signed_money }}</span>
+              </td>
+              <td class="numeric">
+                <a class="btn btn-secondary btn-mini" href="{{ row.EditURL }}" target="_blank" rel="noopener noreferrer">Open</a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
   </section>
 
   <div class="grid workstation-grid">
-    <div class="stack dense-stack">
-      <section class="panel panel-compact">
-        <div class="panel-inner">
-          <div class="panel-header tight-header">
-            <div>
-              <span class="section-kicker">Blotter</span>
-              <h2>Deal blotter</h2>
-              <p>Positive marks print green with an up arrow, negative marks red with a down arrow. Editors open in a new tab so the workstation stays anchored.</p>
-            </div>
+    <section class="panel panel-compact">
+      <div class="panel-inner">
+        <div class="panel-header tight-header">
+          <div>
+            <span class="section-kicker">Curve</span>
+            <h2>SOFR market and zero rates</h2>
+            <p>{{ zero_rate_note }}</p>
           </div>
-
-          <div id="pricing-error-box">
-            {% if pricing_error %}
-              <div class="flash error">{{ pricing_error }}</div>
-            {% endif %}
-          </div>
-
-          <table class="blotter-table">
-            <thead>
-              <tr>
-                <th>Deal</th>
-                <th>Structure</th>
-                <th class="numeric">MTM</th>
-                <th class="numeric">NPV</th>
-                <th class="numeric">Edit</th>
-              </tr>
-            </thead>
-            <tbody id="blotter-body">
-              {% for row in blotter_rows %}
-                <tr>
-                  <td><strong>{{ row.Type }}</strong></td>
-                  <td>{{ row.Structure }}</td>
-                  <td class="numeric mono">
-                    <span class="signed-value {{ row.MTM|sign_class }}">{{ row.MTM|signed_money }}</span>
-                  </td>
-                  <td class="numeric mono">
-                    <span class="signed-value {{ row.NPV|sign_class }}">{{ row.NPV|signed_money }}</span>
-                  </td>
-                  <td class="numeric">
-                    <a class="btn btn-secondary btn-mini" href="{{ row.EditURL }}" target="_blank" rel="noopener noreferrer">Open</a>
-                  </td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
         </div>
-      </section>
 
-      <section class="panel panel-compact">
-        <div class="panel-inner">
-          <div class="panel-header tight-header">
-            <div>
-              <span class="section-kicker">Volatility</span>
-              <h2>ATM swaption normal-vol matrix</h2>
-              <p>Short expiries and annual-to-long expiries run down the left, underlying swap tenors across the top, all ATM. European swaptions price from the selected pillar, while Bermudans calibrate to the feasible diagonal strip.</p>
+        <form method="post" action="{{ url_for('workbench.update_market') }}" id="market-form">
+          <div class="panel-section">
+            <div class="form-grid single">
+              <div class="field">
+                <label for="{{ valuation_date_input.name }}">{{ valuation_date_input.label }}</label>
+                <input id="{{ valuation_date_input.name }}" name="{{ valuation_date_input.name }}" type="date" value="{{ valuation_date_input.value }}">
+              </div>
             </div>
           </div>
 
-          <form method="post" action="{{ url_for('workbench.update_market') }}">
+          <div class="panel-section">
             <div class="table-scroll">
-              <table class="matrix-table">
+              <table class="blotter-table curve-rate-table">
+                <colgroup>
+                  <col class="curve-col-term">
+                  <col class="curve-col-market">
+                  <col class="curve-col-zero">
+                </colgroup>
                 <thead>
                   <tr>
-                    <th>Expiry \ Tenor</th>
-                    {% for header in swaption_matrix_headers %}
-                      <th class="numeric">{{ header }}</th>
-                    {% endfor %}
+                    <th>Term</th>
+                    <th class="numeric">Mkt rate</th>
+                    <th class="numeric">Zero rate</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {% for row in swaption_matrix_rows %}
+                <tbody id="curve-rate-body">
+                  {% for row in curve_rate_rows %}
                     <tr>
-                      <th>{{ row.expiry_label }}</th>
-                      {% for cell in row.cells %}
-                        <td class="numeric">
-                          <input class="matrix-input mono" id="{{ cell.name }}" name="{{ cell.name }}" type="number" step="0.1" value="{{ cell.value }}">
-                        </td>
-                      {% endfor %}
+                      <td><strong>{{ row.label }}</strong></td>
+                      <td class="numeric mono">
+                        <input
+                          class="curve-rate-input mono"
+                          id="rate{{ loop.index0 }}"
+                          name="rate{{ loop.index0 }}"
+                          type="number"
+                          step="0.0001"
+                          value="{{ row.market_rate_pct }}"
+                        >
+                      </td>
+                      <td class="numeric mono" id="curve-zero-rate-{{ loop.index0 }}">{{ row.zero_rate_pct|pct }}</td>
                     </tr>
                   {% endfor %}
                 </tbody>
               </table>
             </div>
-            <p class="table-note">{{ matrix_source_note }}</p>
-            <div class="btn-row" style="margin-top: 8px;">
-              <button class="btn" type="submit">Apply matrix update</button>
-            </div>
-          </form>
-        </div>
-      </section>
-
-      <section class="panel panel-compact">
-        <div class="panel-inner">
-          <div class="panel-header tight-header">
-            <div>
-              <span class="section-kicker">Callable grid</span>
-              <h2>Bermudan pricing grid</h2>
-              <p>Columns are final maturity. Rows are non-call periods. Cells use the current Bermudan trade direction, strike, notional, payment frequency, reset frequency, and the calibrated Gaussian short-rate model. Inapplicable cells are shown as <span class="mono">-</span>.</p>
-            </div>
-          </div>
-          <div class="table-scroll">
-            <table class="bermudan-grid-table">
-              <thead>
-                <tr>
-                  <th>Non-call</th>
-                  {% for header in bermudan_grid_headers %}
-                    <th class="numeric">{{ header }}</th>
-                  {% endfor %}
-                </tr>
-              </thead>
-              <tbody id="bermudan-grid-body">
-                {% for row in bermudan_grid_rows %}
-                  <tr>
-                    <td><strong>{{ row["Non-call"] }}</strong></td>
-                    {% for header in bermudan_grid_headers %}
-                      <td class="numeric mono">
-                        {% if row[header] is none %}
-                          -
-                        {% else %}
-                          <span class="signed-value {{ row[header]|sign_class }}">{{ row[header]|signed_money }}</span>
-                        {% endif %}
-                      </td>
-                    {% endfor %}
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-    </div>
-
-    <div class="stack dense-stack">
-      <section class="panel panel-compact">
-        <div class="panel-inner">
-          <div class="panel-header tight-header">
-            <div>
-              <span class="section-kicker">Curve Output</span>
-              <h2>Zero rates</h2>
-              <p>{{ zero_rate_note }}</p>
-            </div>
           </div>
 
-          <div class="metric-strip compact-metrics">
-            <div class="metric">
-              <span class="label">1D to 30Y</span>
-              <span class="value mono" id="zero-rate-slope">
-                <span class="signed-value {{ market_snapshot.zero_rate_steepness_bp|sign_class }}">{{ "%+.0f"|format(market_snapshot.zero_rate_steepness_bp) }} bp</span>
-              </span>
-            </div>
-            <div class="metric">
-              <span class="label">5Y x 5Y ATM</span>
-              <span class="value mono" id="curve-atm-matrix">{{ "%.1f"|format(market_snapshot.atm_5y5y_bp) }} bp</span>
-            </div>
-            <div class="metric">
-              <span class="label">Diag strip</span>
-              <span class="value mono" id="curve-diag-strip">{{ market_snapshot.bermudan_calibration_helper_count }} pillars</span>
-            </div>
-            <div class="metric">
-              <span class="label">H&amp;W mean rev</span>
-              <span class="value mono" id="curve-hw-mean-reversion">{{ "%.4f"|format(market_snapshot.hw_mean_reversion) }}</span>
-            </div>
-            <div class="metric">
-              <span class="label">Valuation date</span>
-              <span class="value mono">{{ market_snapshot.valuation_date_iso }}</span>
-            </div>
-            <div class="metric">
-              <span class="label">SPX spot</span>
-              <span class="value mono">{{ "%.2f"|format(market_snapshot.equity_spot) }}</span>
-            </div>
-          </div>
-
-          <div class="curve-shell">
-            <div id="zero-rate-chart-wrap">
-              <svg viewBox="0 0 {{ zero_rate_chart.width }} {{ zero_rate_chart.height }}" role="img" aria-labelledby="zeroRateTitle">
-                <title id="zeroRateTitle">Zero rate chart</title>
-                {% for tick in zero_rate_chart.y_ticks %}
-                  <line x1="36" y1="{{ tick.y }}" x2="{{ zero_rate_chart.width - 18 }}" y2="{{ tick.y }}" stroke="rgba(19,33,48,0.08)" stroke-dasharray="3 4" />
-                  <text x="4" y="{{ tick.y + 4 }}" font-size="10" fill="#607181">{{ "%.2f"|format(tick.value) }}</text>
-                {% endfor %}
-                <line x1="36" y1="{{ zero_rate_chart.height - 34 }}" x2="{{ zero_rate_chart.width - 18 }}" y2="{{ zero_rate_chart.height - 34 }}" stroke="rgba(19,33,48,0.10)" />
-                <polygon points="{{ zero_rate_chart.area }}" fill="rgba(11,116,99,0.12)"></polygon>
-                <polyline points="{{ zero_rate_chart.polyline }}" fill="none" stroke="#0b7463" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></polyline>
-                {% for marker in zero_rate_chart.markers %}
-                  <circle cx="{{ marker.x }}" cy="{{ marker.y }}" r="4.2" fill="#c0683a" stroke="#fff8f0" stroke-width="1.8"></circle>
-                {% endfor %}
-                {% for tick in zero_rate_chart.x_ticks %}
-                  <text x="{{ tick.x }}" y="{{ zero_rate_chart.height - 10 }}" text-anchor="middle" font-size="11" fill="#607181">{{ tick.label }}</text>
-                {% endfor %}
-              </svg>
-            </div>
-
-            <div class="curve-legend" id="zero-rate-legend">
-              {% for row in market_snapshot.zero_rate_rows %}
-                <div class="curve-legend-item">
-                  <span class="tenor">{{ row.label }}</span>
-                  <span class="quote mono">{{ row.rate_pct|pct }}</span>
-                  <span class="curve-legend-meta mono">{{ row.short_date }}</span>
-                </div>
-              {% endfor %}
-            </div>
-          </div>
-
-          <div class="subtle-divider"></div>
-
-          <form method="post" action="{{ url_for('workbench.update_market') }}" id="market-form">
-            <div class="form-grid workstation-form-grid">
+          <div class="panel-section">
+            <div class="form-grid single">
               <div class="field">
-                <label for="{{ valuation_date_input.name }}">{{ valuation_date_input.label }}</label>
-                <input id="{{ valuation_date_input.name }}" name="{{ valuation_date_input.name }}" type="date" value="{{ valuation_date_input.value }}">
-              </div>
-              {% for curve_input in curve_inputs %}
-                <div class="field">
-                  <label for="{{ curve_input.name }}">{{ curve_input.label }}</label>
-                  <input id="{{ curve_input.name }}" name="{{ curve_input.name }}" type="number" step="0.01" value="{{ curve_input.value }}">
-                </div>
-              {% endfor %}
-              <div class="field">
-                <label for="hw_mean_reversion">Hull-White mean reversion</label>
-                <input id="hw_mean_reversion" name="hw_mean_reversion" type="number" step="0.0001" value="{{ market_snapshot.hw_mean_reversion }}">
+                <label for="hw_mean_reversion">Mean reversion (%)</label>
+                <input id="hw_mean_reversion" name="hw_mean_reversion" type="number" step="0.01" value="{{ "%.2f"|format(market_snapshot.hw_mean_reversion * 100.0) }}">
               </div>
             </div>
             <p class="table-note">{{ normal_vol_note }}</p>
@@ -301,137 +140,283 @@
             <div class="btn-row">
               <button class="btn" type="submit">Apply curve and model update</button>
             </div>
-          </form>
-        </div>
-      </section>
-
-      <section class="panel panel-compact">
-        <div class="panel-inner">
-          <div class="panel-header tight-header">
-            <div>
-              <span class="section-kicker">Equity Market</span>
-              <h2>SPX cliquet assumptions</h2>
-              <p>{{ equity_market_note }}</p>
-            </div>
           </div>
 
-          <div class="metric-strip compact-metrics">
-            <div class="metric">
-              <span class="label">Spot</span>
-              <span class="value mono">{{ "%.2f"|format(market_snapshot.equity_spot) }}</span>
-            </div>
-            <div class="metric">
-              <span class="label">Dividend</span>
-              <span class="value mono">{{ market_snapshot.equity_dividend_yield_pct|pct }}</span>
-            </div>
-            <div class="metric">
-              <span class="label">Flat vol</span>
-              <span class="value mono">{{ market_snapshot.equity_volatility_pct|pct }}</span>
-            </div>
-          </div>
-
-          <form method="post" action="{{ url_for('workbench.update_market') }}">
-            <div class="form-grid workstation-form-grid">
-              {% for field in equity_market_inputs %}
-                <div class="field">
-                  <label for="{{ field.name }}">{{ field.label }}</label>
-                  <input id="{{ field.name }}" name="{{ field.name }}" type="number" step="{{ field.step }}" value="{{ field.value }}">
-                </div>
-              {% endfor %}
-            </div>
-            <div class="btn-row">
-              <button class="btn" type="submit">Apply SPX update</button>
-            </div>
-          </form>
-        </div>
-      </section>
-
-      <section class="panel panel-compact">
-        <div class="panel-inner">
-          <div class="panel-header tight-header">
-            <div>
-              <span class="section-kicker">Forward Strip</span>
-              <h2>Daily one-day forward SOFR</h2>
-              <p>{{ forward_rate_note }}</p>
+          <div class="panel-section">
+            <div class="curve-shell">
+              <div id="curve-comparison-chart-wrap">
+                <svg viewBox="0 0 {{ curve_comparison_chart.width }} {{ curve_comparison_chart.height }}" role="img" aria-labelledby="curveComparisonTitle">
+                  <title id="curveComparisonTitle">SOFR market and zero rate chart</title>
+                  {% for tick in curve_comparison_chart.y_ticks %}
+                    <line x1="36" y1="{{ tick.y }}" x2="{{ curve_comparison_chart.width - 18 }}" y2="{{ tick.y }}" stroke="rgba(19,33,48,0.08)" stroke-dasharray="3 4" />
+                    <text x="4" y="{{ tick.y + 4 }}" font-size="10" fill="#607181">{{ "%.2f"|format(tick.value) }}</text>
+                  {% endfor %}
+                  <line x1="36" y1="{{ curve_comparison_chart.height - 34 }}" x2="{{ curve_comparison_chart.width - 18 }}" y2="{{ curve_comparison_chart.height - 34 }}" stroke="rgba(19,33,48,0.10)" />
+                  {% for series in curve_comparison_chart.series %}
+                    <polyline points="{{ series.polyline }}" fill="none" stroke="{{ series.color }}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></polyline>
+                    {% for marker in series.markers %}
+                      <circle cx="{{ marker.x }}" cy="{{ marker.y }}" r="2.8" fill="{{ series.color }}" stroke="#fff8f0" stroke-width="1.1"></circle>
+                    {% endfor %}
+                  {% endfor %}
+                  {% for tick in curve_comparison_chart.x_ticks %}
+                    <text x="{{ tick.x }}" y="{{ curve_comparison_chart.height - 10 }}" text-anchor="middle" font-size="10" fill="#607181">{{ tick.label }}</text>
+                  {% endfor %}
+                </svg>
+              </div>
+              <div class="chart-legend">
+                <span class="chart-legend-item"><span class="chart-swatch chart-swatch-blue"></span>Market rates</span>
+                <span class="chart-legend-item"><span class="chart-swatch chart-swatch-green"></span>Zero rates</span>
+              </div>
             </div>
           </div>
+        </form>
+      </div>
+    </section>
 
-          <div class="metric-strip compact-metrics">
-            <div class="metric">
-              <span class="label">Start</span>
-              <span class="value mono" id="forward-start">{{ market_snapshot.forward_rate_summary.start_pct|pct }}</span>
-            </div>
-            <div class="metric">
-              <span class="label">3M</span>
-              <span class="value mono" id="forward-3m">{{ market_snapshot.forward_rate_summary.three_month_pct|pct }}</span>
-            </div>
-            <div class="metric">
-              <span class="label">6M</span>
-              <span class="value mono" id="forward-6m">{{ market_snapshot.forward_rate_summary.six_month_pct|pct }}</span>
-            </div>
-            <div class="metric">
-              <span class="label">1Y</span>
-              <span class="value mono" id="forward-1y">{{ market_snapshot.forward_rate_summary.one_year_pct|pct }}</span>
-            </div>
-          </div>
-
-          <div class="curve-shell">
-            <div id="forward-rate-chart-wrap">
-              <svg viewBox="0 0 {{ forward_rate_chart.width }} {{ forward_rate_chart.height }}" role="img" aria-labelledby="forwardRateTitle">
-                <title id="forwardRateTitle">Daily one-day forward SOFR chart</title>
-                {% for tick in forward_rate_chart.y_ticks %}
-                  <line x1="36" y1="{{ tick.y }}" x2="{{ forward_rate_chart.width - 18 }}" y2="{{ tick.y }}" stroke="rgba(19,33,48,0.08)" stroke-dasharray="3 4" />
-                  <text x="4" y="{{ tick.y + 4 }}" font-size="10" fill="#607181">{{ "%.2f"|format(tick.value) }}</text>
-                {% endfor %}
-                <line x1="36" y1="{{ forward_rate_chart.height - 34 }}" x2="{{ forward_rate_chart.width - 18 }}" y2="{{ forward_rate_chart.height - 34 }}" stroke="rgba(19,33,48,0.10)" />
-                <polygon points="{{ forward_rate_chart.area }}" fill="rgba(11,116,99,0.12)"></polygon>
-                <polyline points="{{ forward_rate_chart.polyline }}" fill="none" stroke="#0b7463" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></polyline>
-                {% for marker in forward_rate_chart.markers %}
-                  <circle cx="{{ marker.x }}" cy="{{ marker.y }}" r="3.6" fill="#c0683a" stroke="#fff8f0" stroke-width="1.6"></circle>
-                {% endfor %}
-                {% for tick in forward_rate_chart.x_ticks %}
-                  <text x="{{ tick.x }}" y="{{ forward_rate_chart.height - 10 }}" text-anchor="middle" font-size="10" fill="#607181">{{ tick.label }}</text>
-                {% endfor %}
-              </svg>
-            </div>
+    <section class="panel panel-compact">
+      <div class="panel-inner">
+        <div class="panel-header tight-header">
+          <div>
+            <span class="section-kicker">Volatility</span>
+            <h2>ATM swaption normal-vol matrix</h2>
+            <p>Short expiries and annual-to-long expiries run down the left, underlying swap tenors across the top, all ATM. European swaptions price from the selected pillar, while Bermudans calibrate to the trade call schedule against the matching remaining swap tenor.</p>
           </div>
         </div>
-      </section>
 
-      <section class="panel panel-compact">
-        <div class="panel-inner">
-          <div class="panel-header tight-header">
-            <div>
-              <span class="section-kicker">Calibration</span>
-              <h2>OIS SOFR repricing</h2>
-              <p>The curve repricing check is shown across all quoted OIS pillars currently loaded into the workstation.</p>
-            </div>
-          </div>
-          <table>
-            <thead>
-              <tr>
-                <th>Tenor</th>
-                <th class="numeric">Market</th>
-                <th class="numeric">Fair</th>
-                <th class="numeric">NPV</th>
-              </tr>
-            </thead>
-            <tbody id="calibration-body">
-              {% for row in calibration_rows %}
+        <form method="post" action="{{ url_for('workbench.update_market') }}">
+          <div class="table-scroll">
+            <table class="matrix-table">
+              <thead>
                 <tr>
-                  <td><strong>{{ row.Tenor }}</strong></td>
-                  <td class="numeric mono">{{ row["Market Quote (%)"]|pct }}</td>
-                  <td class="numeric mono">{{ row["Fair Rate (%)"]|pct }}</td>
-                  <td class="numeric mono">
-                    <span class="signed-value {{ row.NPV|sign_class }}">{{ row.NPV|signed_money }}</span>
-                  </td>
+                  <th>Expiry \ Tenor</th>
+                  {% for header in swaption_matrix_headers %}
+                    <th class="numeric">{{ header }}</th>
+                  {% endfor %}
                 </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {% for row in swaption_matrix_rows %}
+                  <tr>
+                    <th>{{ row.expiry_label }}</th>
+                    {% for cell in row.cells %}
+                      <td class="numeric">
+                        <input class="matrix-input mono" id="{{ cell.name }}" name="{{ cell.name }}" type="number" step="0.1" value="{{ cell.value }}">
+                      </td>
+                    {% endfor %}
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <p class="table-note">{{ matrix_source_note }}</p>
+          <div class="btn-row" style="margin-top: 8px;">
+            <button class="btn" type="submit">Apply matrix update</button>
+          </div>
+        </form>
+      </div>
+    </section>
+  </div>
+
+  <section class="panel panel-compact">
+    <div class="panel-inner">
+        <div class="panel-header tight-header">
+          <div>
+            <span class="section-kicker">Callable grid</span>
+            <h2>Bermudan pricing grid</h2>
+            <p>Columns are final maturity. Rows are non-call periods. Cells use the current Bermudan trade direction, strike, notional, payment frequency, reset frequency, and the selected short-rate model from the main Bermudan trade. Inapplicable cells are shown as <span class="mono">-</span>.</p>
+          </div>
         </div>
-      </section>
+      <div class="table-scroll">
+        <table class="bermudan-grid-table">
+          <thead>
+            <tr>
+              <th>Non-call</th>
+              {% for header in bermudan_grid_headers %}
+                <th class="numeric">{{ header }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody id="bermudan-grid-body">
+            {% for row in bermudan_grid_rows %}
+              <tr>
+                <td><strong>{{ row["Non-call"] }}</strong></td>
+                {% for header in bermudan_grid_headers %}
+                  <td class="numeric mono">
+                    {% if row[header] is none %}
+                      -
+                    {% else %}
+                      <span class="signed-value {{ row[header]|sign_class }}">{{ row[header]|signed_money }}</span>
+                    {% endif %}
+                  </td>
+                {% endfor %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </div>
+  </section>
+
+  <section class="panel panel-compact">
+    <div class="panel-inner">
+      <div class="panel-header tight-header">
+        <div>
+          <span class="section-kicker">Diagnostics</span>
+          <h2>Additional curve diagnostics</h2>
+          <p>These checks stay off the main screen but remain available whenever you want to inspect the forward strip or OIS calibration repricing.</p>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button
+          class="btn btn-secondary"
+          type="button"
+          data-toggle-panel="forward-panel"
+          data-show-label="Show daily one-day forward SOFR"
+          data-hide-label="Hide daily one-day forward SOFR"
+          aria-expanded="false"
+        >
+          Show daily one-day forward SOFR
+        </button>
+        <button
+          class="btn btn-secondary"
+          type="button"
+          data-toggle-panel="calibration-panel"
+          data-show-label="Show OIS SOFR repricing"
+          data-hide-label="Hide OIS SOFR repricing"
+          aria-expanded="false"
+        >
+          Show OIS SOFR repricing
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel panel-compact" id="forward-panel" hidden>
+    <div class="panel-inner">
+      <div class="panel-header tight-header">
+        <div>
+          <span class="section-kicker">Forward Strip</span>
+          <h2>Daily one-day forward SOFR</h2>
+          <p>{{ forward_rate_note }}</p>
+        </div>
+      </div>
+
+      <div class="metric-strip compact-metrics">
+        <div class="metric">
+          <span class="label">Start</span>
+          <span class="value mono" id="forward-start">{{ market_snapshot.forward_rate_summary.start_pct|pct }}</span>
+        </div>
+        <div class="metric">
+          <span class="label">3M</span>
+          <span class="value mono" id="forward-3m">{{ market_snapshot.forward_rate_summary.three_month_pct|pct }}</span>
+        </div>
+        <div class="metric">
+          <span class="label">6M</span>
+          <span class="value mono" id="forward-6m">{{ market_snapshot.forward_rate_summary.six_month_pct|pct }}</span>
+        </div>
+        <div class="metric">
+          <span class="label">1Y</span>
+          <span class="value mono" id="forward-1y">{{ market_snapshot.forward_rate_summary.one_year_pct|pct }}</span>
+        </div>
+      </div>
+
+      <div class="curve-shell">
+        <div id="forward-rate-chart-wrap">
+          <svg viewBox="0 0 {{ forward_rate_chart.width }} {{ forward_rate_chart.height }}" role="img" aria-labelledby="forwardRateTitle">
+            <title id="forwardRateTitle">Daily one-day forward SOFR chart</title>
+            {% for tick in forward_rate_chart.y_ticks %}
+              <line x1="36" y1="{{ tick.y }}" x2="{{ forward_rate_chart.width - 18 }}" y2="{{ tick.y }}" stroke="rgba(19,33,48,0.08)" stroke-dasharray="3 4" />
+              <text x="4" y="{{ tick.y + 4 }}" font-size="10" fill="#607181">{{ "%.2f"|format(tick.value) }}</text>
+            {% endfor %}
+            <line x1="36" y1="{{ forward_rate_chart.height - 34 }}" x2="{{ forward_rate_chart.width - 18 }}" y2="{{ forward_rate_chart.height - 34 }}" stroke="rgba(19,33,48,0.10)" />
+            <polygon points="{{ forward_rate_chart.area }}" fill="rgba(11,116,99,0.12)"></polygon>
+            <polyline points="{{ forward_rate_chart.polyline }}" fill="none" stroke="#0b7463" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></polyline>
+            {% for marker in forward_rate_chart.markers %}
+              <circle cx="{{ marker.x }}" cy="{{ marker.y }}" r="3.6" fill="#c0683a" stroke="#fff8f0" stroke-width="1.6"></circle>
+            {% endfor %}
+            {% for tick in forward_rate_chart.x_ticks %}
+              <text x="{{ tick.x }}" y="{{ forward_rate_chart.height - 10 }}" text-anchor="middle" font-size="10" fill="#607181">{{ tick.label }}</text>
+            {% endfor %}
+          </svg>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel panel-compact" id="calibration-panel" hidden>
+    <div class="panel-inner">
+      <div class="panel-header tight-header">
+        <div>
+          <span class="section-kicker">Calibration</span>
+          <h2>OIS SOFR repricing</h2>
+          <p>The curve repricing check is shown across all quoted OIS pillars currently loaded into the workstation.</p>
+        </div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Tenor</th>
+            <th class="numeric">Market</th>
+            <th class="numeric">Fair</th>
+            <th class="numeric">NPV</th>
+          </tr>
+        </thead>
+        <tbody id="calibration-body">
+          {% for row in calibration_rows %}
+            <tr>
+              <td><strong>{{ row.Tenor }}</strong></td>
+              <td class="numeric mono">{{ row["Market Quote (%)"]|pct }}</td>
+              <td class="numeric mono">{{ row["Fair Rate (%)"]|pct }}</td>
+              <td class="numeric mono">
+                <span class="signed-value {{ row.NPV|sign_class }}">{{ row.NPV|signed_money }}</span>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel panel-compact">
+    <div class="panel-inner">
+      <div class="panel-header tight-header">
+        <div>
+          <span class="section-kicker">Equity Market</span>
+          <h2>SPX cliquet assumptions</h2>
+          <p>{{ equity_market_note }}</p>
+        </div>
+      </div>
+
+      <div class="metric-strip compact-metrics">
+        <div class="metric">
+          <span class="label">Spot</span>
+          <span class="value mono">{{ "%.2f"|format(market_snapshot.equity_spot) }}</span>
+        </div>
+        <div class="metric">
+          <span class="label">Dividend</span>
+          <span class="value mono">{{ market_snapshot.equity_dividend_yield_pct|pct }}</span>
+        </div>
+        <div class="metric">
+          <span class="label">Flat vol</span>
+          <span class="value mono">{{ market_snapshot.equity_volatility_pct|pct }}</span>
+        </div>
+      </div>
+
+      <form method="post" action="{{ url_for('workbench.update_market') }}">
+        <div class="form-grid workstation-form-grid">
+          {% for field in equity_market_inputs %}
+            <div class="field">
+              <label for="{{ field.name }}">{{ field.label }}</label>
+              <input id="{{ field.name }}" name="{{ field.name }}" type="number" step="{{ field.step }}" value="{{ field.value }}">
+            </div>
+          {% endfor %}
+        </div>
+        <div class="btn-row">
+          <button class="btn" type="submit">Apply SPX update</button>
+        </div>
+      </form>
+    </div>
+  </section>
   </div>
 
   <script>
@@ -476,26 +461,53 @@
         return `<span class="signed-value ${signClass(value)}">${plainMoney(value)}</span>`;
       }
 
-      function signedBpMarkup(value) {
-        const sign = value > 0 ? "+" : "";
-        return `<span class="signed-value ${signClass(value)}">${sign}${Number(value).toFixed(0)} bp</span>`;
-      }
-
       function applyCurveInputs(curveInputs, hwMeanReversion) {
         for (const input of curveInputs) {
           const field = document.getElementById(input.name);
           if (field && document.activeElement !== field) {
-            field.value = Number(input.value).toFixed(2);
+            field.value = Number(input.value).toFixed(4);
           }
         }
         const meanReversionField = document.getElementById("hw_mean_reversion");
         if (meanReversionField && document.activeElement !== meanReversionField) {
-          meanReversionField.value = Number(hwMeanReversion).toFixed(4);
+          meanReversionField.value = (Number(hwMeanReversion) * 100.0).toFixed(2);
         }
+      }
+
+      function renderCurveComparisonChart(chart) {
+        const wrap = document.getElementById("curve-comparison-chart-wrap");
+        if (!wrap) {
+          return;
+        }
+        if (!chart || !chart.width) {
+          wrap.innerHTML = "";
+          return;
+        }
+        wrap.innerHTML = `
+          <svg viewBox="0 0 ${chart.width} ${chart.height}" role="img" aria-label="SOFR market and zero rate chart">
+            ${chart.y_ticks.map((tick) => `
+              <line x1="36" y1="${tick.y}" x2="${chart.width - 18}" y2="${tick.y}" stroke="rgba(19,33,48,0.08)" stroke-dasharray="3 4" />
+              <text x="4" y="${tick.y + 4}" font-size="10" fill="#607181">${tick.value.toFixed(2)}</text>
+            `).join("")}
+            <line x1="36" y1="${chart.height - 34}" x2="${chart.width - 18}" y2="${chart.height - 34}" stroke="rgba(19,33,48,0.10)" />
+            ${chart.series.map((series) => `
+              <polyline points="${series.polyline}" fill="none" stroke="${series.color}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></polyline>
+              ${series.markers.map((marker) => `
+                <circle cx="${marker.x}" cy="${marker.y}" r="2.8" fill="${series.color}" stroke="#fff8f0" stroke-width="1.1"></circle>
+              `).join("")}
+            `).join("")}
+            ${chart.x_ticks.map((tick) => `
+              <text x="${tick.x}" y="${chart.height - 10}" text-anchor="middle" font-size="10" fill="#607181">${tick.label}</text>
+            `).join("")}
+          </svg>
+        `;
       }
 
       function renderLineChart(targetId, chart, ariaLabel) {
         const wrap = document.getElementById(targetId);
+        if (!wrap) {
+          return;
+        }
         if (!chart || !chart.width) {
           wrap.innerHTML = "";
           return;
@@ -519,15 +531,13 @@
         `;
       }
 
-      function renderZeroRateLegend(rows) {
-        const legend = document.getElementById("zero-rate-legend");
-        legend.innerHTML = rows.map((row) => `
-          <div class="curve-legend-item">
-            <span class="tenor">${row.label}</span>
-            <span class="quote mono">${pct(row.rate_pct)}</span>
-            <span class="curve-legend-meta mono">${row.short_date}</span>
-          </div>
-        `).join("");
+      function renderCurveRateRows(rows) {
+        rows.forEach((row, index) => {
+          const zeroCell = document.getElementById(`curve-zero-rate-${index}`);
+          if (zeroCell) {
+            zeroCell.textContent = pct(row.zero_rate_pct);
+          }
+        });
       }
 
       function renderBlotter(rows) {
@@ -573,20 +583,7 @@
         `).join("");
       }
 
-      function renderMarks(marks) {
-        document.getElementById("mark-total-mtm").innerHTML = signedMoneyMarkup(marks.total_mtm);
-        document.getElementById("mark-gross-mtm").textContent = plainMoney(marks.gross_mtm);
-        document.getElementById("mark-best-label").textContent = marks.best_trade.type;
-        document.getElementById("mark-best-mtm").innerHTML = signedMoneyMarkup(marks.best_trade.mtm);
-        document.getElementById("mark-worst-label").textContent = marks.worst_trade.type;
-        document.getElementById("mark-worst-mtm").innerHTML = signedMoneyMarkup(marks.worst_trade.mtm);
-      }
-
       function renderMarketSnapshot(snapshot) {
-        document.getElementById("zero-rate-slope").innerHTML = signedBpMarkup(snapshot.zero_rate_steepness_bp);
-        document.getElementById("curve-atm-matrix").textContent = `${Number(snapshot.atm_5y5y_bp).toFixed(1)} bp`;
-        document.getElementById("curve-diag-strip").textContent = `${Number(snapshot.bermudan_calibration_helper_count)} pillars`;
-        document.getElementById("curve-hw-mean-reversion").textContent = Number(snapshot.hw_mean_reversion).toFixed(4);
         document.getElementById("forward-start").textContent = pct(snapshot.forward_rate_summary.start_pct);
         document.getElementById("forward-3m").textContent = pct(snapshot.forward_rate_summary.three_month_pct);
         document.getElementById("forward-6m").textContent = pct(snapshot.forward_rate_summary.six_month_pct);
@@ -604,14 +601,13 @@
 
       function applyPayload(payload) {
         renderPricingError(payload.pricing_error);
-        renderMarks(payload.portfolio_marks);
         renderBlotter(payload.blotter_rows);
+        renderCurveRateRows(payload.curve_rate_rows);
+        renderCurveComparisonChart(payload.curve_comparison_chart);
         renderCalibration(payload.calibration_rows);
         renderBermudanGrid(payload.bermudan_grid_rows);
         renderMarketSnapshot(payload.market_snapshot);
-        renderLineChart("zero-rate-chart-wrap", payload.zero_rate_chart, "Zero rate chart");
         renderLineChart("forward-rate-chart-wrap", payload.forward_rate_chart, "Daily one-day forward SOFR chart");
-        renderZeroRateLegend(payload.market_snapshot.zero_rate_rows);
         applyCurveInputs(payload.curve_inputs, payload.market_snapshot.hw_mean_reversion);
         liveLastUpdate.textContent = payload.last_update_label;
       }
@@ -626,6 +622,18 @@
           toggleButton.classList.add("btn-secondary");
           liveStatus.textContent = "Manual mode";
         }
+      }
+
+      function togglePanel(button) {
+        const panelId = button.dataset.togglePanel;
+        const panel = document.getElementById(panelId);
+        if (!panel) {
+          return;
+        }
+        const shouldShow = panel.hidden;
+        panel.hidden = !shouldShow;
+        button.setAttribute("aria-expanded", shouldShow ? "true" : "false");
+        button.textContent = shouldShow ? button.dataset.hideLabel : button.dataset.showLabel;
       }
 
       async function tickRealtime() {
@@ -666,6 +674,10 @@
         if (realtimeEnabled) {
           tickRealtime();
         }
+      });
+
+      document.querySelectorAll("[data-toggle-panel]").forEach((button) => {
+        button.addEventListener("click", () => togglePanel(button));
       });
 
       updateRealtimeUI();

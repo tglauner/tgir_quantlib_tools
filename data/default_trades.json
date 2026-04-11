@@ -1,7 +1,7 @@
 {
   "swap": {
     "direction": "payer",
-    "notional": 1000000,
+    "notional": 100000000,
     "fixed_rate_pct": 3.0,
     "tenor_years": 5,
     "payment_frequency_months": 12,
@@ -9,7 +9,7 @@
   },
   "european_swaption": {
     "direction": "payer",
-    "notional": 1000000,
+    "notional": 100000000,
     "strike_pct": 3.0,
     "expiry_years": 1,
     "swap_tenor_years": 4,
@@ -18,12 +18,13 @@
   },
   "bermudan_swaption": {
     "direction": "payer",
-    "notional": 1000000,
+    "notional": 100000000,
     "strike_pct": 3.0,
     "first_exercise_years": 1,
     "final_maturity_years": 5,
     "payment_frequency_months": 12,
-    "reset_frequency_months": 12
+    "reset_frequency_months": 12,
+    "model_name": "hull_white_1f"
   },
   "bermudan_swaption_2": {
     "direction": "payer",
@@ -32,7 +33,8 @@
     "first_exercise_years": 2,
     "final_maturity_years": 5,
     "payment_frequency_months": 12,
-    "reset_frequency_months": 12
+    "reset_frequency_months": 12,
+    "model_name": "hull_white_1f"
   },
   "equity_cliquet": {
     "option_type": "call",

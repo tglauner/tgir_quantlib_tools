@@ -1,15 +1,15 @@
 <VirtualHost *:80>
-    ServerName quant.example.com
-    Redirect permanent / https://quant.example.com/
+    ServerName quant.tglauner.com
+    Redirect permanent / https://quant.tglauner.com/
 </VirtualHost>
 
 <IfModule mod_ssl.c>
 <VirtualHost *:443>
-    ServerName quant.example.com
+    ServerName quant.tglauner.com
 
     SSLEngine on
-    SSLCertificateFile /etc/letsencrypt/live/quant.example.com/fullchain.pem
-    SSLCertificateKeyFile /etc/letsencrypt/live/quant.example.com/privkey.pem
+    SSLCertificateFile /etc/letsencrypt/live/quant.tglauner.com/fullchain.pem
+    SSLCertificateKeyFile /etc/letsencrypt/live/quant.tglauner.com/privkey.pem
 
     ProxyPreserveHost On
     RequestHeader set X-Forwarded-Proto "https"

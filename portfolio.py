@@ -124,6 +124,22 @@ BERMUDAN_MODEL_LABELS = {
 }
 BERMUDAN_MODEL_OPTIONS = tuple(BERMUDAN_MODEL_LABELS.items())
 
+BERMUDAN_CALIBRATION_RELATIVE_PRICE_ERROR = "relative_price_error"
+BERMUDAN_CALIBRATION_PRICE_ERROR = "price_error"
+DEFAULT_BERMUDAN_CALIBRATION_METHOD = BERMUDAN_CALIBRATION_RELATIVE_PRICE_ERROR
+BERMUDAN_CALIBRATION_METHOD_LABELS = {
+    BERMUDAN_CALIBRATION_RELATIVE_PRICE_ERROR: "ql.BlackCalibrationHelper.RelativePriceError",
+    BERMUDAN_CALIBRATION_PRICE_ERROR: "ql.BlackCalibrationHelper.PriceError",
+}
+BERMUDAN_CALIBRATION_METHOD_OPTIONS = (
+    (BERMUDAN_CALIBRATION_RELATIVE_PRICE_ERROR, "Relative price error"),
+    (BERMUDAN_CALIBRATION_PRICE_ERROR, "Absolute price error"),
+)
+BERMUDAN_CALIBRATION_METHOD_TYPES = {
+    BERMUDAN_CALIBRATION_RELATIVE_PRICE_ERROR: ql.BlackCalibrationHelper.RelativePriceError,
+    BERMUDAN_CALIBRATION_PRICE_ERROR: ql.BlackCalibrationHelper.PriceError,
+}
+
 BERMUDAN_TRADE_KEYS = ("bermudan_swaption", "bermudan_swaption_2")
 TRADE_SEQUENCE = ("swap", "european_swaption", "bermudan_swaption", "bermudan_swaption_2", "equity_cliquet")
 TRADE_TITLES = {
@@ -318,6 +334,18 @@ def bermudan_model_label(model_name):
 def _bermudan_model_name_or_default(value):
     text = str(value or DEFAULT_BERMUDAN_MODEL).strip().lower()
     return text if text in BERMUDAN_MODEL_LABELS else DEFAULT_BERMUDAN_MODEL
+
+
+def bermudan_calibration_method_label(method_name):
+    return BERMUDAN_CALIBRATION_METHOD_LABELS.get(
+        method_name,
+        BERMUDAN_CALIBRATION_METHOD_LABELS[DEFAULT_BERMUDAN_CALIBRATION_METHOD],
+    )
+
+
+def _bermudan_calibration_method_name_or_default(value):
+    text = str(value or DEFAULT_BERMUDAN_CALIBRATION_METHOD).strip().lower()
+    return text if text in BERMUDAN_CALIBRATION_METHOD_LABELS else DEFAULT_BERMUDAN_CALIBRATION_METHOD
 
 
 def _default_swaption_normal_vol_matrix_bp(_base_vol_bp=62.0):
@@ -671,6 +699,12 @@ def normalize_portfolio_state(portfolio_state=None):
         )
         state["trades"][bermudan_trade_key]["model_name"] = _bermudan_model_name_or_default(
             state["trades"][bermudan_trade_key].get("model_name", DEFAULT_BERMUDAN_MODEL)
+        )
+        state["trades"][bermudan_trade_key]["calibration_method"] = _bermudan_calibration_method_name_or_default(
+            state["trades"][bermudan_trade_key].get(
+                "calibration_method",
+                DEFAULT_BERMUDAN_CALIBRATION_METHOD,
+            )
         )
 
     state["trades"]["equity_cliquet"]["option_type"] = _option_type_or_default(
@@ -1601,7 +1635,14 @@ def bermudan_diagonal_calibration_pillars(
     ]
 
 
-def _create_swaption_helper(expiry_label, swap_tenor_label, normal_vol_bp, curve_handle):
+def _create_swaption_helper(
+    expiry_label,
+    swap_tenor_label,
+    normal_vol_bp,
+    curve_handle,
+    calibration_method=DEFAULT_BERMUDAN_CALIBRATION_METHOD,
+):
+    calibration_method_name = _bermudan_calibration_method_name_or_default(calibration_method)
     return ql.SwaptionHelper(
         _period_from_expiry_value(expiry_label),
         _period_from_label(swap_tenor_label),
@@ -1611,7 +1652,7 @@ def _create_swaption_helper(expiry_label, swap_tenor_label, normal_vol_bp, curve
         ql.Actual360(),
         ql.Actual360(),
         curve_handle,
-        ql.BlackCalibrationHelper.RelativePriceError,
+        BERMUDAN_CALIBRATION_METHOD_TYPES[calibration_method_name],
         ql.nullDouble(),
         1.0,
         ql.Normal,
@@ -1758,6 +1799,7 @@ def build_bermudan_short_rate_model(
     calibration_horizon_years=None,
     trade_key="bermudan_swaption",
     model_name=None,
+    calibration_method=None,
 ):
     state, today, calendar, curve, curve_handle = _resolve_market_context(
         portfolio_state,
@@ -1765,6 +1807,9 @@ def build_bermudan_short_rate_model(
     )
     trade = state["trades"][trade_key]
     selected_model_name = _bermudan_model_name_or_default(model_name or trade.get("model_name"))
+    selected_calibration_method = _bermudan_calibration_method_name_or_default(
+        calibration_method or trade.get("calibration_method")
+    )
     calibration_pillars = bermudan_diagonal_calibration_pillars(
         state,
         market_context=(state, today, calendar, curve, curve_handle),
@@ -1779,6 +1824,7 @@ def build_bermudan_short_rate_model(
             pillar["swap_tenor_label"],
             pillar["normal_vol_bp"],
             curve_handle,
+            calibration_method=selected_calibration_method,
         )
         helper_objects.append(helper)
         calibration_rows.append(
@@ -1819,6 +1865,8 @@ def build_bermudan_short_rate_model(
         "engine": pricing_engine,
         "model_name": selected_model_name,
         "model_label": bermudan_model_label(selected_model_name),
+        "calibration_method": selected_calibration_method,
+        "calibration_method_label": bermudan_calibration_method_label(selected_calibration_method),
         "calibration_rows": calibration_rows,
         "parameter_rows": _short_rate_model_parameter_rows(
             selected_model_name,

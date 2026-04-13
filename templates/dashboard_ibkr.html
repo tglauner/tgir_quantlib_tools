@@ -1,0 +1,1014 @@
+{% extends "base.html" %}
+
+{% block title %}IBKR Compare Workstation{% endblock %}
+
+{% block body_class %}ibkr-theme{% endblock %}
+
+{% block extra_head %}
+  <style>
+    body.ibkr-theme {
+      --bg: #0b121b;
+      --paper: rgba(20, 29, 40, 0.96);
+      --paper-strong: rgba(28, 39, 53, 0.98);
+      --ink: #d9e4f1;
+      --muted: #90a6bd;
+      --line: rgba(144, 166, 189, 0.18);
+      --accent: #ef8b2c;
+      --accent-soft: rgba(239, 139, 44, 0.14);
+      --accent-warm: #c94f32;
+      --positive: #4dcc7b;
+      --negative: #ff7b74;
+      --shadow: 0 18px 42px rgba(0, 0, 0, 0.32);
+      color-scheme: dark;
+      font-family: "IBM Plex Sans", "SF Pro Text", "Segoe UI", sans-serif;
+      background:
+        linear-gradient(180deg, rgba(239, 139, 44, 0.08), transparent 22%),
+        linear-gradient(135deg, #091019 0%, #101925 42%, #0a1119 100%);
+    }
+
+    body.ibkr-theme .shell {
+      width: min(1680px, calc(100vw - 18px));
+      padding-top: 10px;
+    }
+
+    body.ibkr-theme .brand-meta,
+    body.ibkr-theme .pill,
+    body.ibkr-theme .panel p,
+    body.ibkr-theme .table-note,
+    body.ibkr-theme .chart-legend-item,
+    body.ibkr-theme .metric .label,
+    body.ibkr-theme .summary-card .label,
+    body.ibkr-theme .summary-sub,
+    body.ibkr-theme .field label,
+    body.ibkr-theme th,
+    body.ibkr-theme .summary-list-item,
+    body.ibkr-theme .signed-value.flat {
+      color: var(--muted);
+    }
+
+    body.ibkr-theme .panel,
+    body.ibkr-theme .table-scroll {
+      border-color: rgba(144, 166, 189, 0.12);
+      background: linear-gradient(180deg, rgba(30, 43, 58, 0.98), rgba(16, 24, 35, 0.98));
+      box-shadow: var(--shadow);
+      backdrop-filter: none;
+    }
+
+    body.ibkr-theme .metric,
+    body.ibkr-theme .summary-card,
+    body.ibkr-theme .curve-shell,
+    body.ibkr-theme .flash,
+    body.ibkr-theme .summary-block,
+    body.ibkr-theme .detail-card,
+    body.ibkr-theme .mini-list-item {
+      background: rgba(10, 17, 25, 0.88);
+      border-color: rgba(144, 166, 189, 0.12);
+    }
+
+    body.ibkr-theme .btn,
+    body.ibkr-theme button.btn {
+      background: linear-gradient(180deg, #f59b3f 0%, #d66d1b 100%);
+      color: #121923;
+      box-shadow: none;
+    }
+
+    body.ibkr-theme .btn-secondary,
+    body.ibkr-theme button.btn-secondary,
+    body.ibkr-theme .btn-ghost,
+    body.ibkr-theme button.btn-ghost {
+      background: rgba(93, 112, 134, 0.18);
+      color: var(--ink);
+      border-color: rgba(144, 166, 189, 0.18);
+    }
+
+    body.ibkr-theme .btn-danger,
+    body.ibkr-theme button.btn-danger {
+      background: linear-gradient(180deg, #d2554c 0%, #8e2721 100%);
+      color: #fff;
+      border-color: rgba(210, 85, 76, 0.34);
+    }
+
+    body.ibkr-theme .btn-active,
+    body.ibkr-theme button.btn-active {
+      background: rgba(239, 139, 44, 0.24);
+      color: #ffd39a;
+      border-color: rgba(239, 139, 44, 0.34);
+    }
+
+    body.ibkr-theme input,
+    body.ibkr-theme select {
+      background: rgba(8, 14, 22, 0.96);
+      border-color: rgba(144, 166, 189, 0.20);
+      color: var(--ink);
+    }
+
+    body.ibkr-theme input:focus,
+    body.ibkr-theme select:focus {
+      border-color: rgba(239, 139, 44, 0.55);
+      box-shadow: 0 0 0 4px rgba(239, 139, 44, 0.14);
+    }
+
+    body.ibkr-theme .matrix-table thead th,
+    body.ibkr-theme .bermudan-grid-table thead th,
+    body.ibkr-theme .matrix-table tbody th {
+      background: rgba(19, 29, 41, 0.98);
+    }
+
+    .tws-hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.8fr);
+      gap: 14px;
+      margin-bottom: 12px;
+      align-items: stretch;
+    }
+
+    .tws-terminal {
+      padding: 16px 18px;
+      border-radius: 18px;
+      background:
+        linear-gradient(180deg, rgba(239, 139, 44, 0.10), rgba(9, 16, 25, 0) 24%),
+        linear-gradient(180deg, rgba(18, 28, 39, 0.98), rgba(8, 13, 20, 0.98));
+      border: 1px solid rgba(144, 166, 189, 0.18);
+      box-shadow: var(--shadow);
+    }
+
+    .tws-terminal h1 {
+      margin: 6px 0 0;
+      font-size: clamp(1.45rem, 2.5vw, 2.15rem);
+      letter-spacing: -0.05em;
+    }
+
+    .tws-terminal p {
+      margin: 8px 0 0;
+      max-width: 960px;
+      font-size: 0.9rem;
+      line-height: 1.45;
+      color: var(--muted);
+    }
+
+    .tws-code {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-family: Menlo, Monaco, "SFMono-Regular", monospace;
+      font-size: 0.76rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #ffd39a;
+      background: rgba(239, 139, 44, 0.10);
+      border: 1px solid rgba(239, 139, 44, 0.18);
+    }
+
+    .tws-status-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .tws-status-card {
+      padding: 14px;
+      border-radius: 18px;
+      background: linear-gradient(180deg, rgba(30, 43, 58, 0.98), rgba(14, 21, 30, 0.98));
+      border: 1px solid rgba(144, 166, 189, 0.16);
+      box-shadow: var(--shadow);
+    }
+
+    .tws-status-card strong,
+    .tws-summary-tile strong {
+      display: block;
+      font-size: 1.15rem;
+      margin-top: 6px;
+      letter-spacing: -0.04em;
+    }
+
+    .tws-status-card span,
+    .tws-summary-tile span {
+      color: var(--muted);
+      font-size: 0.72rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .tws-summary-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .tws-summary-tile {
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: rgba(9, 15, 23, 0.95);
+      border: 1px solid rgba(144, 166, 189, 0.14);
+    }
+
+    .tws-layout {
+      display: grid;
+      grid-template-columns: minmax(330px, 0.78fr) minmax(0, 1.8fr);
+      gap: 14px;
+      align-items: start;
+    }
+
+    .tws-rail,
+    .tws-main {
+      display: grid;
+      gap: 14px;
+    }
+
+    .tws-window-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+
+    .tws-window-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-family: Menlo, Monaco, "SFMono-Regular", monospace;
+      font-size: 0.72rem;
+      color: #ffd39a;
+      background: rgba(239, 139, 44, 0.10);
+      border: 1px solid rgba(239, 139, 44, 0.18);
+    }
+
+    .tws-window-tag::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: var(--accent);
+      box-shadow: 0 0 12px rgba(239, 139, 44, 0.55);
+    }
+
+    .tws-monitor-grid {
+      display: grid;
+      grid-template-columns: minmax(340px, 0.9fr) minmax(0, 1.2fr);
+      gap: 14px;
+    }
+
+    .tws-diag-grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    .tws-note-block {
+      padding: 12px;
+      border-radius: 12px;
+      background: rgba(8, 14, 22, 0.92);
+      border: 1px solid rgba(144, 166, 189, 0.12);
+    }
+
+    .tws-note-block p {
+      margin: 0;
+    }
+
+    @media (max-width: 1180px) {
+      .tws-hero,
+      .tws-layout,
+      .tws-monitor-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .tws-status-grid,
+      .tws-summary-strip {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+  <section class="tws-hero">
+    <div class="tws-terminal">
+      <span class="tws-code">IBKR-style compare view</span>
+      <h1>Trader Workstation skin on top of the same QuantLib SOFR, vol, Bermudan, and cliquet stack.</h1>
+      <p>
+        This compare page keeps the same blotter, curve, volatility, callable-grid, diagnostics, and SPX market
+        inputs as the main workstation, but repacks them into a denser IBKR-inspired terminal layout for side-by-side UX comparison.
+      </p>
+    </div>
+    <div class="tws-status-grid">
+      <div class="tws-status-card">
+        <span>Valuation date</span>
+        <strong class="mono">{{ market_snapshot.valuation_date_iso }}</strong>
+      </div>
+      <div class="tws-status-card">
+        <span>Update mode</span>
+        <strong id="live-status-pill">Manual mode</strong>
+      </div>
+      <div class="tws-status-card">
+        <span>Last tick</span>
+        <strong class="mono" id="live-last-update">{{ last_update_label }}</strong>
+      </div>
+      <div class="tws-status-card">
+        <span>Shared model input</span>
+        <strong class="mono">{{ "%.2f"|format(market_snapshot.hw_mean_reversion * 100.0) }}%</strong>
+      </div>
+    </div>
+  </section>
+
+  <section class="tws-summary-strip">
+    <div class="tws-summary-tile">
+      <span>Curve pillars</span>
+      <strong>{{ curve_rate_rows|length }}</strong>
+    </div>
+    <div class="tws-summary-tile">
+      <span>Vol expiries</span>
+      <strong>{{ swaption_matrix_rows|length }}</strong>
+    </div>
+    <div class="tws-summary-tile">
+      <span>Callable grid rows</span>
+      <strong>{{ bermudan_grid_rows|length }}</strong>
+    </div>
+    <div class="tws-summary-tile">
+      <span>Portfolio trades</span>
+      <strong>{{ blotter_rows|length }}</strong>
+    </div>
+  </section>
+
+  <div class="tws-layout">
+    <div class="tws-rail">
+      <section class="panel panel-compact">
+        <div class="panel-inner">
+          <div class="tws-window-title">
+            <div>
+              <span class="section-kicker">Monitor</span>
+              <h2>Deal blotter</h2>
+            </div>
+            <span class="tws-window-tag">Live book</span>
+          </div>
+          <p>Same five trades as the primary dashboard. Editors still open in a separate tab.</p>
+
+          <div id="pricing-error-box">
+            {% if pricing_error %}
+              <div class="flash error">{{ pricing_error }}</div>
+            {% endif %}
+          </div>
+
+          <table class="blotter-table">
+            <thead>
+              <tr>
+                <th>Deal</th>
+                <th>Structure</th>
+                <th class="numeric">MTM</th>
+                <th class="numeric">NPV</th>
+                <th class="numeric">Edit</th>
+              </tr>
+            </thead>
+            <tbody id="blotter-body">
+              {% for row in blotter_rows %}
+                <tr>
+                  <td><strong>{{ row.Type }}</strong></td>
+                  <td>{{ row.Structure }}</td>
+                  <td class="numeric mono"><span class="signed-value {{ row.MTM|sign_class }}">{{ row.MTM|signed_money }}</span></td>
+                  <td class="numeric mono"><span class="signed-value {{ row.NPV|sign_class }}">{{ row.NPV|signed_money }}</span></td>
+                  <td class="numeric">
+                    <a class="btn btn-secondary btn-mini" href="{{ row.EditURL }}" target="_blank" rel="noopener noreferrer">Open</a>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel panel-compact">
+        <div class="panel-inner">
+          <div class="tws-window-title">
+            <div>
+              <span class="section-kicker">Diagnostics</span>
+              <h2>On-demand windows</h2>
+            </div>
+            <span class="tws-window-tag">Hidden panes</span>
+          </div>
+          <p>Forward strip and OIS repricing stay collapsed until you want them, matching the compare dashboard on information but keeping the terminal footprint tight.</p>
+          <div class="btn-row">
+            <button
+              class="btn btn-secondary"
+              type="button"
+              data-toggle-panel="forward-panel"
+              data-show-label="Open forward strip"
+              data-hide-label="Hide forward strip"
+              aria-expanded="false"
+            >
+              Open forward strip
+            </button>
+            <button
+              class="btn btn-secondary"
+              type="button"
+              data-toggle-panel="calibration-panel"
+              data-show-label="Open OIS repricing"
+              data-hide-label="Hide OIS repricing"
+              aria-expanded="false"
+            >
+              Open OIS repricing
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel panel-compact">
+        <div class="panel-inner">
+          <div class="tws-window-title">
+            <div>
+              <span class="section-kicker">Equity</span>
+              <h2>SPX cliquet assumptions</h2>
+            </div>
+            <span class="tws-window-tag">Shared inputs</span>
+          </div>
+          <p>{{ equity_market_note }}</p>
+
+          <div class="metric-strip compact-metrics">
+            <div class="metric">
+              <span class="label">Spot</span>
+              <span class="value mono">{{ "%.2f"|format(market_snapshot.equity_spot) }}</span>
+            </div>
+            <div class="metric">
+              <span class="label">Dividend</span>
+              <span class="value mono">{{ market_snapshot.equity_dividend_yield_pct|pct }}</span>
+            </div>
+            <div class="metric">
+              <span class="label">Flat vol</span>
+              <span class="value mono">{{ market_snapshot.equity_volatility_pct|pct }}</span>
+            </div>
+            <div class="metric">
+              <span class="label">Model</span>
+              <span class="value">Cliquet</span>
+            </div>
+          </div>
+
+          <form method="post" action="{{ url_for('workbench.update_market') }}" style="margin-top: 10px;">
+            <div class="form-grid workstation-form-grid">
+              {% for field in equity_market_inputs %}
+                <div class="field">
+                  <label for="{{ field.name }}">{{ field.label }}</label>
+                  <input id="{{ field.name }}" name="{{ field.name }}" type="number" step="{{ field.step }}" value="{{ field.value }}">
+                </div>
+              {% endfor %}
+            </div>
+            <div class="btn-row" style="margin-top: 10px;">
+              <button class="btn" type="submit">Apply SPX update</button>
+            </div>
+          </form>
+        </div>
+      </section>
+    </div>
+
+    <div class="tws-main">
+      <div class="tws-monitor-grid">
+        <section class="panel panel-compact">
+          <div class="panel-inner">
+            <div class="tws-window-title">
+              <div>
+                <span class="section-kicker">Yield Monitor</span>
+                <h2>SOFR market and zero rates</h2>
+              </div>
+              <span class="tws-window-tag">Curve window</span>
+            </div>
+            <p>{{ zero_rate_note }}</p>
+
+            <form method="post" action="{{ url_for('workbench.update_market') }}" id="market-form">
+              <div class="form-grid single">
+                <div class="field">
+                  <label for="{{ valuation_date_input.name }}">{{ valuation_date_input.label }}</label>
+                  <input id="{{ valuation_date_input.name }}" name="{{ valuation_date_input.name }}" type="date" value="{{ valuation_date_input.value }}">
+                </div>
+              </div>
+
+              <div class="table-scroll" style="margin-top: 10px;">
+                <table class="blotter-table curve-rate-table">
+                  <colgroup>
+                    <col class="curve-col-term">
+                    <col class="curve-col-market">
+                    <col class="curve-col-zero">
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th>Term</th>
+                      <th class="numeric">Mkt rate</th>
+                      <th class="numeric">Zero rate</th>
+                    </tr>
+                  </thead>
+                  <tbody id="curve-rate-body">
+                    {% for row in curve_rate_rows %}
+                      <tr>
+                        <td><strong>{{ row.label }}</strong></td>
+                        <td class="numeric mono">
+                          <input class="curve-rate-input mono" id="rate{{ loop.index0 }}" name="rate{{ loop.index0 }}" type="number" step="0.0001" value="{{ row.market_rate_pct }}">
+                        </td>
+                        <td class="numeric mono" id="curve-zero-rate-{{ loop.index0 }}">{{ row.zero_rate_pct|pct }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="tws-note-block" style="margin-top: 10px;">
+                <p>{{ defaults_note }}</p>
+                <p class="table-note mono" style="margin-top: 6px;">Defaults: {{ default_market_data_json_path }} and {{ default_trade_data_json_path }}</p>
+              </div>
+
+              <div class="field" style="margin-top: 10px;">
+                <label for="hw_mean_reversion">Mean reversion (%)</label>
+                <input id="hw_mean_reversion" name="hw_mean_reversion" type="number" step="0.01" value="{{ "%.2f"|format(market_snapshot.hw_mean_reversion * 100.0) }}">
+              </div>
+
+              <div class="btn-row" style="margin-top: 10px;">
+                <button class="btn" type="submit">Apply curve and model update</button>
+              </div>
+            </form>
+          </div>
+        </section>
+
+        <section class="panel panel-compact">
+          <div class="panel-inner">
+            <div class="tws-window-title">
+              <div>
+                <span class="section-kicker">Curve Chart</span>
+                <h2>Market versus zero-rate plot</h2>
+              </div>
+              <span class="tws-window-tag">Chart view</span>
+            </div>
+            <p>Market rates and continuous spot zero rates stay on the same axis for immediate curve-shape comparison.</p>
+            <div class="curve-shell">
+              <div id="curve-comparison-chart-wrap">
+                <svg viewBox="0 0 {{ curve_comparison_chart.width }} {{ curve_comparison_chart.height }}" role="img" aria-labelledby="curveComparisonTitle">
+                  <title id="curveComparisonTitle">SOFR market and zero rate chart</title>
+                  {% for tick in curve_comparison_chart.y_ticks %}
+                    <line x1="36" y1="{{ tick.y }}" x2="{{ curve_comparison_chart.width - 18 }}" y2="{{ tick.y }}" stroke="rgba(144,166,189,0.14)" stroke-dasharray="3 4" />
+                    <text x="4" y="{{ tick.y + 4 }}" font-size="10" fill="#90a6bd">{{ "%.2f"|format(tick.value) }}</text>
+                  {% endfor %}
+                  <line x1="36" y1="{{ curve_comparison_chart.height - 34 }}" x2="{{ curve_comparison_chart.width - 18 }}" y2="{{ curve_comparison_chart.height - 34 }}" stroke="rgba(144,166,189,0.18)" />
+                  {% for series in curve_comparison_chart.series %}
+                    <polyline points="{{ series.polyline }}" fill="none" stroke="{{ series.color }}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></polyline>
+                    {% for marker in series.markers %}
+                      <circle cx="{{ marker.x }}" cy="{{ marker.y }}" r="2.8" fill="{{ series.color }}" stroke="#0d141d" stroke-width="1.1"></circle>
+                    {% endfor %}
+                  {% endfor %}
+                  {% for tick in curve_comparison_chart.x_ticks %}
+                    <text x="{{ tick.x }}" y="{{ curve_comparison_chart.height - 10 }}" text-anchor="middle" font-size="10" fill="#90a6bd">{{ tick.label }}</text>
+                  {% endfor %}
+                </svg>
+              </div>
+              <div class="chart-legend">
+                <span class="chart-legend-item"><span class="chart-swatch chart-swatch-blue"></span>Market rates</span>
+                <span class="chart-legend-item"><span class="chart-swatch chart-swatch-green"></span>Zero rates</span>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <section class="panel panel-compact">
+        <div class="panel-inner">
+          <div class="tws-window-title">
+            <div>
+              <span class="section-kicker">Vol Surface</span>
+              <h2>ATM swaption normal-vol matrix</h2>
+            </div>
+            <span class="tws-window-tag">Surface</span>
+          </div>
+          <p>Short expiries and annual-to-long expiries run down the left, swap tenors across the top, all ATM. European and Bermudan pricing use the same matrix as the primary dashboard.</p>
+
+          <form method="post" action="{{ url_for('workbench.update_market') }}">
+            <div class="table-scroll">
+              <table class="matrix-table">
+                <thead>
+                  <tr>
+                    <th>Expiry \ Tenor</th>
+                    {% for header in swaption_matrix_headers %}
+                      <th class="numeric">{{ header }}</th>
+                    {% endfor %}
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in swaption_matrix_rows %}
+                    <tr>
+                      <th>{{ row.expiry_label }}</th>
+                      {% for cell in row.cells %}
+                        <td class="numeric">
+                          <input class="matrix-input mono" id="{{ cell.name }}" name="{{ cell.name }}" type="number" step="0.1" value="{{ cell.value }}">
+                        </td>
+                      {% endfor %}
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            <p class="table-note">{{ matrix_source_note }}</p>
+            <p class="table-note">{{ normal_vol_note }}</p>
+            <div class="btn-row" style="margin-top: 8px;">
+              <button class="btn" type="submit">Apply matrix update</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section class="panel panel-compact">
+        <div class="panel-inner">
+          <div class="tws-window-title">
+            <div>
+              <span class="section-kicker">Callable Grid</span>
+              <h2>Bermudan pricing grid</h2>
+            </div>
+            <span class="tws-window-tag">Callable monitor</span>
+          </div>
+          <p>Columns are final maturity, rows are non-call periods, and cells use the current main Bermudan trade setup.</p>
+          <div class="table-scroll">
+            <table class="bermudan-grid-table">
+              <thead>
+                <tr>
+                  <th>Non-call</th>
+                  {% for header in bermudan_grid_headers %}
+                    <th class="numeric">{{ header }}</th>
+                  {% endfor %}
+                </tr>
+              </thead>
+              <tbody id="bermudan-grid-body">
+                {% for row in bermudan_grid_rows %}
+                  <tr>
+                    <td><strong>{{ row["Non-call"] }}</strong></td>
+                    {% for header in bermudan_grid_headers %}
+                      <td class="numeric mono">
+                        {% if row[header] is none %}
+                          -
+                        {% else %}
+                          <span class="signed-value {{ row[header]|sign_class }}">{{ row[header]|signed_money }}</span>
+                        {% endif %}
+                      </td>
+                    {% endfor %}
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <div class="tws-diag-grid">
+        <section class="panel panel-compact" id="forward-panel" hidden>
+          <div class="panel-inner">
+            <div class="tws-window-title">
+              <div>
+                <span class="section-kicker">Forward Strip</span>
+                <h2>Daily one-day forward SOFR</h2>
+              </div>
+              <span class="tws-window-tag">Curve analytics</span>
+            </div>
+            <p>{{ forward_rate_note }}</p>
+
+            <div class="metric-strip compact-metrics">
+              <div class="metric">
+                <span class="label">Start</span>
+                <span class="value mono" id="forward-start">{{ market_snapshot.forward_rate_summary.start_pct|pct }}</span>
+              </div>
+              <div class="metric">
+                <span class="label">3M</span>
+                <span class="value mono" id="forward-3m">{{ market_snapshot.forward_rate_summary.three_month_pct|pct }}</span>
+              </div>
+              <div class="metric">
+                <span class="label">6M</span>
+                <span class="value mono" id="forward-6m">{{ market_snapshot.forward_rate_summary.six_month_pct|pct }}</span>
+              </div>
+              <div class="metric">
+                <span class="label">1Y</span>
+                <span class="value mono" id="forward-1y">{{ market_snapshot.forward_rate_summary.one_year_pct|pct }}</span>
+              </div>
+            </div>
+
+            <div class="curve-shell" style="margin-top: 10px;">
+              <div id="forward-rate-chart-wrap">
+                <svg viewBox="0 0 {{ forward_rate_chart.width }} {{ forward_rate_chart.height }}" role="img" aria-labelledby="forwardRateTitle">
+                  <title id="forwardRateTitle">Daily one-day forward SOFR chart</title>
+                  {% for tick in forward_rate_chart.y_ticks %}
+                    <line x1="36" y1="{{ tick.y }}" x2="{{ forward_rate_chart.width - 18 }}" y2="{{ tick.y }}" stroke="rgba(144,166,189,0.14)" stroke-dasharray="3 4" />
+                    <text x="4" y="{{ tick.y + 4 }}" font-size="10" fill="#90a6bd">{{ "%.2f"|format(tick.value) }}</text>
+                  {% endfor %}
+                  <line x1="36" y1="{{ forward_rate_chart.height - 34 }}" x2="{{ forward_rate_chart.width - 18 }}" y2="{{ forward_rate_chart.height - 34 }}" stroke="rgba(144,166,189,0.18)" />
+                  <polygon points="{{ forward_rate_chart.area }}" fill="rgba(79, 204, 123, 0.12)"></polygon>
+                  <polyline points="{{ forward_rate_chart.polyline }}" fill="none" stroke="#4dcc7b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></polyline>
+                  {% for marker in forward_rate_chart.markers %}
+                    <circle cx="{{ marker.x }}" cy="{{ marker.y }}" r="3.6" fill="#ef8b2c" stroke="#0d141d" stroke-width="1.6"></circle>
+                  {% endfor %}
+                  {% for tick in forward_rate_chart.x_ticks %}
+                    <text x="{{ tick.x }}" y="{{ forward_rate_chart.height - 10 }}" text-anchor="middle" font-size="10" fill="#90a6bd">{{ tick.label }}</text>
+                  {% endfor %}
+                </svg>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel panel-compact" id="calibration-panel" hidden>
+          <div class="panel-inner">
+            <div class="tws-window-title">
+              <div>
+                <span class="section-kicker">Calibration</span>
+                <h2>OIS SOFR repricing</h2>
+              </div>
+              <span class="tws-window-tag">Curve check</span>
+            </div>
+            <p>The same OIS repricing check from the primary dashboard is available here without changing the underlying analytics.</p>
+            <table>
+              <thead>
+                <tr>
+                  <th>Tenor</th>
+                  <th class="numeric">Market</th>
+                  <th class="numeric">Fair</th>
+                  <th class="numeric">NPV</th>
+                </tr>
+              </thead>
+              <tbody id="calibration-body">
+                {% for row in calibration_rows %}
+                  <tr>
+                    <td><strong>{{ row.Tenor }}</strong></td>
+                    <td class="numeric mono">{{ row["Market Quote (%)"]|pct }}</td>
+                    <td class="numeric mono">{{ row["Fair Rate (%)"]|pct }}</td>
+                    <td class="numeric mono">
+                      <span class="signed-value {{ row.NPV|sign_class }}">{{ row.NPV|signed_money }}</span>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const realtimeKey = "tgir_quantlib_realtime_enabled";
+      const toggleButton = document.getElementById("realtime-toggle");
+      const liveStatus = document.getElementById("live-status-pill");
+      const liveLastUpdate = document.getElementById("live-last-update");
+      const bermudanGridHeaders = {{ bermudan_grid_headers|tojson }};
+      let realtimeEnabled = window.localStorage.getItem(realtimeKey) === "true";
+      let requestInFlight = false;
+
+      const moneyFormatter = new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+
+      function plainMoney(value) {
+        if (value < 0) {
+          return `-${moneyFormatter.format(Math.abs(value))}`;
+        }
+        return moneyFormatter.format(value);
+      }
+
+      function pct(value) {
+        return `${Number(value).toFixed(2)}%`;
+      }
+
+      function signClass(value) {
+        if (value > 0) {
+          return "positive";
+        }
+        if (value < 0) {
+          return "negative";
+        }
+        return "flat";
+      }
+
+      function signedMoneyMarkup(value) {
+        return `<span class="signed-value ${signClass(value)}">${plainMoney(value)}</span>`;
+      }
+
+      function applyCurveInputs(curveInputs, hwMeanReversion) {
+        for (const input of curveInputs) {
+          const field = document.getElementById(input.name);
+          if (field && document.activeElement !== field) {
+            field.value = Number(input.value).toFixed(4);
+          }
+        }
+        const meanReversionField = document.getElementById("hw_mean_reversion");
+        if (meanReversionField && document.activeElement !== meanReversionField) {
+          meanReversionField.value = (Number(hwMeanReversion) * 100.0).toFixed(2);
+        }
+      }
+
+      function renderCurveComparisonChart(chart) {
+        const wrap = document.getElementById("curve-comparison-chart-wrap");
+        if (!wrap) {
+          return;
+        }
+        if (!chart || !chart.width) {
+          wrap.innerHTML = "";
+          return;
+        }
+        wrap.innerHTML = `
+          <svg viewBox="0 0 ${chart.width} ${chart.height}" role="img" aria-label="SOFR market and zero rate chart">
+            ${chart.y_ticks.map((tick) => `
+              <line x1="36" y1="${tick.y}" x2="${chart.width - 18}" y2="${tick.y}" stroke="rgba(144,166,189,0.14)" stroke-dasharray="3 4" />
+              <text x="4" y="${tick.y + 4}" font-size="10" fill="#90a6bd">${tick.value.toFixed(2)}</text>
+            `).join("")}
+            <line x1="36" y1="${chart.height - 34}" x2="${chart.width - 18}" y2="${chart.height - 34}" stroke="rgba(144,166,189,0.18)" />
+            ${chart.series.map((series) => `
+              <polyline points="${series.polyline}" fill="none" stroke="${series.color}" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></polyline>
+              ${series.markers.map((marker) => `
+                <circle cx="${marker.x}" cy="${marker.y}" r="2.8" fill="${series.color}" stroke="#0d141d" stroke-width="1.1"></circle>
+              `).join("")}
+            `).join("")}
+            ${chart.x_ticks.map((tick) => `
+              <text x="${tick.x}" y="${chart.height - 10}" text-anchor="middle" font-size="10" fill="#90a6bd">${tick.label}</text>
+            `).join("")}
+          </svg>
+        `;
+      }
+
+      function renderLineChart(targetId, chart, ariaLabel) {
+        const wrap = document.getElementById(targetId);
+        if (!wrap) {
+          return;
+        }
+        if (!chart || !chart.width) {
+          wrap.innerHTML = "";
+          return;
+        }
+        wrap.innerHTML = `
+          <svg viewBox="0 0 ${chart.width} ${chart.height}" role="img" aria-label="${ariaLabel}">
+            ${chart.y_ticks.map((tick) => `
+              <line x1="36" y1="${tick.y}" x2="${chart.width - 18}" y2="${tick.y}" stroke="rgba(144,166,189,0.14)" stroke-dasharray="3 4" />
+              <text x="4" y="${tick.y + 4}" font-size="10" fill="#90a6bd">${tick.value.toFixed(2)}</text>
+            `).join("")}
+            <line x1="36" y1="${chart.height - 34}" x2="${chart.width - 18}" y2="${chart.height - 34}" stroke="rgba(144,166,189,0.18)" />
+            <polygon points="${chart.area}" fill="rgba(79, 204, 123, 0.12)"></polygon>
+            <polyline points="${chart.polyline}" fill="none" stroke="#4dcc7b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></polyline>
+            ${chart.markers.map((marker) => `
+              <circle cx="${marker.x}" cy="${marker.y}" r="3.8" fill="#ef8b2c" stroke="#0d141d" stroke-width="1.6"></circle>
+            `).join("")}
+            ${chart.x_ticks.map((tick) => `
+              <text x="${tick.x}" y="${chart.height - 10}" text-anchor="middle" font-size="10" fill="#90a6bd">${tick.label}</text>
+            `).join("")}
+          </svg>
+        `;
+      }
+
+      function renderCurveRateRows(rows) {
+        rows.forEach((row, index) => {
+          const zeroCell = document.getElementById(`curve-zero-rate-${index}`);
+          if (zeroCell) {
+            zeroCell.textContent = pct(row.zero_rate_pct);
+          }
+        });
+      }
+
+      function renderBlotter(rows) {
+        const body = document.getElementById("blotter-body");
+        body.innerHTML = rows.map((row) => `
+          <tr>
+            <td><strong>${row.Type}</strong></td>
+            <td>${row.Structure}</td>
+            <td class="numeric mono">${signedMoneyMarkup(row.MTM)}</td>
+            <td class="numeric mono">${signedMoneyMarkup(row.NPV)}</td>
+            <td class="numeric">
+              <a class="btn btn-secondary btn-mini" href="${row.EditURL}" target="_blank" rel="noopener noreferrer">Open</a>
+            </td>
+          </tr>
+        `).join("");
+      }
+
+      function renderCalibration(rows) {
+        const body = document.getElementById("calibration-body");
+        body.innerHTML = rows.map((row) => `
+          <tr>
+            <td><strong>${row.Tenor}</strong></td>
+            <td class="numeric mono">${pct(row["Market Quote (%)"])}</td>
+            <td class="numeric mono">${pct(row["Fair Rate (%)"])}</td>
+            <td class="numeric mono">${signedMoneyMarkup(row.NPV)}</td>
+          </tr>
+        `).join("");
+      }
+
+      function renderBermudanGrid(rows) {
+        const body = document.getElementById("bermudan-grid-body");
+        body.innerHTML = rows.map((row) => `
+          <tr>
+            <td><strong>${row["Non-call"]}</strong></td>
+            ${bermudanGridHeaders.map((header) => {
+              const value = row[header];
+              if (value === null || value === undefined) {
+                return `<td class="numeric mono">-</td>`;
+              }
+              return `<td class="numeric mono">${signedMoneyMarkup(value)}</td>`;
+            }).join("")}
+          </tr>
+        `).join("");
+      }
+
+      function renderMarketSnapshot(snapshot) {
+        document.getElementById("forward-start").textContent = pct(snapshot.forward_rate_summary.start_pct);
+        document.getElementById("forward-3m").textContent = pct(snapshot.forward_rate_summary.three_month_pct);
+        document.getElementById("forward-6m").textContent = pct(snapshot.forward_rate_summary.six_month_pct);
+        document.getElementById("forward-1y").textContent = pct(snapshot.forward_rate_summary.one_year_pct);
+      }
+
+      function renderPricingError(message) {
+        const box = document.getElementById("pricing-error-box");
+        if (!message) {
+          box.innerHTML = "";
+          return;
+        }
+        box.innerHTML = `<div class="flash error">${message}</div>`;
+      }
+
+      function applyPayload(payload) {
+        renderPricingError(payload.pricing_error);
+        renderBlotter(payload.blotter_rows);
+        renderCurveRateRows(payload.curve_rate_rows);
+        renderCurveComparisonChart(payload.curve_comparison_chart);
+        renderCalibration(payload.calibration_rows);
+        renderBermudanGrid(payload.bermudan_grid_rows);
+        renderMarketSnapshot(payload.market_snapshot);
+        renderLineChart("forward-rate-chart-wrap", payload.forward_rate_chart, "Daily one-day forward SOFR chart");
+        applyCurveInputs(payload.curve_inputs, payload.market_snapshot.hw_mean_reversion);
+        liveLastUpdate.textContent = payload.last_update_label;
+      }
+
+      function updateRealtimeUI() {
+        if (realtimeEnabled) {
+          toggleButton.textContent = "Stop real-time";
+          toggleButton.classList.remove("btn-secondary");
+          liveStatus.textContent = "Real-time on";
+        } else {
+          toggleButton.textContent = "Start real-time";
+          toggleButton.classList.add("btn-secondary");
+          liveStatus.textContent = "Manual mode";
+        }
+      }
+
+      async function runRealtimeTick() {
+        if (!realtimeEnabled || requestInFlight) {
+          return;
+        }
+        requestInFlight = true;
+        try {
+          const response = await fetch("{{ url_for('workbench.realtime_tick') }}", {
+            method: "POST",
+            headers: {"X-Requested-With": "XMLHttpRequest"},
+          });
+          if (!response.ok) {
+            throw new Error(`Realtime update failed with ${response.status}`);
+          }
+          const payload = await response.json();
+          applyPayload(payload);
+        } catch (error) {
+          renderPricingError(error.message);
+          realtimeEnabled = false;
+          window.localStorage.setItem(realtimeKey, "false");
+          updateRealtimeUI();
+        } finally {
+          requestInFlight = false;
+        }
+      }
+
+      if (toggleButton) {
+        toggleButton.addEventListener("click", () => {
+          realtimeEnabled = !realtimeEnabled;
+          window.localStorage.setItem(realtimeKey, realtimeEnabled ? "true" : "false");
+          updateRealtimeUI();
+          if (realtimeEnabled) {
+            runRealtimeTick();
+          }
+        });
+        updateRealtimeUI();
+        window.setInterval(runRealtimeTick, 4000);
+      }
+
+      document.querySelectorAll("[data-toggle-panel]").forEach((button) => {
+        const panelId = button.dataset.togglePanel;
+        const panel = document.getElementById(panelId);
+        if (!panel) {
+          return;
+        }
+        const showLabel = button.dataset.showLabel || "Show";
+        const hideLabel = button.dataset.hideLabel || "Hide";
+        button.addEventListener("click", () => {
+          const willShow = panel.hasAttribute("hidden");
+          if (willShow) {
+            panel.removeAttribute("hidden");
+          } else {
+            panel.setAttribute("hidden", "");
+          }
+          button.textContent = willShow ? hideLabel : showLabel;
+          button.setAttribute("aria-expanded", willShow ? "true" : "false");
+        });
+      });
+    })();
+  </script>
+{% endblock %}

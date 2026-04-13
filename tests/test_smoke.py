@@ -77,7 +77,9 @@ class PortfolioSmokeTests(unittest.TestCase):
         self.assertIn(b"SOFR market and zero rates, ATM vol surface, callable grid, SPX cliquet.", response.data)
         self.assertIn(b"Five trades stay on the blotter.", response.data)
         self.assertIn(DEFAULT_VALUATION_DATE_ISO.encode("utf-8"), response.data)
+        self.assertIn(b"IBKR Compare", response.data)
         self.assertIn(b"Research", response.data)
+        self.assertIn(b"Repo GitHub", response.data)
         self.assertIn(b"QuantLib GitHub", response.data)
         self.assertIn(b"Download debug CSV", response.data)
         self.assertIn(b"SOFR market and zero rates", response.data)
@@ -182,6 +184,8 @@ class PortfolioSmokeTests(unittest.TestCase):
         self.assertEqual(state["trades"]["european_swaption"]["notional"], 100_000_000)
         self.assertEqual(state["trades"]["bermudan_swaption"]["notional"], 100_000_000)
         self.assertEqual(state["trades"]["bermudan_swaption_2"]["notional"], 100_000_000)
+        self.assertEqual(state["trades"]["bermudan_swaption"]["calibration_method"], "relative_price_error")
+        self.assertEqual(state["trades"]["bermudan_swaption_2"]["calibration_method"], "relative_price_error")
 
     def test_trade_editor_updates_bermudan_frequencies_and_fixed_maturity(self):
         self.login()
@@ -197,6 +201,7 @@ class PortfolioSmokeTests(unittest.TestCase):
                 "payment_frequency_months": "6",
                 "reset_frequency_months": "3",
                 "model_name": "g2pp",
+                "calibration_method": "price_error",
             },
             follow_redirects=False,
         )
@@ -210,6 +215,7 @@ class PortfolioSmokeTests(unittest.TestCase):
         self.assertIn(b"Semiannual", response.data)
         self.assertIn(b"Quarterly", response.data)
         self.assertIn(b"G2++", response.data)
+        self.assertIn(b"ql.BlackCalibrationHelper.PriceError", response.data)
         self.assertIn(b"Hull-White 1F versus G2++", response.data)
         self.assertIn(b"Exercise mapping", response.data)
         self.assertIn(b"2Y from", response.data)
@@ -288,6 +294,21 @@ class PortfolioSmokeTests(unittest.TestCase):
         self.assertIn(b"ql.TreeSwaptionEngine", response.data)
         self.assertIn(b"ql.CliquetOption", response.data)
         self.assertIn(b"Swaption and cliquet papers behind the workstation", response.data)
+
+    def test_ibkr_compare_dashboard_renders(self):
+        self.login()
+
+        response = self.client.get("/dashboard/ibkr")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"IBKR-style compare view", response.data)
+        self.assertIn(b"Deal blotter", response.data)
+        self.assertIn(b"SOFR market and zero rates", response.data)
+        self.assertIn(b"ATM swaption normal-vol matrix", response.data)
+        self.assertIn(b"Bermudan pricing grid", response.data)
+        self.assertIn(b"SPX cliquet assumptions", response.data)
+        self.assertIn(b"Open forward strip", response.data)
+        self.assertIn(b"Open OIS repricing", response.data)
 
     def test_curve_debug_csv_downloads(self):
         self.login()

@@ -10,6 +10,7 @@ from flask import current_app, session, url_for
 
 from portfolio import (
     BERMUDAN_TRADE_KEYS,
+    BERMUDAN_CALIBRATION_METHOD_OPTIONS,
     BERMUDAN_GRID_MATURITIES_YEARS,
     BERMUDAN_MODEL_G2PP,
     BERMUDAN_MODEL_HULL_WHITE_1F,
@@ -25,6 +26,7 @@ from portfolio import (
     SWAPTION_MATRIX_TENOR_LABELS,
     TRADE_TITLES,
     VOL_POINT_BUMP_BP,
+    bermudan_calibration_method_label,
     bermudan_diagonal_calibration_pillars,
     bermudan_model_label,
     bermudan_exercise_schedule_rows,
@@ -118,6 +120,12 @@ BERMUDAN_FORM_FIELDS = [
         "label": "Pricing model",
         "type": "select",
         "options": list(BERMUDAN_MODEL_OPTIONS),
+    },
+    {
+        "name": "calibration_method",
+        "label": "Calibration method",
+        "type": "select",
+        "options": list(BERMUDAN_CALIBRATION_METHOD_OPTIONS),
     },
 ]
 
@@ -721,7 +729,10 @@ def trade_detail_rows(trade_type, trade):
             {"label": "First exercise", "value": f"{trade['first_exercise_years']}Y"},
             {"label": "Final maturity", "value": f"{trade['final_maturity_years']}Y"},
             {"label": "Pricing model", "value": bermudan_model_label(trade.get("model_name"))},
-            {"label": "Calibration method", "value": "ql.BlackCalibrationHelper.RelativePriceError"},
+            {
+                "label": "Calibration method",
+                "value": bermudan_calibration_method_label(trade.get("calibration_method")),
+            },
             {"label": "Volatility type", "value": "ql.Normal"},
             {"label": "Payment frequency", "value": frequency_label(trade["payment_frequency_months"])},
             {"label": "Reset frequency", "value": frequency_label(trade["reset_frequency_months"])},
@@ -1002,6 +1013,13 @@ def update_trade_state(state, trade_type, form) -> None:
         if model_name in {BERMUDAN_MODEL_HULL_WHITE_1F, BERMUDAN_MODEL_G2PP}
         else trade.get("model_name", BERMUDAN_MODEL_HULL_WHITE_1F)
     )
+    calibration_method = form.get("calibration_method", trade.get("calibration_method"))
+    valid_calibration_methods = {option_value for option_value, _option_label in BERMUDAN_CALIBRATION_METHOD_OPTIONS}
+    trade["calibration_method"] = (
+        calibration_method
+        if calibration_method in valid_calibration_methods
+        else trade.get("calibration_method")
+    )
 
 
 def pricing_tables(state):
@@ -1213,7 +1231,7 @@ def build_trade_editor_context(state, trade_type):
                         "model_label": bermudan_model_label(model_name),
                         "selected": model_name == selected_model_name,
                         "npv": model_npv,
-                        "calibration_method": "ql.BlackCalibrationHelper.RelativePriceError",
+                        "calibration_method": model_context["calibration_method_label"],
                         "parameter_rows": model_context["parameter_rows"],
                     }
                 )

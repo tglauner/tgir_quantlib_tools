@@ -24,7 +24,8 @@
     "final_maturity_years": 5,
     "payment_frequency_months": 12,
     "reset_frequency_months": 12,
-    "model_name": "hull_white_1f"
+    "model_name": "hull_white_1f",
+    "calibration_method": "relative_price_error"
   },
   "bermudan_swaption_2": {
     "direction": "payer",
@@ -34,7 +35,8 @@
     "final_maturity_years": 5,
     "payment_frequency_months": 12,
     "reset_frequency_months": 12,
-    "model_name": "hull_white_1f"
+    "model_name": "hull_white_1f",
+    "calibration_method": "relative_price_error"
   },
   "equity_cliquet": {
     "option_type": "call",

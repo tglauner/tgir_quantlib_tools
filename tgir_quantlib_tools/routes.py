@@ -90,6 +90,14 @@ def dashboard():
     return render_template("dashboard.html", **build_dashboard_context(state))
 
 
+@workbench_bp.get("/dashboard/ibkr")
+@login_required
+def dashboard_ibkr():
+    state = get_portfolio_state()
+    _persist_curve_debug_csv(state)
+    return render_template("dashboard_ibkr.html", **build_dashboard_context(state))
+
+
 @workbench_bp.get("/quantlib-data-model")
 @login_required
 def quantlib_data_model():

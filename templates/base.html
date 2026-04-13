@@ -252,6 +252,12 @@
       color: #fff;
     }
 
+    .btn-danger,
+    button.btn-danger {
+      background: #b03b32;
+      color: #fff;
+    }
+
     .btn-mini {
       padding: 6px 10px;
       font-size: 0.74rem;
@@ -965,8 +971,9 @@
       }
     }
   </style>
+  {% block extra_head %}{% endblock %}
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
   <main class="shell">
     <div class="shell-header">
       <div class="brand-lockup">
@@ -978,14 +985,16 @@
           <div class="auth-cluster">
             <div class="header-toolbar">
               <a class="btn btn-secondary btn-mini {% if request.endpoint == 'workbench.dashboard' %}btn-active{% endif %}" href="{{ url_for('workbench.dashboard') }}">Dashboard</a>
+              <a class="btn btn-secondary btn-mini {% if request.endpoint == 'workbench.dashboard_ibkr' %}btn-active{% endif %}" href="{{ url_for('workbench.dashboard_ibkr') }}">IBKR Compare</a>
               <a class="btn btn-secondary btn-mini {% if request.endpoint == 'workbench.quantlib_data_model' %}btn-active{% endif %}" href="{{ url_for('workbench.quantlib_data_model') }}" target="_blank" rel="noopener noreferrer">QuantLib Model</a>
               <a class="btn btn-secondary btn-mini" href="{{ url_for('workbench.quantlib_data_model') }}#research-library" target="_blank" rel="noopener noreferrer">Research</a>
+              <a class="btn btn-secondary btn-mini" href="https://github.com/tglauner/tgir_quantlib_tools" target="_blank" rel="noopener noreferrer">Repo GitHub</a>
               <a class="btn btn-secondary btn-mini" href="https://github.com/lballabio/QuantLib" target="_blank" rel="noopener noreferrer">QuantLib GitHub</a>
-              {% if request.endpoint == 'workbench.dashboard' %}
+              {% if request.endpoint in ['workbench.dashboard', 'workbench.dashboard_ibkr'] %}
                 <a class="btn btn-secondary btn-mini" href="{{ url_for('workbench.curve_debug_download') }}">Download debug CSV</a>
                 <button class="btn btn-secondary btn-mini" id="realtime-toggle" type="button">Start real-time</button>
                 <form method="post" action="{{ url_for('workbench.reset_portfolio') }}">
-                  <button class="btn btn-secondary btn-mini" type="submit">Reset demo</button>
+                  <button class="btn btn-danger btn-mini" type="submit">Reset demo</button>
                 </form>
               {% endif %}
             </div>

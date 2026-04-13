@@ -120,6 +120,7 @@
                   <tr>
                     <th>Status</th>
                     <th>Model</th>
+                    <th>Calibration</th>
                     <th class="numeric">NPV</th>
                     <th class="numeric">Δ vs selected</th>
                     <th>Calibrated parameters</th>
@@ -130,6 +131,7 @@
                     <tr>
                       <td><strong>{{ "Selected" if row.selected else "Alternative" }}</strong></td>
                       <td>{{ row.model_label }}</td>
+                      <td class="mono">{{ row.calibration_method }}</td>
                       <td class="numeric mono">{{ row.npv|money }}</td>
                       <td class="numeric mono">
                         <span class="signed-value {{ row.delta_vs_selected|sign_class }}">{{ row.delta_vs_selected|signed_money }}</span>

@@ -252,6 +252,12 @@
       color: #fff;
     }
 
+    .btn-danger,
+    button.btn-danger {
+      background: #b03b32;
+      color: #fff;
+    }
+
     .btn-mini {
       padding: 6px 10px;
       font-size: 0.74rem;
@@ -992,7 +998,7 @@
                 <a class="btn btn-secondary btn-mini" href="{{ url_for('workbench.curve_debug_download') }}">Download debug CSV</a>
                 <button class="btn btn-secondary btn-mini" id="realtime-toggle" type="button">Start real-time</button>
                 <form method="post" action="{{ url_for('workbench.reset_portfolio') }}">
-                  <button class="btn btn-secondary btn-mini" type="submit">Reset demo</button>
+                  <button class="btn btn-danger btn-mini" type="submit">Reset demo</button>
                 </form>
               {% endif %}
             </div>

@@ -116,7 +116,7 @@
                           name="rate{{ loop.index0 }}"
                           type="number"
                           step="0.0001"
-                          value="{{ row.market_rate_pct }}"
+                          value="{{ "%.4f"|format(row.market_rate_pct) }}"
                         >
                       </td>
                       <td class="numeric mono" id="curve-zero-rate-{{ loop.index0 }}">{{ row.zero_rate_pct|pct }}</td>
@@ -390,15 +390,15 @@
       <div class="metric-strip compact-metrics">
         <div class="metric">
           <span class="label">Spot</span>
-          <span class="value mono">{{ "%.2f"|format(market_snapshot.equity_spot) }}</span>
+          <span class="value mono" id="equity-spot">{{ "%.2f"|format(market_snapshot.equity_spot) }}</span>
         </div>
         <div class="metric">
           <span class="label">Dividend</span>
-          <span class="value mono">{{ market_snapshot.equity_dividend_yield_pct|pct }}</span>
+          <span class="value mono" id="equity-dividend">{{ market_snapshot.equity_dividend_yield_pct|pct }}</span>
         </div>
         <div class="metric">
           <span class="label">Flat vol</span>
-          <span class="value mono">{{ market_snapshot.equity_volatility_pct|pct }}</span>
+          <span class="value mono" id="equity-vol">{{ market_snapshot.equity_volatility_pct|pct }}</span>
         </div>
       </div>
 
@@ -472,6 +472,19 @@
         if (meanReversionField && document.activeElement !== meanReversionField) {
           meanReversionField.value = (Number(hwMeanReversion) * 100.0).toFixed(2);
         }
+      }
+
+      function applyEquityInputs(snapshot) {
+        [
+          ["equity_spot", Number(snapshot.equity_spot).toFixed(2)],
+          ["equity_dividend_yield_pct", Number(snapshot.equity_dividend_yield_pct).toFixed(2)],
+          ["equity_volatility_pct", Number(snapshot.equity_volatility_pct).toFixed(2)],
+        ].forEach(([fieldId, value]) => {
+          const field = document.getElementById(fieldId);
+          if (field && document.activeElement !== field) {
+            field.value = value;
+          }
+        });
       }
 
       function renderCurveComparisonChart(chart) {
@@ -588,6 +601,9 @@
         document.getElementById("forward-3m").textContent = pct(snapshot.forward_rate_summary.three_month_pct);
         document.getElementById("forward-6m").textContent = pct(snapshot.forward_rate_summary.six_month_pct);
         document.getElementById("forward-1y").textContent = pct(snapshot.forward_rate_summary.one_year_pct);
+        document.getElementById("equity-spot").textContent = Number(snapshot.equity_spot).toFixed(2);
+        document.getElementById("equity-dividend").textContent = pct(snapshot.equity_dividend_yield_pct);
+        document.getElementById("equity-vol").textContent = pct(snapshot.equity_volatility_pct);
       }
 
       function renderPricingError(message) {
@@ -609,6 +625,7 @@
         renderMarketSnapshot(payload.market_snapshot);
         renderLineChart("forward-rate-chart-wrap", payload.forward_rate_chart, "Daily one-day forward SOFR chart");
         applyCurveInputs(payload.curve_inputs, payload.market_snapshot.hw_mean_reversion);
+        applyEquityInputs(payload.market_snapshot);
         liveLastUpdate.textContent = payload.last_update_label;
       }
 
@@ -684,7 +701,7 @@
       if (realtimeEnabled) {
         tickRealtime();
       }
-      window.setInterval(tickRealtime, 5000);
+      window.setInterval(tickRealtime, 1000);
     })();
   </script>
 {% endblock %}

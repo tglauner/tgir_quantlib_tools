@@ -24,6 +24,7 @@ from portfolio import (
     SOFR_FORWARD_HORIZON_YEARS,
     SWAPTION_MATRIX_EXPIRY_LABELS,
     SWAPTION_MATRIX_TENOR_LABELS,
+    TRADE_SEQUENCE,
     TRADE_TITLES,
     VOL_POINT_BUMP_BP,
     bermudan_calibration_method_label,
@@ -903,6 +904,113 @@ def _cliquet_summary_metrics(cliquet_context):
     ]
 
 
+def _summary_metric_value(metric_rows, label, fallback=0.0):
+    for row in metric_rows:
+        if row["label"] == label:
+            return float(row["value"])
+    return float(fallback)
+
+
+def _blotter_totals(rows):
+    return {
+        "MTM": sum(float(row.get("MTM", 0.0)) for row in rows),
+        "Delta": sum(float(row.get("Delta", 0.0)) for row in rows),
+        "Gamma": sum(float(row.get("Gamma", 0.0)) for row in rows),
+        "Vega": sum(float(row.get("Vega", 0.0)) for row in rows),
+    }
+
+
+def _trade_vega_metric(state, trade_type, base_npv):
+    state, today, calendar, curve, curve_handle = _trade_market_context(state)
+    base_market_context = (state, today, calendar, curve, curve_handle)
+
+    if trade_type == "equity_cliquet":
+        return float(cliquet_analytics(state)["greeks"]["vega"])
+
+    sensitive_points = _sensitive_swaption_matrix_points(trade_type, state, base_market_context)
+    if not sensitive_points:
+        return 0.0
+
+    expiry_indexes = {label: index for index, label in enumerate(SWAPTION_MATRIX_EXPIRY_LABELS)}
+    tenor_indexes = {label: index for index, label in enumerate(SWAPTION_MATRIX_TENOR_LABELS)}
+    shocked_state = normalize_portfolio_state(copy.deepcopy(state))
+    for expiry_label, tenor_label in sensitive_points:
+        shocked_state["market"]["swaption_vol_matrix_bp"][expiry_indexes[expiry_label]][tenor_indexes[tenor_label]] += float(
+            VOL_POINT_BUMP_BP
+        )
+    shocked_state, shocked_today, shocked_calendar, shocked_curve, shocked_curve_handle = _trade_market_context(shocked_state)
+    shocked_market_context = (
+        shocked_state,
+        shocked_today,
+        shocked_calendar,
+        shocked_curve,
+        shocked_curve_handle,
+    )
+    shocked_npv = trade_npv(
+        trade_type,
+        shocked_state,
+        market_context=shocked_market_context,
+        bermudan_pricing_engine=_trade_bermudan_engine(trade_type, shocked_state, shocked_market_context),
+    )
+    return shocked_npv - base_npv
+
+
+def build_blotter_monitor(state, portfolio_rows):
+    if not portfolio_rows:
+        return [], _blotter_totals([])
+    state = normalize_portfolio_state(state)
+    base_rows_by_trade = {row["TradeKey"]: row for row in portfolio_rows}
+
+    curve_bump_pct = float(CURVE_POINT_BUMP_BP) / 100.0
+    curve_up_state = normalize_portfolio_state(copy.deepcopy(state))
+    curve_up_state["market"]["curve_quotes_pct"] = [
+        quote + curve_bump_pct for quote in curve_up_state["market"]["curve_quotes_pct"]
+    ]
+    curve_down_state = normalize_portfolio_state(copy.deepcopy(state))
+    curve_down_state["market"]["curve_quotes_pct"] = [
+        quote - curve_bump_pct for quote in curve_down_state["market"]["curve_quotes_pct"]
+    ]
+
+    up_rows_by_trade = {
+        row["TradeKey"]: row
+        for row in price_portfolio(curve_up_state).to_dict("records")
+    }
+    down_rows_by_trade = {
+        row["TradeKey"]: row
+        for row in price_portfolio(curve_down_state).to_dict("records")
+    }
+
+    cliquet_metric_rows = None
+    monitor_rows = []
+    for trade_type in TRADE_SEQUENCE:
+        base_row = base_rows_by_trade[trade_type]
+        mtm_value = float(base_row["MTM"])
+
+        if trade_type == "equity_cliquet":
+            if cliquet_metric_rows is None:
+                cliquet_metric_rows = _cliquet_summary_metrics(cliquet_analytics(state))
+            delta_value = _summary_metric_value(cliquet_metric_rows, "Delta")
+            gamma_value = _summary_metric_value(cliquet_metric_rows, "Convexity")
+            vega_value = _summary_metric_value(cliquet_metric_rows, "Vega")
+        else:
+            up_npv = float(up_rows_by_trade[trade_type]["MTM"])
+            down_npv = float(down_rows_by_trade[trade_type]["MTM"])
+            delta_value = up_npv - mtm_value
+            gamma_value = up_npv + down_npv - (2.0 * mtm_value)
+            vega_value = _trade_vega_metric(state, trade_type, mtm_value)
+
+        monitor_rows.append(
+            {
+                **base_row,
+                "Delta": delta_value,
+                "Gamma": gamma_value,
+                "Vega": vega_value,
+            }
+        )
+
+    return monitor_rows, _blotter_totals(monitor_rows)
+
+
 def update_market_state(state, form) -> None:
     state["valuation_date_iso"] = form.get("valuation_date_iso", state["valuation_date_iso"]) or state["valuation_date_iso"]
     state["market"]["curve_quotes_pct"] = [
@@ -1091,6 +1199,14 @@ def enrich_portfolio_rows(portfolio_rows):
 
 def dynamic_dashboard_payload(state):
     portfolio_rows, calibration_rows, bermudan_grid_rows, pricing_error = pricing_tables(state)
+    blotter_rows = enrich_portfolio_rows(portfolio_rows)
+    blotter_totals = _blotter_totals([])
+    try:
+        monitor_rows, blotter_totals = build_blotter_monitor(state, portfolio_rows)
+        blotter_rows = enrich_portfolio_rows(monitor_rows)
+    except Exception as exc:
+        if pricing_error is None:
+            pricing_error = str(exc)
 
     analytics_error = None
     zero_points = []
@@ -1102,7 +1218,8 @@ def dynamic_dashboard_payload(state):
 
     return _json_safe(
         {
-            "blotter_rows": enrich_portfolio_rows(portfolio_rows),
+            "blotter_rows": blotter_rows,
+            "blotter_totals": blotter_totals,
             "calibration_rows": calibration_rows,
             "bermudan_grid_rows": bermudan_grid_rows,
             "curve_inputs": curve_inputs(state),
@@ -1279,4 +1396,14 @@ def apply_realtime_tick(state):
         direction = random.choice((-1.0, 1.0))
         updated_quotes.append(max(0.01, quote + direction * move_bp / 100.0))
     state["market"]["curve_quotes_pct"] = updated_quotes
+    spot_move_pct = random.uniform(0.15, 0.85) / 100.0
+    state["market"]["equity_spot"] = max(
+        1.0,
+        float(state["market"]["equity_spot"]) * (1.0 + random.choice((-1.0, 1.0)) * spot_move_pct),
+    )
+    vol_move_pct = random.uniform(0.10, 0.60)
+    state["market"]["equity_volatility_pct"] = max(
+        0.1,
+        float(state["market"]["equity_volatility_pct"]) + random.choice((-1.0, 1.0)) * vol_move_pct,
+    )
     return state

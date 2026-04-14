@@ -120,14 +120,14 @@ class PortfolioSmokeTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b'value="4.25"', response.data)
         self.assertIn(b'id="rate0"', response.data)
-        self.assertIn(b"value=\"4.75", response.data)
+        self.assertIn(b'value="4.7500"', response.data)
         self.assertIn(b"2026-03-17", response.data)
         self.assertIn(b'value="61.5"', response.data)
         self.assertIn(b"5400.00", response.data)
         self.assertIn(b"21.25%", response.data)
         self.assertIn(b"Market rates", response.data)
 
-    def test_realtime_tick_perturbs_curve_but_not_vol(self):
+    def test_realtime_tick_perturbs_curve_and_equity_market(self):
         self.login()
         self.client.post(
             "/market",
@@ -141,6 +141,8 @@ class PortfolioSmokeTests(unittest.TestCase):
                 "rate6": "5.28",
                 "rate7": "5.31",
                 "hw_mean_reversion": "6.00",
+                "equity_spot": "5400",
+                "equity_volatility_pct": "21.25",
             },
         )
 
@@ -155,6 +157,12 @@ class PortfolioSmokeTests(unittest.TestCase):
         self.assertEqual(len(payload["blotter_rows"]), 5)
         self.assertEqual(len(payload["bermudan_grid_rows"]), 9)
         self.assertEqual(payload["blotter_rows"][0]["Type"], "Swap")
+        self.assertIn("blotter_totals", payload)
+        self.assertIn("Delta", payload["blotter_rows"][0])
+        self.assertIn("Gamma", payload["blotter_rows"][0])
+        self.assertIn("Vega", payload["blotter_rows"][0])
+        self.assertNotEqual(payload["market_snapshot"]["equity_spot"], 5400.0)
+        self.assertNotEqual(payload["market_snapshot"]["equity_volatility_pct"], 21.25)
         self.assertNotIn("NaN", response.get_data(as_text=True))
 
     def test_trade_editor_updates_swap_terms(self):
@@ -303,6 +311,9 @@ class PortfolioSmokeTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"IBKR-style compare view", response.data)
         self.assertIn(b"Deal blotter", response.data)
+        self.assertIn(b"Gamma", response.data)
+        self.assertIn(b"Vega", response.data)
+        self.assertIn(b"Totals", response.data)
         self.assertIn(b"SOFR market and zero rates", response.data)
         self.assertIn(b"ATM swaption normal-vol matrix", response.data)
         self.assertIn(b"Bermudan pricing grid", response.data)

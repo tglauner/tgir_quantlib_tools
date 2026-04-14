@@ -231,6 +231,29 @@
       border: 1px solid rgba(144, 166, 189, 0.14);
     }
 
+    .tws-wide-monitor {
+      margin-bottom: 10px;
+    }
+
+    .tws-monitor-table th,
+    .tws-monitor-table td {
+      padding: 4px 6px;
+    }
+
+    .tws-monitor-table .structure-cell {
+      max-width: 360px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .tws-total-row td {
+      border-top: 1px solid rgba(144, 166, 189, 0.22);
+      border-bottom: none;
+      padding-top: 6px;
+      font-weight: 700;
+    }
+
     .tws-layout {
       display: grid;
       grid-template-columns: minmax(330px, 0.78fr) minmax(0, 1.8fr);
@@ -361,51 +384,66 @@
     </div>
   </section>
 
+  <section class="panel panel-compact tws-wide-monitor">
+    <div class="panel-inner">
+      <div class="tws-window-title">
+        <div>
+          <span class="section-kicker">Monitor</span>
+          <h2>Deal blotter</h2>
+        </div>
+        <span class="tws-window-tag">Book</span>
+      </div>
+      <p>One trade per line with MTM, Delta, Gamma, and Vega.</p>
+
+      <div id="pricing-error-box">
+        {% if pricing_error %}
+          <div class="flash error">{{ pricing_error }}</div>
+        {% endif %}
+      </div>
+
+      <table class="blotter-table tws-monitor-table">
+        <thead>
+          <tr>
+            <th>Deal</th>
+            <th>Terms</th>
+            <th class="numeric">MTM</th>
+            <th class="numeric">Delta</th>
+            <th class="numeric">Gamma</th>
+            <th class="numeric">Vega</th>
+            <th class="numeric">Edit</th>
+          </tr>
+        </thead>
+        <tbody id="blotter-body">
+          {% for row in blotter_rows %}
+            <tr>
+              <td><strong>{{ row.Type }}</strong></td>
+              <td class="structure-cell">{{ row.Structure }}</td>
+              <td class="numeric mono"><span class="signed-value flat">{{ row.MTM|signed_money }}</span></td>
+              <td class="numeric mono"><span class="signed-value flat">{{ row.Delta|signed_money }}</span></td>
+              <td class="numeric mono"><span class="signed-value flat">{{ row.Gamma|signed_money }}</span></td>
+              <td class="numeric mono"><span class="signed-value flat">{{ row.Vega|signed_money }}</span></td>
+              <td class="numeric">
+                <a class="btn btn-secondary btn-mini" href="{{ row.EditURL }}" target="_blank" rel="noopener noreferrer">Open</a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot id="blotter-totals-foot">
+          <tr class="tws-total-row">
+            <td colspan="2"><strong>Totals</strong></td>
+            <td class="numeric mono"><span class="signed-value flat">{{ blotter_totals.MTM|signed_money }}</span></td>
+            <td class="numeric mono"><span class="signed-value flat">{{ blotter_totals.Delta|signed_money }}</span></td>
+            <td class="numeric mono"><span class="signed-value flat">{{ blotter_totals.Gamma|signed_money }}</span></td>
+            <td class="numeric mono"><span class="signed-value flat">{{ blotter_totals.Vega|signed_money }}</span></td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </section>
+
   <div class="tws-layout">
     <div class="tws-rail">
-      <section class="panel panel-compact">
-        <div class="panel-inner">
-          <div class="tws-window-title">
-            <div>
-              <span class="section-kicker">Monitor</span>
-              <h2>Deal blotter</h2>
-            </div>
-            <span class="tws-window-tag">Book</span>
-          </div>
-          <p>Same five trades. Editors still open in a separate tab.</p>
-
-          <div id="pricing-error-box">
-            {% if pricing_error %}
-              <div class="flash error">{{ pricing_error }}</div>
-            {% endif %}
-          </div>
-
-          <table class="blotter-table">
-            <thead>
-              <tr>
-                <th>Deal</th>
-                <th>Structure</th>
-                <th class="numeric">MTM</th>
-                <th class="numeric">NPV</th>
-                <th class="numeric">Edit</th>
-              </tr>
-            </thead>
-            <tbody id="blotter-body">
-              {% for row in blotter_rows %}
-                <tr>
-                  <td><strong>{{ row.Type }}</strong></td>
-                  <td>{{ row.Structure }}</td>
-                  <td class="numeric mono"><span class="signed-value {{ row.MTM|sign_class }}">{{ row.MTM|signed_money }}</span></td>
-                  <td class="numeric mono"><span class="signed-value {{ row.NPV|sign_class }}">{{ row.NPV|signed_money }}</span></td>
-                  <td class="numeric">
-                    <a class="btn btn-secondary btn-mini" href="{{ row.EditURL }}" target="_blank" rel="noopener noreferrer">Open</a>
-                  </td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </section>
 
       <section class="panel panel-compact">
         <div class="panel-inner">
@@ -456,15 +494,15 @@
           <div class="metric-strip compact-metrics">
             <div class="metric">
               <span class="label">Spot</span>
-              <span class="value mono">{{ "%.2f"|format(market_snapshot.equity_spot) }}</span>
+              <span class="value mono" id="equity-spot">{{ "%.2f"|format(market_snapshot.equity_spot) }}</span>
             </div>
             <div class="metric">
               <span class="label">Dividend</span>
-              <span class="value mono">{{ market_snapshot.equity_dividend_yield_pct|pct }}</span>
+              <span class="value mono" id="equity-dividend">{{ market_snapshot.equity_dividend_yield_pct|pct }}</span>
             </div>
             <div class="metric">
               <span class="label">Flat vol</span>
-              <span class="value mono">{{ market_snapshot.equity_volatility_pct|pct }}</span>
+              <span class="value mono" id="equity-vol">{{ market_snapshot.equity_volatility_pct|pct }}</span>
             </div>
             <div class="metric">
               <span class="label">Model</span>
@@ -529,7 +567,7 @@
                       <tr>
                         <td><strong>{{ row.label }}</strong></td>
                         <td class="numeric mono">
-                          <input class="curve-rate-input mono" id="rate{{ loop.index0 }}" name="rate{{ loop.index0 }}" type="number" step="0.0001" value="{{ row.market_rate_pct }}">
+                          <input class="curve-rate-input mono" id="rate{{ loop.index0 }}" name="rate{{ loop.index0 }}" type="number" step="0.0001" value="{{ "%.4f"|format(row.market_rate_pct) }}">
                         </td>
                         <td class="numeric mono" id="curve-zero-rate-{{ loop.index0 }}">{{ row.zero_rate_pct|pct }}</td>
                       </tr>
@@ -779,6 +817,8 @@
       const liveStatus = document.getElementById("live-status-pill");
       const liveLastUpdate = document.getElementById("live-last-update");
       const bermudanGridHeaders = {{ bermudan_grid_headers|tojson }};
+      let previousBlotterRows = {{ blotter_rows|tojson }};
+      let previousBlotterTotals = {{ blotter_totals|tojson }};
       let realtimeEnabled = window.localStorage.getItem(realtimeKey) === "true";
       let requestInFlight = false;
 
@@ -814,6 +854,22 @@
         return `<span class="signed-value ${signClass(value)}">${plainMoney(value)}</span>`;
       }
 
+      function tickClass(currentValue, previousValue) {
+        if (previousValue === null || previousValue === undefined) {
+          return "flat";
+        }
+        const current = Number(currentValue);
+        const previous = Number(previousValue);
+        if (Math.abs(current - previous) < 1e-9) {
+          return "flat";
+        }
+        return current > previous ? "positive" : "negative";
+      }
+
+      function tickMoneyMarkup(currentValue, previousValue) {
+        return `<span class="signed-value ${tickClass(currentValue, previousValue)}">${plainMoney(currentValue)}</span>`;
+      }
+
       function applyCurveInputs(curveInputs, hwMeanReversion) {
         for (const input of curveInputs) {
           const field = document.getElementById(input.name);
@@ -825,6 +881,19 @@
         if (meanReversionField && document.activeElement !== meanReversionField) {
           meanReversionField.value = (Number(hwMeanReversion) * 100.0).toFixed(2);
         }
+      }
+
+      function applyEquityInputs(snapshot) {
+        [
+          ["equity_spot", Number(snapshot.equity_spot).toFixed(2)],
+          ["equity_dividend_yield_pct", Number(snapshot.equity_dividend_yield_pct).toFixed(2)],
+          ["equity_volatility_pct", Number(snapshot.equity_volatility_pct).toFixed(2)],
+        ].forEach(([fieldId, value]) => {
+          const field = document.getElementById(fieldId);
+          if (field && document.activeElement !== field) {
+            field.value = value;
+          }
+        });
       }
 
       function renderCurveComparisonChart(chart) {
@@ -893,19 +962,35 @@
         });
       }
 
-      function renderBlotter(rows) {
+      function renderBlotter(rows, totals) {
+        const previousRowMap = new Map(previousBlotterRows.map((row) => [row.TradeKey, row]));
         const body = document.getElementById("blotter-body");
         body.innerHTML = rows.map((row) => `
           <tr>
             <td><strong>${row.Type}</strong></td>
-            <td>${row.Structure}</td>
-            <td class="numeric mono">${signedMoneyMarkup(row.MTM)}</td>
-            <td class="numeric mono">${signedMoneyMarkup(row.NPV)}</td>
+            <td class="structure-cell">${row.Structure}</td>
+            <td class="numeric mono">${tickMoneyMarkup(row.MTM, previousRowMap.get(row.TradeKey)?.MTM)}</td>
+            <td class="numeric mono">${tickMoneyMarkup(row.Delta, previousRowMap.get(row.TradeKey)?.Delta)}</td>
+            <td class="numeric mono">${tickMoneyMarkup(row.Gamma, previousRowMap.get(row.TradeKey)?.Gamma)}</td>
+            <td class="numeric mono">${tickMoneyMarkup(row.Vega, previousRowMap.get(row.TradeKey)?.Vega)}</td>
             <td class="numeric">
               <a class="btn btn-secondary btn-mini" href="${row.EditURL}" target="_blank" rel="noopener noreferrer">Open</a>
             </td>
           </tr>
         `).join("");
+        const totalsFoot = document.getElementById("blotter-totals-foot");
+        totalsFoot.innerHTML = `
+          <tr class="tws-total-row">
+            <td colspan="2"><strong>Totals</strong></td>
+            <td class="numeric mono">${tickMoneyMarkup(totals.MTM, previousBlotterTotals?.MTM)}</td>
+            <td class="numeric mono">${tickMoneyMarkup(totals.Delta, previousBlotterTotals?.Delta)}</td>
+            <td class="numeric mono">${tickMoneyMarkup(totals.Gamma, previousBlotterTotals?.Gamma)}</td>
+            <td class="numeric mono">${tickMoneyMarkup(totals.Vega, previousBlotterTotals?.Vega)}</td>
+            <td></td>
+          </tr>
+        `;
+        previousBlotterRows = rows;
+        previousBlotterTotals = totals;
       }
 
       function renderCalibration(rows) {
@@ -941,6 +1026,9 @@
         document.getElementById("forward-3m").textContent = pct(snapshot.forward_rate_summary.three_month_pct);
         document.getElementById("forward-6m").textContent = pct(snapshot.forward_rate_summary.six_month_pct);
         document.getElementById("forward-1y").textContent = pct(snapshot.forward_rate_summary.one_year_pct);
+        document.getElementById("equity-spot").textContent = Number(snapshot.equity_spot).toFixed(2);
+        document.getElementById("equity-dividend").textContent = pct(snapshot.equity_dividend_yield_pct);
+        document.getElementById("equity-vol").textContent = pct(snapshot.equity_volatility_pct);
       }
 
       function renderPricingError(message) {
@@ -954,7 +1042,7 @@
 
       function applyPayload(payload) {
         renderPricingError(payload.pricing_error);
-        renderBlotter(payload.blotter_rows);
+        renderBlotter(payload.blotter_rows, payload.blotter_totals);
         renderCurveRateRows(payload.curve_rate_rows);
         renderCurveComparisonChart(payload.curve_comparison_chart);
         renderCalibration(payload.calibration_rows);
@@ -962,6 +1050,7 @@
         renderMarketSnapshot(payload.market_snapshot);
         renderLineChart("forward-rate-chart-wrap", payload.forward_rate_chart, "Daily one-day forward SOFR chart");
         applyCurveInputs(payload.curve_inputs, payload.market_snapshot.hw_mean_reversion);
+        applyEquityInputs(payload.market_snapshot);
         liveLastUpdate.textContent = payload.last_update_label;
       }
 
@@ -1012,7 +1101,8 @@
           }
         });
         updateRealtimeUI();
-        window.setInterval(runRealtimeTick, 4000);
+        renderBlotter(previousBlotterRows, previousBlotterTotals);
+        window.setInterval(runRealtimeTick, 1000);
       }
 
       document.querySelectorAll("[data-toggle-panel]").forEach((button) => {

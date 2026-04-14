@@ -252,12 +252,6 @@
       color: #fff;
     }
 
-    .btn-danger,
-    button.btn-danger {
-      background: #b03b32;
-      color: #fff;
-    }
-
     .btn-mini {
       padding: 6px 10px;
       font-size: 0.74rem;
@@ -831,11 +825,15 @@
       min-width: 760px;
     }
 
-    .matrix-table th,
-    .matrix-table td,
     .bermudan-grid-table th,
     .bermudan-grid-table td {
       padding: 6px 8px;
+      border-bottom: 1px solid rgba(19, 33, 48, 0.05);
+    }
+
+    .matrix-table th,
+    .matrix-table td {
+      padding: 6px 7px;
       border-bottom: 1px solid rgba(19, 33, 48, 0.05);
     }
 
@@ -855,7 +853,7 @@
     }
 
     .matrix-input {
-      width: 62px;
+      width: 56px;
       padding: 6px 7px;
       text-align: right;
       border-radius: 8px;
@@ -994,7 +992,7 @@
                 <a class="btn btn-secondary btn-mini" href="{{ url_for('workbench.curve_debug_download') }}">Download debug CSV</a>
                 <button class="btn btn-secondary btn-mini" id="realtime-toggle" type="button">Start real-time</button>
                 <form method="post" action="{{ url_for('workbench.reset_portfolio') }}">
-                  <button class="btn btn-danger btn-mini" type="submit">Reset demo</button>
+                  <button class="btn btn-secondary btn-mini" type="submit">Reset demo</button>
                 </form>
               {% endif %}
             </div>

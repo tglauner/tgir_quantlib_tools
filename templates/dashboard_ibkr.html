@@ -21,6 +21,8 @@
       --shadow: 0 18px 42px rgba(0, 0, 0, 0.32);
       color-scheme: dark;
       font-family: "IBM Plex Sans", "SF Pro Text", "Segoe UI", sans-serif;
+      font-size: 10pt;
+      line-height: 1.24;
       background:
         linear-gradient(180deg, rgba(239, 139, 44, 0.08), transparent 22%),
         linear-gradient(135deg, #091019 0%, #101925 42%, #0a1119 100%);
@@ -28,7 +30,7 @@
 
     body.ibkr-theme .shell {
       width: min(1680px, calc(100vw - 18px));
-      padding-top: 10px;
+      padding-top: 8px;
     }
 
     body.ibkr-theme .brand-meta,
@@ -52,6 +54,31 @@
       background: linear-gradient(180deg, rgba(30, 43, 58, 0.98), rgba(16, 24, 35, 0.98));
       box-shadow: var(--shadow);
       backdrop-filter: none;
+    }
+
+    body.ibkr-theme .panel-inner {
+      padding: 9px 10px;
+    }
+
+    body.ibkr-theme .section-kicker {
+      font-size: 0.56rem;
+      letter-spacing: 0.18em;
+    }
+
+    body.ibkr-theme .panel h2,
+    body.ibkr-theme .panel h3 {
+      font-size: 0.92rem;
+    }
+
+    body.ibkr-theme .panel p,
+    body.ibkr-theme td,
+    body.ibkr-theme input,
+    body.ibkr-theme select {
+      font-size: 0.76rem;
+    }
+
+    body.ibkr-theme th {
+      font-size: 0.54rem;
     }
 
     body.ibkr-theme .metric,
@@ -81,13 +108,6 @@
       border-color: rgba(144, 166, 189, 0.18);
     }
 
-    body.ibkr-theme .btn-danger,
-    body.ibkr-theme button.btn-danger {
-      background: linear-gradient(180deg, #d2554c 0%, #8e2721 100%);
-      color: #fff;
-      border-color: rgba(210, 85, 76, 0.34);
-    }
-
     body.ibkr-theme .btn-active,
     body.ibkr-theme button.btn-active {
       background: rgba(239, 139, 44, 0.24);
@@ -95,11 +115,17 @@
       border-color: rgba(239, 139, 44, 0.34);
     }
 
+    body.ibkr-theme .btn-mini {
+      padding: 4px 8px;
+      font-size: 0.66rem;
+    }
+
     body.ibkr-theme input,
     body.ibkr-theme select {
       background: rgba(8, 14, 22, 0.96);
       border-color: rgba(144, 166, 189, 0.20);
       color: var(--ink);
+      padding: 6px 7px;
     }
 
     body.ibkr-theme input:focus,
@@ -117,14 +143,14 @@
     .tws-hero {
       display: grid;
       grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.8fr);
-      gap: 14px;
-      margin-bottom: 12px;
+      gap: 10px;
+      margin-bottom: 9px;
       align-items: stretch;
     }
 
     .tws-terminal {
-      padding: 16px 18px;
-      border-radius: 18px;
+      padding: 12px 14px;
+      border-radius: 14px;
       background:
         linear-gradient(180deg, rgba(239, 139, 44, 0.10), rgba(9, 16, 25, 0) 24%),
         linear-gradient(180deg, rgba(18, 28, 39, 0.98), rgba(8, 13, 20, 0.98));
@@ -133,16 +159,16 @@
     }
 
     .tws-terminal h1 {
-      margin: 6px 0 0;
-      font-size: clamp(1.45rem, 2.5vw, 2.15rem);
+      margin: 4px 0 0;
+      font-size: clamp(1rem, 2vw, 1.35rem);
       letter-spacing: -0.05em;
     }
 
     .tws-terminal p {
-      margin: 8px 0 0;
-      max-width: 960px;
-      font-size: 0.9rem;
-      line-height: 1.45;
+      margin: 5px 0 0;
+      max-width: 860px;
+      font-size: 0.72rem;
+      line-height: 1.3;
       color: var(--muted);
     }
 
@@ -150,10 +176,10 @@
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      padding: 6px 10px;
+      padding: 4px 8px;
       border-radius: 999px;
       font-family: Menlo, Monaco, "SFMono-Regular", monospace;
-      font-size: 0.76rem;
+      font-size: 0.64rem;
       letter-spacing: 0.08em;
       text-transform: uppercase;
       color: #ffd39a;
@@ -164,12 +190,12 @@
     .tws-status-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
+      gap: 8px;
     }
 
     .tws-status-card {
-      padding: 14px;
-      border-radius: 18px;
+      padding: 9px 10px;
+      border-radius: 12px;
       background: linear-gradient(180deg, rgba(30, 43, 58, 0.98), rgba(14, 21, 30, 0.98));
       border: 1px solid rgba(144, 166, 189, 0.16);
       box-shadow: var(--shadow);
@@ -178,15 +204,15 @@
     .tws-status-card strong,
     .tws-summary-tile strong {
       display: block;
-      font-size: 1.15rem;
-      margin-top: 6px;
+      font-size: 0.84rem;
+      margin-top: 4px;
       letter-spacing: -0.04em;
     }
 
     .tws-status-card span,
     .tws-summary-tile span {
       color: var(--muted);
-      font-size: 0.72rem;
+      font-size: 0.58rem;
       letter-spacing: 0.12em;
       text-transform: uppercase;
     }
@@ -194,13 +220,13 @@
     .tws-summary-strip {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 10px;
-      margin-bottom: 12px;
+      gap: 8px;
+      margin-bottom: 9px;
     }
 
     .tws-summary-tile {
-      padding: 12px 14px;
-      border-radius: 14px;
+      padding: 8px 10px;
+      border-radius: 10px;
       background: rgba(9, 15, 23, 0.95);
       border: 1px solid rgba(144, 166, 189, 0.14);
     }
@@ -208,14 +234,14 @@
     .tws-layout {
       display: grid;
       grid-template-columns: minmax(330px, 0.78fr) minmax(0, 1.8fr);
-      gap: 14px;
+      gap: 10px;
       align-items: start;
     }
 
     .tws-rail,
     .tws-main {
       display: grid;
-      gap: 14px;
+      gap: 10px;
     }
 
     .tws-window-title {
@@ -223,17 +249,17 @@
       align-items: center;
       justify-content: space-between;
       gap: 10px;
-      margin-bottom: 8px;
+      margin-bottom: 5px;
     }
 
     .tws-window-tag {
       display: inline-flex;
       align-items: center;
       gap: 7px;
-      padding: 4px 8px;
+      padding: 3px 7px;
       border-radius: 999px;
       font-family: Menlo, Monaco, "SFMono-Regular", monospace;
-      font-size: 0.72rem;
+      font-size: 0.58rem;
       color: #ffd39a;
       background: rgba(239, 139, 44, 0.10);
       border: 1px solid rgba(239, 139, 44, 0.18);
@@ -251,17 +277,17 @@
     .tws-monitor-grid {
       display: grid;
       grid-template-columns: minmax(340px, 0.9fr) minmax(0, 1.2fr);
-      gap: 14px;
+      gap: 10px;
     }
 
     .tws-diag-grid {
       display: grid;
-      gap: 14px;
+      gap: 10px;
     }
 
     .tws-note-block {
-      padding: 12px;
-      border-radius: 12px;
+      padding: 8px 9px;
+      border-radius: 9px;
       background: rgba(8, 14, 22, 0.92);
       border: 1px solid rgba(144, 166, 189, 0.12);
     }
@@ -291,10 +317,9 @@
   <section class="tws-hero">
     <div class="tws-terminal">
       <span class="tws-code">IBKR-style compare view</span>
-      <h1>Trader Workstation skin on top of the same QuantLib SOFR, vol, Bermudan, and cliquet stack.</h1>
+      <h1>Same QuantLib stack. Denser TWS-style monitor.</h1>
       <p>
-        This compare page keeps the same blotter, curve, volatility, callable-grid, diagnostics, and SPX market
-        inputs as the main workstation, but repacks them into a denser IBKR-inspired terminal layout for side-by-side UX comparison.
+        Same blotter, curve, vol surface, callable grid, diagnostics, and SPX inputs as the main dashboard, compressed for a wall-street terminal feel.
       </p>
     </div>
     <div class="tws-status-grid">
@@ -319,19 +344,19 @@
 
   <section class="tws-summary-strip">
     <div class="tws-summary-tile">
-      <span>Curve pillars</span>
+      <span>Curve pts</span>
       <strong>{{ curve_rate_rows|length }}</strong>
     </div>
     <div class="tws-summary-tile">
-      <span>Vol expiries</span>
+      <span>Vol rows</span>
       <strong>{{ swaption_matrix_rows|length }}</strong>
     </div>
     <div class="tws-summary-tile">
-      <span>Callable grid rows</span>
+      <span>Grid rows</span>
       <strong>{{ bermudan_grid_rows|length }}</strong>
     </div>
     <div class="tws-summary-tile">
-      <span>Portfolio trades</span>
+      <span>Trades</span>
       <strong>{{ blotter_rows|length }}</strong>
     </div>
   </section>
@@ -345,9 +370,9 @@
               <span class="section-kicker">Monitor</span>
               <h2>Deal blotter</h2>
             </div>
-            <span class="tws-window-tag">Live book</span>
+            <span class="tws-window-tag">Book</span>
           </div>
-          <p>Same five trades as the primary dashboard. Editors still open in a separate tab.</p>
+          <p>Same five trades. Editors still open in a separate tab.</p>
 
           <div id="pricing-error-box">
             {% if pricing_error %}
@@ -389,9 +414,9 @@
               <span class="section-kicker">Diagnostics</span>
               <h2>On-demand windows</h2>
             </div>
-            <span class="tws-window-tag">Hidden panes</span>
+            <span class="tws-window-tag">Diag</span>
           </div>
-          <p>Forward strip and OIS repricing stay collapsed until you want them, matching the compare dashboard on information but keeping the terminal footprint tight.</p>
+          <p>Forward strip and OIS repricing stay collapsed by default.</p>
           <div class="btn-row">
             <button
               class="btn btn-secondary"
@@ -424,7 +449,7 @@
               <span class="section-kicker">Equity</span>
               <h2>SPX cliquet assumptions</h2>
             </div>
-            <span class="tws-window-tag">Shared inputs</span>
+            <span class="tws-window-tag">SPX</span>
           </div>
           <p>{{ equity_market_note }}</p>
 
@@ -469,11 +494,11 @@
         <section class="panel panel-compact">
           <div class="panel-inner">
             <div class="tws-window-title">
-              <div>
-                <span class="section-kicker">Yield Monitor</span>
-                <h2>SOFR market and zero rates</h2>
-              </div>
-              <span class="tws-window-tag">Curve window</span>
+            <div>
+              <span class="section-kicker">Yield Monitor</span>
+              <h2>SOFR market and zero rates</h2>
+            </div>
+              <span class="tws-window-tag">Curve</span>
             </div>
             <p>{{ zero_rate_note }}</p>
 
@@ -533,13 +558,13 @@
         <section class="panel panel-compact">
           <div class="panel-inner">
             <div class="tws-window-title">
-              <div>
-                <span class="section-kicker">Curve Chart</span>
-                <h2>Market versus zero-rate plot</h2>
-              </div>
-              <span class="tws-window-tag">Chart view</span>
+            <div>
+              <span class="section-kicker">Curve Chart</span>
+              <h2>Market versus zero-rate plot</h2>
             </div>
-            <p>Market rates and continuous spot zero rates stay on the same axis for immediate curve-shape comparison.</p>
+              <span class="tws-window-tag">Chart</span>
+            </div>
+            <p>Market and zero curves on one axis.</p>
             <div class="curve-shell">
               <div id="curve-comparison-chart-wrap">
                 <svg viewBox="0 0 {{ curve_comparison_chart.width }} {{ curve_comparison_chart.height }}" role="img" aria-labelledby="curveComparisonTitle">
@@ -576,9 +601,9 @@
               <span class="section-kicker">Vol Surface</span>
               <h2>ATM swaption normal-vol matrix</h2>
             </div>
-            <span class="tws-window-tag">Surface</span>
+            <span class="tws-window-tag">Vol</span>
           </div>
-          <p>Short expiries and annual-to-long expiries run down the left, swap tenors across the top, all ATM. European and Bermudan pricing use the same matrix as the primary dashboard.</p>
+          <p>ATM normal-vol surface used by both European and Bermudan pricing.</p>
 
           <form method="post" action="{{ url_for('workbench.update_market') }}">
             <div class="table-scroll">
@@ -621,9 +646,9 @@
               <span class="section-kicker">Callable Grid</span>
               <h2>Bermudan pricing grid</h2>
             </div>
-            <span class="tws-window-tag">Callable monitor</span>
+            <span class="tws-window-tag">Callable</span>
           </div>
-          <p>Columns are final maturity, rows are non-call periods, and cells use the current main Bermudan trade setup.</p>
+          <p>Cols = final maturity. Rows = non-call.</p>
           <div class="table-scroll">
             <table class="bermudan-grid-table">
               <thead>
@@ -663,7 +688,7 @@
                 <span class="section-kicker">Forward Strip</span>
                 <h2>Daily one-day forward SOFR</h2>
               </div>
-              <span class="tws-window-tag">Curve analytics</span>
+              <span class="tws-window-tag">Fwd</span>
             </div>
             <p>{{ forward_rate_note }}</p>
 
@@ -716,9 +741,9 @@
                 <span class="section-kicker">Calibration</span>
                 <h2>OIS SOFR repricing</h2>
               </div>
-              <span class="tws-window-tag">Curve check</span>
+              <span class="tws-window-tag">Check</span>
             </div>
-            <p>The same OIS repricing check from the primary dashboard is available here without changing the underlying analytics.</p>
+            <p>Same OIS repricing check as the main dashboard.</p>
             <table>
               <thead>
                 <tr>

@@ -6,20 +6,39 @@
   <section class="hero workstation-hero">
     <div>
       <span class="section-kicker">TGIR QuantLib Workstation</span>
-      <h1>SOFR market and zero rates, ATM vol surface, callable grid, SPX cliquet.</h1>
+      <h1>Review trade marks, update market inputs, and inspect QuantLib diagnostics.</h1>
       <p>
-        Five trades stay on the blotter. Detailed entry opens in a separate tab, while the workstation
-        keeps the QuantLib-derived SOFR curve view, the workbook ATM normal-vol matrix, Bermudan pricing
-        checks, and the SPX cliquet market inputs on one screen. Forward and OIS repricing diagnostics stay
-        available on demand.
+        Start with the blotter, adjust the shared curve or volatility assumptions when needed, then use
+        the grids and diagnostics to explain the marks. Trade editors open separately so this dashboard
+        stays available while you work.
       </p>
     </div>
     <div class="hero-meta">
+      <a class="btn btn-warm" id="open-xccy-callable" href="{{ url_for('workbench.xccy_callable') }}">Open XCCY callable lab</a>
       <div class="pill mono-pill">Valuation {{ market_snapshot.valuation_date_iso }}</div>
       <div class="pill mono-pill"><span id="live-status-pill">Manual mode</span></div>
       <div class="pill mono-pill">Last tick <span id="live-last-update">{{ last_update_label }}</span></div>
     </div>
   </section>
+
+  <div class="workflow-strip" aria-label="Dashboard workflow">
+    <div class="workflow-item">
+      <span>Step 1</span>
+      <strong>Check MTM and NPV in the deal blotter.</strong>
+    </div>
+    <div class="workflow-item">
+      <span>Step 2</span>
+      <strong>Edit highlighted market inputs only when assumptions change.</strong>
+    </div>
+    <div class="workflow-item">
+      <span>Step 3</span>
+      <strong>Apply updates before comparing grids and diagnostics.</strong>
+    </div>
+    <div class="workflow-item">
+      <span>Step 4</span>
+      <strong>Open trade details for instrument-specific terms and risk.</strong>
+    </div>
+  </div>
 
   <div class="stack">
   <section class="panel panel-compact">
@@ -28,7 +47,7 @@
         <div>
           <span class="section-kicker">Blotter</span>
           <h2>Deal blotter</h2>
-          <p>Positive marks print green with an up arrow, negative marks red with a down arrow. Editors open in a new tab so the workstation stays anchored.</p>
+          <p>Use this as the starting point. Green values are positive marks, red values are negative marks, and each trade can be opened for detailed terms.</p>
         </div>
       </div>
 
@@ -86,6 +105,7 @@
               <div class="field">
                 <label for="{{ valuation_date_input.name }}">{{ valuation_date_input.label }}</label>
                 <input id="{{ valuation_date_input.name }}" name="{{ valuation_date_input.name }}" type="date" value="{{ valuation_date_input.value }}">
+                <div class="field-hint">Changing this date rebuilds the shared curve context.</div>
               </div>
             </div>
           </div>
@@ -119,7 +139,7 @@
                           value="{{ "%.4f"|format(row.market_rate_pct) }}"
                         >
                       </td>
-                      <td class="numeric mono" id="curve-zero-rate-{{ loop.index0 }}">{{ row.zero_rate_pct|pct }}</td>
+                      <td class="numeric mono" id="curve-zero-rate-{{ loop.index0 }}"><span class="calc-cell">{{ row.zero_rate_pct|pct }}</span></td>
                     </tr>
                   {% endfor %}
                 </tbody>
@@ -132,10 +152,10 @@
               <div class="field">
                 <label for="hw_mean_reversion">Mean reversion (%)</label>
                 <input id="hw_mean_reversion" name="hw_mean_reversion" type="number" step="0.01" value="{{ "%.2f"|format(market_snapshot.hw_mean_reversion * 100.0) }}">
+                <div class="field-hint">Shared by callable trade pricing and the Bermudan grid.</div>
               </div>
             </div>
-            <p class="table-note">{{ normal_vol_note }}</p>
-            <p class="table-note">{{ defaults_note }}</p>
+            <p class="table-note">Editable market inputs are highlighted. Calculated outputs use shaded read-only cells.</p>
             <p class="table-note mono">Defaults: {{ default_market_data_json_path }} and {{ default_trade_data_json_path }}</p>
             <div class="btn-row">
               <button class="btn" type="submit">Apply curve and model update</button>
@@ -179,7 +199,7 @@
           <div>
             <span class="section-kicker">Volatility</span>
             <h2>ATM swaption normal-vol matrix</h2>
-            <p>Short expiries and annual-to-long expiries run down the left, underlying swap tenors across the top, all ATM. European swaptions price from the selected pillar, while Bermudans calibrate to the trade call schedule against the matching remaining swap tenor.</p>
+            <p>Update normal vols in basis points. Bermudan pricing uses the relevant expiry and tenor pillars from this matrix.</p>
           </div>
         </div>
 
@@ -223,7 +243,7 @@
           <div>
             <span class="section-kicker">Callable grid</span>
             <h2>Bermudan pricing grid</h2>
-            <p>Columns are final maturity. Rows are non-call periods. Cells use the current Bermudan trade direction, strike, notional, payment frequency, reset frequency, and the selected short-rate model from the main Bermudan trade. Inapplicable cells are shown as <span class="mono">-</span>.</p>
+            <p>Rows show non-call periods and columns show final maturities. Values use the current Bermudan trade terms and selected short-rate model.</p>
           </div>
         </div>
       <div class="table-scroll">
@@ -329,15 +349,18 @@
               <text x="4" y="{{ tick.y + 4 }}" font-size="10" fill="#607181">{{ "%.2f"|format(tick.value) }}</text>
             {% endfor %}
             <line x1="36" y1="{{ forward_rate_chart.height - 34 }}" x2="{{ forward_rate_chart.width - 18 }}" y2="{{ forward_rate_chart.height - 34 }}" stroke="rgba(19,33,48,0.10)" />
-            <polygon points="{{ forward_rate_chart.area }}" fill="rgba(11,116,99,0.12)"></polygon>
-            <polyline points="{{ forward_rate_chart.polyline }}" fill="none" stroke="#0b7463" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></polyline>
-            {% for marker in forward_rate_chart.markers %}
-              <circle cx="{{ marker.x }}" cy="{{ marker.y }}" r="3.6" fill="#c0683a" stroke="#fff8f0" stroke-width="1.6"></circle>
+            {% for series in forward_rate_chart.series %}
+              <polyline points="{{ series.polyline }}" fill="none" stroke="{{ series.color }}" stroke-width="{{ series.line_width }}" stroke-linecap="round" stroke-linejoin="round"></polyline>
             {% endfor %}
             {% for tick in forward_rate_chart.x_ticks %}
               <text x="{{ tick.x }}" y="{{ forward_rate_chart.height - 10 }}" text-anchor="middle" font-size="10" fill="#607181">{{ tick.label }}</text>
             {% endfor %}
           </svg>
+        </div>
+        <div class="chart-legend">
+          {% for series in forward_rate_chart.series %}
+            <span class="chart-legend-item"><span class="chart-swatch" style="background: {{ series.color }}"></span>{{ series.label }}</span>
+          {% endfor %}
         </div>
       </div>
     </div>
@@ -532,10 +555,8 @@
               <text x="4" y="${tick.y + 4}" font-size="10" fill="#607181">${tick.value.toFixed(2)}</text>
             `).join("")}
             <line x1="36" y1="${chart.height - 34}" x2="${chart.width - 18}" y2="${chart.height - 34}" stroke="rgba(19,33,48,0.10)" />
-            <polygon points="${chart.area}" fill="rgba(11,116,99,0.12)"></polygon>
-            <polyline points="${chart.polyline}" fill="none" stroke="#0b7463" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"></polyline>
-            ${chart.markers.map((marker) => `
-              <circle cx="${marker.x}" cy="${marker.y}" r="3.8" fill="#c0683a" stroke="#fff8f0" stroke-width="1.6"></circle>
+            ${chart.series.map((series) => `
+              <polyline points="${series.polyline}" fill="none" stroke="${series.color}" stroke-width="${series.line_width}" stroke-linecap="round" stroke-linejoin="round"></polyline>
             `).join("")}
             ${chart.x_ticks.map((tick) => `
               <text x="${tick.x}" y="${chart.height - 10}" text-anchor="middle" font-size="10" fill="#607181">${tick.label}</text>

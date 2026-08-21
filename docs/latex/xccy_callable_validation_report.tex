@@ -1,0 +1,237 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Callable Cross-Currency Swap Pricing Validation Report
+% Model: HW1F_USD_HW1F_EUR_BSFX_LSM_V1
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\documentclass[11pt,a4paper]{article}
+
+% Packages
+\usepackage[utf8]{inputenc}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{float}
+\usepackage{multicol}
+\usepackage{xcolor}
+\usepackage{fancyhdr}
+
+% Custom colors
+\definecolor{pass}{RGB}{0,128,0}
+\definecolor{warn}{RGB}{255,165,0}
+\definecolor{fail}{RGB}{220,20,60}
+
+% Header/Footer
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\small Model Validation Report}
+\lhead{\small HW1F$\times$2 + BS-FX + LSM}
+\cfoot{\thepage}
+
+\title{\vspace{-1.5cm}\textbf{Callable Cross-Currency Swap Pricing}\\\Large Model Validation Report\\[0.5em]\normalsize Model ID: HW1F\_USD\_HW1F\_EUR\_BSFX\_LSM\_V1}
+\author{Quantitative Analytics}
+\date{\today}
+
+\begin{document}
+\maketitle
+\thispagestyle{fancy}
+
+%------------------------------------------------------------------------------
+\section{Executive Summary}
+%------------------------------------------------------------------------------
+
+This report validates the callable EUR/USD cross-currency swap pricer implementing a two-factor Hull-White model with Black-Scholes FX dynamics and Longstaff-Schwartz Monte Carlo for Bermudan exercise valuation.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lccl}
+\toprule
+\textbf{Test Category} & \textbf{Tests} & \textbf{Status} & \textbf{Key Finding} \\
+\midrule
+Structural Bounds & 3 & \textcolor{pass}{PASS} & Option value $\geq 0$, within notional \\
+Martingale Tests & 3 & \textcolor{pass}{PASS} & All $|z| < 3.5\sigma$ \\
+Monotonicity & 3 & \textcolor{pass}{PASS} & Correct directional responses \\
+Calibration Quality & 4 & \textcolor{pass}{PASS} & RMS error $< 5\%$ \\
+Convergence & 3 & \textcolor{pass}{PASS} & SE $\propto 1/\sqrt{N}$ verified \\
+\bottomrule
+\end{tabular}
+\caption{Validation test summary for 10Y NC2 EUR/USD callable swap}
+\end{table}
+
+\textbf{Reference Trade:} 10-year callable cross-currency swap, 2-year non-call, \$100M USD notional paying 4\% fixed USD semi-annually, receiving EUR ESTR compounded quarterly.
+
+%------------------------------------------------------------------------------
+\section{Model Architecture}
+%------------------------------------------------------------------------------
+
+The pricing model combines three stochastic components under the USD money-market measure:
+
+\begin{multicols}{2}
+\textbf{USD Short Rate (Hull-White):}
+\[dr_t^{USD} = (\theta_t^{USD} - a^{USD} r_t^{USD})dt + \sigma^{USD} dW_t^{USD}\]
+
+\textbf{EUR Short Rate (Hull-White):}
+\[dr_t^{EUR} = (\theta_t^{EUR} - a^{EUR} r_t^{EUR} - \rho_{EUR,FX}\sigma^{EUR}\sigma^{FX})dt + \sigma^{EUR} dW_t^{EUR}\]
+\end{multicols}
+
+\textbf{EUR/USD FX Rate (Black-Scholes):}
+\[d\ln X_t = (r_t^{USD} - r_t^{EUR} - \tfrac{1}{2}\sigma_t^{FX,2})dt + \sigma_t^{FX} dW_t^{FX}\]
+
+The EUR rate equation includes the quanto drift adjustment $-\rho_{EUR,FX}\sigma^{EUR}\sigma^{FX}$ required for arbitrage-free pricing.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lccc}
+\toprule
+\textbf{Currency} & $a$ (mean rev.) & $\sigma$ (calibrated) & RMS Error \\
+\midrule
+USD & 0.03 & 0.00885 & 0.45\% \\
+EUR & 0.04 & 0.00772 & 0.23\% \\
+\bottomrule
+\end{tabular}
+\caption{Hull-White calibration results to co-terminal swaptions}
+\end{table}
+
+%------------------------------------------------------------------------------
+\section{Validation Methodology}
+%------------------------------------------------------------------------------
+
+\subsection{Structural Bounds}
+
+The callable swap satisfies the fundamental arbitrage bound:
+\[V_{callable} = V_{non\text{-}callable} + V_{option} \geq V_{non\text{-}callable}\]
+
+\textbf{Test Results:}
+\begin{itemize}
+    \item Non-callable NPV: \$689,713 $\pm$ \$170,939 (95\% CI)
+    \item Embedded option value: \$7,638,976 $\pm$ \$79,644
+    \item Callable NPV: \$8,328,689 $\pm$ \$127,997 \textcolor{pass}{$\checkmark$}
+    \item Option/Notional ratio: 7.64\% (sanity: $<100\%$) \textcolor{pass}{$\checkmark$}
+\end{itemize}
+
+\subsection{Martingale Tests}
+
+Under the USD money-market measure, the following martingale conditions must hold:
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lcccl}
+\toprule
+\textbf{Martingale Condition} & \textbf{Sample Mean} & \textbf{Target} & $|z|$ & \textbf{Status}\\
+\midrule
+$\mathbb{E}[D(0,T)]$ & 0.6614 & 0.6614 & $<0.5$ & \textcolor{pass}{PASS} \\
+$\mathbb{E}[D(0,T)X_T]$ & 0.6042 & 0.6014 & $<1.0$ & \textcolor{pass}{PASS} \\
+$\mathbb{E}[D(0,T)X_T B_T^{EUR}]$ & 1.1015 & 1.1000 & $<0.3$ & \textcolor{pass}{PASS} \\
+\bottomrule
+\end{tabular}
+\caption{Martingale diagnostic results ($T=10$ years)}
+\end{table}
+
+All z-scores below the 3.5$\sigma$ threshold confirm correct drift implementation.
+
+\subsection{Monotonicity and Sensitivity}
+
+Model responses to parameter perturbations are validated for correct direction:
+
+\begin{table}[H]
+\centering
+\begin{tabular}{llcc}
+\toprule
+\textbf{Parameter Change} & \textbf{Expected Impact} & \textbf{Observed} & \textbf{Status}\\
+\midrule
+$\uparrow$ Swaption vol (+20\%) & $\uparrow$ Option value & +\$1.2M & \textcolor{pass}{$\checkmark$}\\
+$\downarrow$ Non-call (2Y$\to$1Y) & $\uparrow$ Option value & +\$1.8M & \textcolor{pass}{$\checkmark$}\\
+$\uparrow$ FX spot (+5\%) & $\uparrow$ EUR leg PV & +8.7\% & \textcolor{pass}{$\checkmark$}\\
+$\uparrow$ Rates (+25bp) & $\downarrow$ Swap value & $-$\$1.1M & \textcolor{pass}{$\checkmark$}\\
+\bottomrule
+\end{tabular}
+\caption{Sensitivity validation results}
+\end{table}
+
+%------------------------------------------------------------------------------
+\section{Convergence Analysis}
+%------------------------------------------------------------------------------
+
+Monte Carlo standard error converges as $O(N^{-1/2})$:
+
+\begin{table}[H]
+\centering
+\begin{tabular}{ccccc}
+\toprule
+\textbf{Paths} & \textbf{Callable NPV (\$M)} & \textbf{SE (\$K)} & \textbf{SE Ratio} & \textbf{Expected}\\
+\midrule
+10,000 & 8.31 & 222 & -- & --\\
+30,000 & 8.33 & 128 & 1.73 & 1.73\\
+100,000 & 8.32 & 70 & 1.83 & 1.83\\
+\bottomrule
+\end{tabular}
+\caption{Monte Carlo convergence verification}
+\end{table}
+
+Observed SE ratios match theoretical $\sqrt{N_2/N_1}$ scaling within 5\%.
+
+%------------------------------------------------------------------------------
+\section{Exercise Distribution}
+%------------------------------------------------------------------------------
+
+The LSM algorithm produces the following exercise probability distribution:
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Call Date} & \textbf{Alive Paths} & \textbf{Exercise} & $P(\text{Exercise}|\text{Alive})$ & $P(\text{Exercise})$\\
+\midrule
+2028-08-18 (Y2) & 30,000 & 4,329 & 14.4\% & 14.4\%\\
+2029-08-20 (Y3) & 25,671 & 2,900 & 11.3\% & 9.7\%\\
+2030-08-19 (Y4) & 22,771 & 1,699 & 7.5\% & 5.7\%\\
+2031-08-18 (Y5) & 21,072 & 1,405 & 6.7\% & 4.7\%\\
+$\vdots$ & $\vdots$ & $\vdots$ & $\vdots$ & $\vdots$\\
+2035-08-20 (Y9) & 17,346 & 1,972 & 11.4\% & 6.6\%\\
+No exercise & 15,374 & -- & -- & 51.2\%\\
+\bottomrule
+\end{tabular}
+\caption{Exercise probability distribution across call dates}
+\end{table}
+
+\textbf{Key Observations:}
+\begin{itemize}
+    \item Highest exercise probability at first call date (14.4\%)
+    \item Uptick at penultimate call (year 9) reflects ``now or never'' dynamics
+    \item 51\% of paths survive to maturity without early termination
+\end{itemize}
+
+%------------------------------------------------------------------------------
+\section{Model Limitations}
+%------------------------------------------------------------------------------
+
+\begin{enumerate}
+    \item \textbf{One-piece constant volatility:} Rate volatility is constant per currency; term-structure of vol is not fitted
+    \item \textbf{Deterministic basis:} Forecast/discount and cross-currency basis spreads are not stochastic
+    \item \textbf{ATM FX volatility:} FX smile/skew not calibrated; uses ATM lognormal vol
+    \item \textbf{LSM lower bound:} The Longstaff-Schwartz estimate is a biased lower bound for the true Bermudan value
+    \item \textbf{Simplified overnight:} EUR overnight uses continuous bank-account approximation
+\end{enumerate}
+
+%------------------------------------------------------------------------------
+\section{Conclusions}
+%------------------------------------------------------------------------------
+
+The callable cross-currency swap pricer passes all validation tests:
+
+\begin{enumerate}
+    \item \textbf{Arbitrage-free:} Martingale conditions satisfied within Monte Carlo error
+    \item \textbf{Correctly calibrated:} Hull-White and FX models calibrate to market within tolerance
+    \item \textbf{Sensible Greeks:} Monotonicity tests confirm correct directional responses
+    \item \textbf{Numerically stable:} Convergence follows expected $O(N^{-1/2})$ behavior
+    \item \textbf{Exercise realistic:} LSM produces economically sensible exercise boundary
+\end{enumerate}
+
+\noindent\textbf{Recommendation:} Model approved for indicative pricing. Production use requires:
+\begin{itemize}
+    \item Independent re-implementation comparison (dual upper bound)
+    \item Extended regression testing across diverse market scenarios
+    \item Operational risk controls for extreme parameter regimes
+\end{itemize}
+
+\end{document}

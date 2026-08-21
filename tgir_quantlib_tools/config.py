@@ -58,6 +58,9 @@ class AppConfig:
     local_dev_host: str
     local_dev_port: int
     curve_debug_csv_path: str
+    xccy_market_json_path: str
+    xccy_deal_json_path: str
+    xccy_result_json_path: str
 
     @classmethod
     def from_env(cls, overrides: dict[str, Any] | None = None) -> "AppConfig":
@@ -107,6 +110,27 @@ class AppConfig:
                     default=_repo_root() / "debug" / "curve_debug.csv",
                 )
             ),
+            xccy_market_json_path=str(
+                _override_or_env(
+                    overrides,
+                    "XCCY_MARKET_JSON_PATH",
+                    default=_repo_root() / "data" / "xccy_market_eurusd.json",
+                )
+            ),
+            xccy_deal_json_path=str(
+                _override_or_env(
+                    overrides,
+                    "XCCY_DEAL_JSON_PATH",
+                    default=_repo_root() / "data" / "xccy_deal_10y_nc2.json",
+                )
+            ),
+            xccy_result_json_path=str(
+                _override_or_env(
+                    overrides,
+                    "XCCY_RESULT_JSON_PATH",
+                    default=_repo_root() / "result.json",
+                )
+            ),
         )
 
     def to_flask_config(self) -> dict[str, Any]:
@@ -120,6 +144,9 @@ class AppConfig:
             "LOCAL_DEV_HOST": self.local_dev_host,
             "LOCAL_DEV_PORT": self.local_dev_port,
             "CURVE_DEBUG_CSV_PATH": self.curve_debug_csv_path,
+            "XCCY_MARKET_JSON_PATH": self.xccy_market_json_path,
+            "XCCY_DEAL_JSON_PATH": self.xccy_deal_json_path,
+            "XCCY_RESULT_JSON_PATH": self.xccy_result_json_path,
             "FLASK_DEBUG": self.debug_enabled,
             "SESSION_COOKIE_HTTPONLY": True,
             "SESSION_COOKIE_SAMESITE": "Lax",

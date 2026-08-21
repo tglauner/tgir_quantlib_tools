@@ -6,6 +6,7 @@ import QuantLib as ql
 from flask import Blueprint, Response, abort, current_app, flash, jsonify, redirect, render_template, request, url_for
 
 from portfolio import build_sofr_curve, default_portfolio_state, trade_point_sensitivities, valuation_date, write_curve_debug_csv
+from standalone_xccy_pricer import PricingError
 
 from .auth import (
     credentials_are_valid,
@@ -27,6 +28,12 @@ from .dashboard import (
     update_trade_state,
 )
 from .quantlib_model import build_quantlib_model_context
+from .xccy_page import (
+    XccyPageInputError,
+    build_xccy_callable_context,
+    reprice_xccy_from_page,
+    xccy_data_files,
+)
 
 
 workbench_bp = Blueprint("workbench", __name__)
@@ -106,6 +113,49 @@ def quantlib_data_model():
     return render_template(
         "quantlib_model.html",
         **build_quantlib_model_context(state),
+    )
+
+
+@workbench_bp.get("/xccy-callable")
+@login_required
+def xccy_callable():
+    data_files = xccy_data_files(current_app.config)
+    return render_template(
+        "xccy_callable.html",
+        **build_xccy_callable_context(data_files),
+    )
+
+
+@workbench_bp.post("/xccy-callable/price")
+@login_required
+def xccy_callable_price():
+    data_files = xccy_data_files(current_app.config)
+    try:
+        result = reprice_xccy_from_page(request.form, data_files)
+    except (XccyPageInputError, PricingError, RuntimeError) as exc:
+        flash(f"XCCY repricing rejected: {exc}", "error")
+    except Exception:
+        current_app.logger.exception("Unexpected callable-XCCY web repricing failure")
+        flash("XCCY repricing failed unexpectedly. Review the local application log.", "error")
+    else:
+        npv = result["valuation"]["callable_npv"]["mean"]
+        flash(
+            f"XCCY recalibration and repricing completed: callable NPV ${npv:,.2f} USD.",
+            "success",
+        )
+    return redirect(url_for("workbench.xccy_callable") + "#model")
+
+
+@workbench_bp.get("/xccy-callable/json/<dataset>")
+@login_required
+def xccy_callable_json(dataset):
+    path = xccy_data_files(current_app.config).get(dataset)
+    if path is None or not path.is_file():
+        abort(404)
+    return Response(
+        path.read_text(encoding="utf-8"),
+        mimetype="application/json",
+        headers={"Content-Disposition": f'inline; filename="{path.name}"'},
     )
 
 

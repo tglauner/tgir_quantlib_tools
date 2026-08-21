@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b7463'/%3E%3Cpath d='M14 19h36v7H36v23h-8V26H14z' fill='%23fffaf0'/%3E%3C/svg%3E">
   <title>{% block title %}TGIR QuantLib Tools{% endblock %}</title>
   <style>
     :root {
@@ -64,7 +65,7 @@
 
     .brand-lockup strong {
       font-size: 0.88rem;
-      letter-spacing: 0.08em;
+      letter-spacing: 0.04em;
       text-transform: uppercase;
     }
 
@@ -101,8 +102,8 @@
     .hero h1 {
       margin: 0;
       font-size: clamp(1.4rem, 2.7vw, 2rem);
-      line-height: 1.02;
-      letter-spacing: -0.04em;
+      line-height: 1.08;
+      letter-spacing: 0;
     }
 
     .hero p {
@@ -174,7 +175,7 @@
     .panel h3 {
       margin: 0;
       font-size: 1.05rem;
-      letter-spacing: -0.03em;
+      letter-spacing: 0;
     }
 
     .panel p {
@@ -231,6 +232,13 @@
       cursor: pointer;
       transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
       box-shadow: 0 12px 28px rgba(19, 33, 48, 0.14);
+    }
+
+    .btn:focus-visible,
+    button.btn:focus-visible,
+    a:focus-visible {
+      outline: 3px solid rgba(11, 116, 99, 0.32);
+      outline-offset: 3px;
     }
 
     .btn:hover,
@@ -396,6 +404,14 @@
       outline: none;
     }
 
+    input[type="number"],
+    input[type="date"] {
+      background:
+        linear-gradient(180deg, rgba(11, 116, 99, 0.05), rgba(255, 255, 255, 0)),
+        rgba(255, 255, 255, 0.96);
+      border-color: rgba(11, 116, 99, 0.22);
+    }
+
     input:focus,
     select:focus {
       border-color: rgba(11, 116, 99, 0.45);
@@ -441,6 +457,42 @@
       font-size: 0.78rem;
       margin-top: 7px;
       line-height: 1.42;
+    }
+
+    .workflow-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .workflow-item {
+      padding: 10px 11px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.74);
+      border: 1px solid rgba(19, 33, 48, 0.07);
+    }
+
+    .workflow-item span {
+      display: block;
+      color: var(--muted);
+      font-size: 0.62rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .workflow-item strong {
+      display: block;
+      font-size: 0.88rem;
+      line-height: 1.25;
+    }
+
+    .field-hint {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 0.72rem;
+      line-height: 1.35;
     }
 
     .subtle-divider {
@@ -899,6 +951,15 @@
       content: "";
     }
 
+    .calc-cell {
+      color: var(--ink);
+      background: rgba(19, 33, 48, 0.035);
+      border-radius: 8px;
+      padding: 5px 7px;
+      display: inline-block;
+      min-width: 74px;
+    }
+
     .neutral-value {
       color: var(--ink);
       font-weight: 700;
@@ -941,6 +1002,7 @@
 
       .summary-strip,
       .metric-strip,
+      .workflow-strip,
       .tight-form-grid,
       .workstation-form-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -968,6 +1030,7 @@
 
       .summary-strip,
       .metric-strip,
+      .workflow-strip,
       .tight-form-grid,
       .workstation-form-grid,
       .form-grid {
@@ -990,6 +1053,7 @@
             <div class="header-toolbar">
               <a class="btn btn-secondary btn-mini {% if request.endpoint == 'workbench.dashboard' %}btn-active{% endif %}" href="{{ url_for('workbench.dashboard') }}">Dashboard</a>
               <a class="btn btn-secondary btn-mini {% if request.endpoint == 'workbench.dashboard_ibkr' %}btn-active{% endif %}" href="{{ url_for('workbench.dashboard_ibkr') }}">IBKR Compare</a>
+              <a class="btn btn-secondary btn-mini {% if request.endpoint == 'workbench.xccy_callable' %}btn-active{% endif %}" href="{{ url_for('workbench.xccy_callable') }}">XCCY Callable</a>
               <a class="btn btn-secondary btn-mini {% if request.endpoint == 'workbench.quantlib_data_model' %}btn-active{% endif %}" href="{{ url_for('workbench.quantlib_data_model') }}" target="_blank" rel="noopener noreferrer">QuantLib Model</a>
               <a class="btn btn-secondary btn-mini" href="{{ url_for('workbench.quantlib_data_model') }}#research-library" target="_blank" rel="noopener noreferrer">Research</a>
               <a class="btn btn-secondary btn-mini" href="https://github.com/tglauner/tgir_quantlib_tools" target="_blank" rel="noopener noreferrer">Repo GitHub</a>

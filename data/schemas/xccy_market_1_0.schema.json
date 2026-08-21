@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "xccy-market/1.0",
+  "title": "EURUSD callable XCCY market input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "as_of", "fx", "curves", "rate_models", "swaptions", "fx_options", "correlation"],
+  "properties": {
+    "schema": {"const": "xccy-market/1.0"},
+    "as_of": {"type": "string", "format": "date"},
+    "source": {"type": "string"},
+    "fx": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pair", "quote", "spot", "forwards"],
+      "properties": {
+        "pair": {"const": "EURUSD"},
+        "quote": {"const": "USD_PER_EUR"},
+        "spot": {"type": "number", "exclusiveMinimum": 0},
+        "forwards": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/fxForward"}
+        }
+      }
+    },
+    "curves": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["USD-SOFR", "EUR-ESTR"],
+      "properties": {
+        "USD-SOFR": {"$ref": "#/$defs/oisCurve"},
+        "EUR-ESTR": {"$ref": "#/$defs/oisCurve"}
+      }
+    },
+    "rate_models": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["USD", "EUR"],
+      "properties": {
+        "USD": {"$ref": "#/$defs/rateModel"},
+        "EUR": {"$ref": "#/$defs/rateModel"}
+      }
+    },
+    "swaptions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["USD", "EUR"],
+      "properties": {
+        "USD": {"$ref": "#/$defs/swaptionSurface"},
+        "EUR": {"$ref": "#/$defs/swaptionSurface"}
+      }
+    },
+    "fx_options": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "points"],
+      "properties": {
+        "type": {"const": "BLACK_ATM"},
+        "points": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/fxOption"}
+        }
+      }
+    },
+    "correlation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["USD_EUR", "USD_FX", "EUR_FX"],
+      "properties": {
+        "USD_EUR": {"type": "number", "minimum": -1, "maximum": 1},
+        "USD_FX": {"type": "number", "minimum": -1, "maximum": 1},
+        "EUR_FX": {"type": "number", "minimum": -1, "maximum": 1}
+      }
+    },
+    "calibration_limits": {
+      "type": "object",
+      "properties": {
+        "ois_error_bp": {"type": "number", "minimum": 0},
+        "swaption_weighted_rms_relative_error": {"type": "number", "minimum": 0},
+        "fx_abs_vol_error": {"type": "number", "minimum": 0}
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "fxForward": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tenor", "outright"],
+      "properties": {
+        "tenor": {"type": "string"},
+        "outright": {"type": "number", "exclusiveMinimum": 0}
+      }
+    },
+    "oisCurve": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["instruments"],
+      "properties": {
+        "settlement_days": {"type": "integer", "minimum": 0},
+        "instruments": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["type", "tenor", "rate"],
+            "properties": {
+              "type": {"const": "OIS"},
+              "tenor": {"type": "string"},
+              "rate": {"type": "number"}
+            }
+          }
+        }
+      }
+    },
+    "rateModel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mean_reversion", "initial_sigma"],
+      "properties": {
+        "mean_reversion": {"type": "number", "exclusiveMinimum": 0},
+        "initial_sigma": {"type": "number", "exclusiveMinimum": 0}
+      }
+    },
+    "swaptionSurface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "points"],
+      "properties": {
+        "type": {"const": "NORMAL"},
+        "points": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["expiry", "tenor", "normal_vol_bp"],
+            "properties": {
+              "expiry": {"type": "string"},
+              "tenor": {"type": "string"},
+              "normal_vol_bp": {"type": "number", "exclusiveMinimum": 0}
+            }
+          }
+        }
+      }
+    },
+    "fxOption": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tenor", "black_vol"],
+      "properties": {
+        "tenor": {"type": "string"},
+        "black_vol": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 3}
+      }
+    }
+  }
+}

@@ -1,3 +1,5 @@
 Flask
 QuantLib
+mcp==2.0.0
+numpy
 pandas

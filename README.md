@@ -1,6 +1,8 @@
-# QuantLib Test
+# TGIR QuantLib Tools
 
-This repository showcases small examples of using [QuantLib](https://www.quantlib.org/) from Python. It includes a session-protected Flask workbench for repricing a compact rates portfolio and a few stand-alone scripts for curve inspection and pricing checks.
+This repository is a compact Python and [QuantLib](https://www.quantlib.org/) pricing sandbox. It includes a session-protected Flask workbench for rates and equity examples, stand-alone curve and pricing scripts, and a reference callable EUR/USD cross-currency swap pricer using two one-factor Hull–White rate models, lognormal FX, Monte Carlo, and Longstaff–Schwartz regression.
+
+The callable-XCCY functionality is available both from the command line and through a read-only Model Context Protocol (MCP) server. It is a transparent research/reference implementation—not a production-approved or independently validated bank model.
 
 ## Repository Structure
 
@@ -11,10 +13,15 @@ This repository showcases small examples of using [QuantLib](https://www.quantli
 | `portfolio.py` | Functions for bootstrapping a SOFR OIS curve, repricing quoted OIS swaps, storing the ATM swaption vol matrix, creating interest-rate swaps and swaptions, building the SPX cliquet trade analytics, and pricing the five-trade portfolio. |
 | `build_SOFR_curve.py` | Script that constructs a SOFR OIS term structure from market quotes, prints discount factors for select maturities, and shows a repricing table for calibration swaps. |
 | `price_bermudan_swaption.py` | Prints the Bermudan swaption mark from the shared portfolio pricing path. |
+| `standalone_xccy_pricer.py` | Stand-alone callable EUR/USD XCCY pricer with OIS bootstraps, Hull–White and FX calibration, exact joint Gaussian simulation, and two-pass Bermudan LSM. |
+| `xccy_pricer_diagnostics.py` | Common-random-number bump-and-revalue Greeks, half-bump stability checks, and an independent path-count convergence diagnostic. |
+| `xccy_pricer_mcp.py` | MCP 2.0 server exposing structured single-deal validation and pricing tools over stdio or loopback Streamable HTTP. |
 | `today.py` | Minimal example showing how to set QuantLib's evaluation date. |
+| `data/xccy_*.json` | Illustrative EUR/USD market snapshot and 10Y NC2 receive-€STR/pay-USD-fixed sample deal. |
+| `data/schemas/` | Versioned JSON Schemas for callable-XCCY market and deal inputs. |
 | `templates/` | HTML templates used by the web app. `login.html` renders the sign-in screen, `dashboard.html` renders the workstation with rates and SPX market panels, `quantlib_model.html` renders the data-model and research page, `trade_form.html` renders the detailed trade editors, and `base.html` holds the shared styling. |
-| `tests/` | Smoke tests for the Flask route and portfolio, OIS and Bermudan calibration repricing checks, and a dedicated cliquet identity suite. |
-| `docs/` | Architecture notes, runbook notes, a research memo, and a full LaTeX documentation set for end users, quants, developers, IT, testing, and deployment. |
+| `tests/` | Flask and portfolio smoke tests, curve/model calibration checks, cliquet identities, callable-XCCY quantitative tests, and MCP/risk/convergence tests. |
+| `docs/` | Architecture and runbook notes, callable-XCCY specifications, MCP and REST integration guides, research material, and the LaTeX documentation set. |
 | `deploy/` | Example production environment, systemd, and Apache templates for DigitalOcean deployment. |
 | `.github/workflows/` | GitHub Actions workflows for CI and DigitalOcean CD. |
 | `AGENTS.md` | Repo-specific Codex guidance for working in this codebase. |
@@ -82,6 +89,7 @@ The dashboard then derives and displays:
 - An on-demand OIS repricing table across the quoted SOFR pillars
 - A Bermudan pricing grid plus Bermudan trade-detail call-schedule rows showing each exercise date, the remaining swap it exercises into, and the matrix source points used by calibration
 - A dedicated QuantLib data-model page at `/quantlib-data-model`, with a top-bar `Research` shortcut to the paper list and a `QuantLib GitHub` link to the upstream library repo
+- A dedicated callable-XCCY quantitative page at `/xccy-callable`, opened from the dashboard’s `Open XCCY callable lab` button, with deal terms, typeset model dynamics, editable validated correlations, full recalibration/repricing, calibration fits, valuation, exercise probabilities, LSM diagnostics, martingale checks, limitations, and authenticated raw JSON views
 - An SPX cliquet editor page with analytic Greeks, reset-by-reset decomposition, a spot-vol scenario grid, and a Monte Carlo payoff profile
 - A downloadable curve debug file at `/curve-debug.csv`
 
@@ -109,6 +117,76 @@ When `FLASK_DEBUG=1`, the app falls back to a local development password if you 
   ./.venv/bin/python today.py
   ```
 
+### Callable EUR/USD Cross-Currency Swap
+
+The supplied example is a constant-notional 10Y NC2 swap in which the option holder receives quarterly compounded EUR €STR and pays semiannual USD fixed at 4%. It has annual cancellation dates from year 2 through year 9, USD collateral/reporting, explicit EUR and USD notionals, and initial and final notional exchanges.
+
+Run the JSON-driven valuation with:
+
+```bash
+./.venv/bin/python standalone_xccy_pricer.py \
+  --market data/xccy_market_eurusd.json \
+  --deal data/xccy_deal_10y_nc2.json \
+  --output result.json
+```
+
+For a quicker smoke valuation:
+
+```bash
+./.venv/bin/python standalone_xccy_pricer.py \
+  --market data/xccy_market_eurusd.json \
+  --deal data/xccy_deal_10y_nc2.json \
+  --output result.json \
+  --training-paths 1000 \
+  --pricing-paths 2000
+```
+
+The result contains callable and non-callable NPV, Monte Carlo standard errors and confidence intervals, the embedded cancellation value, leg PVs, exercise probabilities, calibration residuals, martingale diagnostics, LSM regression diagnostics, numerical settings, software versions, and a normalized input hash.
+
+The model is simulated under the USD money-market measure:
+
+- one-factor Hull–White dynamics for USD and EUR rates;
+- the negative foreign-rate quanto drift for EURUSD quoted as USD per EUR;
+- piecewise-constant ATM Black FX volatility;
+- exact affine OU state transitions with joint rate/FX covariance integration;
+- pathwise USD discounting and EUR cash-flow conversion; and
+- backward LSM training followed by a frozen policy on an independently seeded pricing sample.
+
+QuantLib supplies dates, calendars, OIS helpers, curve bootstraps, swaption helpers, Hull–White calibration, and Jamshidian benchmark engines. The complete correlated cross-currency simulation and callable LSM engine are explicit Python because QuantLib does not provide this full hybrid product engine natively.
+
+Version 1 deliberately uses one constant Hull–White volatility per currency, deterministic forecast/discount and cross-currency basis, ATM-only FX volatility, and the continuous-time bank-account equivalent of compounded €STR with zero lookback and lockout. The LSM value is a lower-bound estimate and requires convergence and independent model validation before controlled use. The sample market JSON is illustrative and must be replaced with an approved snapshot.
+
+Detailed documents:
+
+- [Callable-XCCY pricing specification](docs/callable_bermudan_xccy_swap_pricing_spec.md)
+- [Quantitative two-pager](docs/callable_bermudan_xccy_quant_two_pager.md)
+- [Three-page implementation specification](docs/latex/standalone_callable_xccy_pricer_spec.tex)
+- [Local command-line guide](docs/local_command_line_testing.md)
+
+### MCP Single-Deal Pricing
+
+The MCP server exposes two structured, read-only tools:
+
+- `xccy_validate_deal` checks the versioned schemas and semantic pricing prerequisites. It returns `READY`, `NEEDS_INPUT`, or `INVALID`; incomplete requests include concrete questions for the calling system to ask rather than guessed values.
+- `xccy_price_deal` validates and prices exactly one deal. Optional flags add common-random-number Greeks, half-bump stability, path-count convergence, and full versus summarized audit output.
+
+For a local MCP host using stdio:
+
+```bash
+./.venv/bin/python xccy_pricer_mcp.py --transport stdio
+```
+
+For another process on the same machine using Streamable HTTP:
+
+```bash
+./.venv/bin/python xccy_pricer_mcp.py \
+  --transport streamable-http \
+  --host 127.0.0.1 \
+  --port 8765
+```
+
+Connect to `http://127.0.0.1:8765/mcp`. The reference server deliberately refuses non-loopback binding because it does not implement authentication. Remote use requires an authenticated TLS reverse proxy or a validated MCP authorization provider. See [docs/mcp_xccy_pricer.md](docs/mcp_xccy_pricer.md) for the request contract, Python client example, diagnostics, and security boundary.
+
 ## Testing
 
 Run the smoke tests with:
@@ -117,7 +195,7 @@ Run the smoke tests with:
 ./.venv/bin/python -m unittest discover -s tests
 ```
 
-The suite now covers:
+The current suite contains 46 tests and covers:
 
 - OIS calibration repricing
 - Hull-White and G2++ Bermudan calibration sanity checks against the fixed-maturity call schedule
@@ -125,7 +203,25 @@ The suite now covers:
 - Bermudan benchmark call-schedule mapping and interpolated matrix-source checks
 - Bermudan workbook-reference pricing under the default Hull-White 1F setup
 - Flask route and session smoke tests
+- Callable-XCCY page access control, dashboard navigation, quantitative content, JSON views, correlation validation, and safe result refresh tests
 - A ten-case cliquet identity portfolio where the cliquet collapses to simpler instruments or deterministic limits
+- Callable-XCCY JSON and semantic validation, NC2 schedules, calibration tolerances, exact FX-variance and zero-volatility limits
+- Domestic-discount, discounted-FX, and FX-converted foreign-bank-account martingale checks
+- Reproducible two-pass LSM training/pricing, value identities, and exercise-probability conservation
+- MCP tool discovery, structured output, incomplete-deal questions, and a complete single-deal valuation
+- Common-random-number FX delta and parallel USD/EUR DV01 half-bump stability
+- Independent low/high path-count convergence within a four-combined-standard-error tolerance
+
+Run only the callable-XCCY and MCP controls with:
+
+```bash
+./.venv/bin/python -m unittest \
+  tests.test_xccy_callable_pricer \
+  tests.test_xccy_pricer_mcp \
+  -v
+```
+
+These controls are appropriate for a transparent reference implementation. They are not a substitute for an independent implementation, multi-exercise dual upper bounds, seed ensembles, historical calibration studies, comprehensive Greeks, or formal model-risk approval.
 
 ## LaTeX Documentation
 
@@ -147,6 +243,7 @@ That directory now includes:
 - IT operations guide and slides
 - A separate testing and regression guide
 - A separate CI/CD and DigitalOcean deployment guide
+- A three-page stand-alone callable-XCCY implementation specification
 
 Useful route checks:
 

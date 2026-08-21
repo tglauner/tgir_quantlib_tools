@@ -74,8 +74,8 @@ class PortfolioSmokeTests(unittest.TestCase):
         response = self.login()
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b"SOFR market and zero rates, ATM vol surface, callable grid, SPX cliquet.", response.data)
-        self.assertIn(b"Five trades stay on the blotter.", response.data)
+        self.assertIn(b"Review trade marks, update market inputs, and inspect QuantLib diagnostics.", response.data)
+        self.assertIn(b"Start with the blotter", response.data)
         self.assertIn(DEFAULT_VALUATION_DATE_ISO.encode("utf-8"), response.data)
         self.assertIn(b"IBKR Compare", response.data)
         self.assertIn(b"Research", response.data)
@@ -153,7 +153,20 @@ class PortfolioSmokeTests(unittest.TestCase):
         self.assertEqual(payload["market_snapshot"]["hw_mean_reversion"], 0.06)
         self.assertEqual(payload["market_snapshot"]["valuation_date_iso"], DEFAULT_VALUATION_DATE_ISO)
         self.assertEqual(len(payload["market_snapshot"]["zero_rate_rows"]), len(SOFR_CURVE_TENOR_LABELS))
-        self.assertEqual(len(payload["forward_rate_chart"]["x_ticks"]), SOFR_FORWARD_HORIZON_YEARS + 1)
+        expected_tick_labels = ["Start"] + [
+            f"{year}Y" for year in range(5, SOFR_FORWARD_HORIZON_YEARS + 1, 5)
+        ]
+        self.assertEqual(
+            [tick["label"] for tick in payload["forward_rate_chart"]["x_ticks"]],
+            expected_tick_labels,
+        )
+        self.assertEqual(
+            [series["label"] for series in payload["forward_rate_chart"]["series"]],
+            ["Regular SOFR daily 1D fwd", "Scenario SOFR daily 1D fwd"],
+        )
+        self.assertTrue(
+            all(series["point_count"] > 0 for series in payload["forward_rate_chart"]["series"])
+        )
         self.assertEqual(len(payload["blotter_rows"]), 5)
         self.assertEqual(len(payload["bermudan_grid_rows"]), 9)
         self.assertEqual(payload["blotter_rows"][0]["Type"], "Swap")
@@ -320,6 +333,8 @@ class PortfolioSmokeTests(unittest.TestCase):
         self.assertIn(b"SPX cliquet assumptions", response.data)
         self.assertIn(b"Open forward strip", response.data)
         self.assertIn(b"Open OIS repricing", response.data)
+        self.assertIn(b"Regular SOFR daily 1D fwd", response.data)
+        self.assertIn(b"Scenario SOFR daily 1D fwd", response.data)
 
     def test_curve_debug_csv_downloads(self):
         self.login()

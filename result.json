@@ -1,0 +1,884 @@
+{
+  "schema": "callable-xccy-result/1.0",
+  "status": "OK",
+  "run_id": "4373720a-0bab-4f4d-be53-d6d815847e95",
+  "trade_id": "EURUSD-10Y-NC2-ESTR-VS-USD4",
+  "as_of": "2026-08-14",
+  "currency": "USD",
+  "model": {
+    "id": "HW1F_USD_HW1F_EUR_BSFX_LSM_V1",
+    "measure": "USD_MONEY_MARKET",
+    "fx_quote": "USD_PER_EUR",
+    "rate_volatility_parameterization": "ONE_PIECE_CONSTANT",
+    "usd_hull_white": {
+      "a": 0.03,
+      "sigma": 0.008853182197661172
+    },
+    "eur_hull_white": {
+      "a": 0.04,
+      "sigma": 0.007723704974127296
+    },
+    "fx_bucket_ends_years": [
+      1.0054794520547945,
+      2.0027397260273974,
+      3.0027397260273974,
+      5.002739726027397,
+      7.008219178082192,
+      10.008219178082191
+    ],
+    "fx_sigmas": [
+      0.1243849501676807,
+      0.11650751347831635,
+      0.11098661616011118,
+      0.102166197124764,
+      0.09003231532570666,
+      0.06584207481769967
+    ],
+    "correlation": [
+      [
+        1.0,
+        0.3,
+        -0.15
+      ],
+      [
+        0.3,
+        1.0,
+        -0.3
+      ],
+      [
+        -0.15,
+        -0.3,
+        1.0
+      ]
+    ],
+    "foreign_quanto_drift_sign": "NEGATIVE",
+    "basis": "DETERMINISTIC_FORECAST_DISCOUNT"
+  },
+  "valuation": {
+    "callable_npv": {
+      "mean": 8338546.291987418,
+      "standard_deviation": 22383683.64619148,
+      "standard_error": 129232.25778584076,
+      "confidence_95_low": 8085255.7210863745,
+      "confidence_95_high": 8591836.862888463
+    },
+    "non_callable_npv": {
+      "mean": 688796.9659368019,
+      "standard_deviation": 29838116.880150024,
+      "standard_error": 172270.44812866134,
+      "confidence_95_low": 351153.0920040501,
+      "confidence_95_high": 1026440.8398695537
+    },
+    "embedded_option_value": {
+      "mean": 7649749.326050617,
+      "standard_deviation": 13878722.590669148,
+      "standard_error": 80128.84223730973,
+      "confidence_95_low": 7492699.681142597,
+      "confidence_95_high": 7806798.970958636
+    },
+    "usd_fixed_leg_pv": {
+      "mean": -1055188.9212397253,
+      "standard_deviation": 11659092.310798965,
+      "standard_error": 67313.80084146479,
+      "confidence_95_low": -1187121.5465514984,
+      "confidence_95_high": -923256.2959279523
+    },
+    "eur_estr_leg_pv_in_usd": {
+      "mean": 1743985.8871765272,
+      "standard_deviation": 29088735.968608797,
+      "standard_error": 167943.8954186224,
+      "confidence_95_low": 1414821.9007326658,
+      "confidence_95_high": 2073149.8736203886
+    },
+    "static_curve_benchmark": {
+      "USD_FIXED": -1066546.339080589,
+      "EUR_ESTR_IN_USD": 1746026.362774259,
+      "total": 679480.02369367
+    }
+  },
+  "exercise": [
+    {
+      "call_index": 0,
+      "alive_paths": 30000,
+      "exercise_paths": 4228,
+      "unconditional_probability": 0.14093333333333333,
+      "conditional_probability": 0.14093333333333333,
+      "exercise_date": "2028-08-18"
+    },
+    {
+      "call_index": 1,
+      "alive_paths": 25772,
+      "exercise_paths": 2931,
+      "unconditional_probability": 0.0977,
+      "conditional_probability": 0.113728076982772,
+      "exercise_date": "2029-08-20"
+    },
+    {
+      "call_index": 2,
+      "alive_paths": 22841,
+      "exercise_paths": 1693,
+      "unconditional_probability": 0.056433333333333335,
+      "conditional_probability": 0.07412109802548049,
+      "exercise_date": "2030-08-19"
+    },
+    {
+      "call_index": 3,
+      "alive_paths": 21148,
+      "exercise_paths": 1399,
+      "unconditional_probability": 0.04663333333333333,
+      "conditional_probability": 0.06615282769056176,
+      "exercise_date": "2031-08-18"
+    },
+    {
+      "call_index": 4,
+      "alive_paths": 19749,
+      "exercise_paths": 1046,
+      "unconditional_probability": 0.034866666666666664,
+      "conditional_probability": 0.05296470707377589,
+      "exercise_date": "2032-08-18"
+    },
+    {
+      "call_index": 5,
+      "alive_paths": 18703,
+      "exercise_paths": 875,
+      "unconditional_probability": 0.029166666666666667,
+      "conditional_probability": 0.04678393840560338,
+      "exercise_date": "2033-08-18"
+    },
+    {
+      "call_index": 6,
+      "alive_paths": 17828,
+      "exercise_paths": 482,
+      "unconditional_probability": 0.016066666666666667,
+      "conditional_probability": 0.02703612295265874,
+      "exercise_date": "2034-08-18"
+    },
+    {
+      "call_index": 7,
+      "alive_paths": 17346,
+      "exercise_paths": 2008,
+      "unconditional_probability": 0.06693333333333333,
+      "conditional_probability": 0.11576155886083248,
+      "exercise_date": "2035-08-20"
+    },
+    {
+      "call_index": null,
+      "alive_paths": 15338,
+      "exercise_paths": 0,
+      "unconditional_probability": 0.5112666666666666,
+      "conditional_probability": null,
+      "label": "NO_EXERCISE"
+    }
+  ],
+  "calibration": {
+    "accepted": true,
+    "curve_rows": [
+      {
+        "curve": "USD-OIS",
+        "tenor": "1W",
+        "market_rate": 0.041,
+        "model_rate": 0.040999999999994534,
+        "error_bp": -5.467848396278896e-11
+      },
+      {
+        "curve": "USD-OIS",
+        "tenor": "1M",
+        "market_rate": 0.0408,
+        "model_rate": 0.040800000000001696,
+        "error_bp": 1.6930901125533637e-11
+      },
+      {
+        "curve": "USD-OIS",
+        "tenor": "3M",
+        "market_rate": 0.0404,
+        "model_rate": 0.04040000000000053,
+        "error_bp": 5.342948306008566e-12
+      },
+      {
+        "curve": "USD-OIS",
+        "tenor": "6M",
+        "market_rate": 0.0398,
+        "model_rate": 0.039800000000005296,
+        "error_bp": 5.294376048681215e-11
+      },
+      {
+        "curve": "USD-OIS",
+        "tenor": "1Y",
+        "market_rate": 0.039,
+        "model_rate": 0.038999999999999924,
+        "error_bp": -7.632783294297951e-13
+      },
+      {
+        "curve": "USD-OIS",
+        "tenor": "2Y",
+        "market_rate": 0.0378,
+        "model_rate": 0.03780000000000001,
+        "error_bp": 6.938893903907228e-14
+      },
+      {
+        "curve": "USD-OIS",
+        "tenor": "3Y",
+        "market_rate": 0.0372,
+        "model_rate": 0.037200000000042914,
+        "error_bp": 4.291705879566621e-10
+      },
+      {
+        "curve": "USD-OIS",
+        "tenor": "4Y",
+        "market_rate": 0.037,
+        "model_rate": 0.03700000000000024,
+        "error_bp": 2.42861286636753e-12
+      },
+      {
+        "curve": "USD-OIS",
+        "tenor": "5Y",
+        "market_rate": 0.0371,
+        "model_rate": 0.03709999999999833,
+        "error_bp": -1.672273430841642e-11
+      },
+      {
+        "curve": "USD-OIS",
+        "tenor": "6Y",
+        "market_rate": 0.0373,
+        "model_rate": 0.03729999999999342,
+        "error_bp": -6.578071420904053e-11
+      },
+      {
+        "curve": "USD-OIS",
+        "tenor": "7Y",
+        "market_rate": 0.0376,
+        "model_rate": 0.03759999999998768,
+        "error_bp": -1.2323475573339238e-10
+      },
+      {
+        "curve": "USD-OIS",
+        "tenor": "8Y",
+        "market_rate": 0.0379,
+        "model_rate": 0.03789999999999255,
+        "error_bp": -7.452372052796363e-11
+      },
+      {
+        "curve": "USD-OIS",
+        "tenor": "9Y",
+        "market_rate": 0.0382,
+        "model_rate": 0.038199999999995134,
+        "error_bp": -4.864164626638967e-11
+      },
+      {
+        "curve": "USD-OIS",
+        "tenor": "10Y",
+        "market_rate": 0.0385,
+        "model_rate": 0.03849999999999693,
+        "error_bp": -3.066991105526995e-11
+      },
+      {
+        "curve": "USD-OIS",
+        "tenor": "12Y",
+        "market_rate": 0.039,
+        "model_rate": 0.038999999999990084,
+        "error_bp": -9.915679388683429e-11
+      },
+      {
+        "curve": "USD-OIS",
+        "tenor": "15Y",
+        "market_rate": 0.0395,
+        "model_rate": 0.03949999999999999,
+        "error_bp": -6.938893903907228e-14
+      },
+      {
+        "curve": "EUR-OIS",
+        "tenor": "1W",
+        "market_rate": 0.0255,
+        "model_rate": 0.025500000000001476,
+        "error_bp": 1.4779844015322396e-11
+      },
+      {
+        "curve": "EUR-OIS",
+        "tenor": "1M",
+        "market_rate": 0.0254,
+        "model_rate": 0.02540000000000137,
+        "error_bp": 1.3704315460216776e-11
+      },
+      {
+        "curve": "EUR-OIS",
+        "tenor": "3M",
+        "market_rate": 0.0252,
+        "model_rate": 0.025200000000000007,
+        "error_bp": 6.938893903907228e-14
+      },
+      {
+        "curve": "EUR-OIS",
+        "tenor": "6M",
+        "market_rate": 0.0249,
+        "model_rate": 0.02490000000000065,
+        "error_bp": 6.522560269672795e-12
+      },
+      {
+        "curve": "EUR-OIS",
+        "tenor": "1Y",
+        "market_rate": 0.0245,
+        "model_rate": 0.02450000000004279,
+        "error_bp": 4.2788689258443924e-10
+      },
+      {
+        "curve": "EUR-OIS",
+        "tenor": "2Y",
+        "market_rate": 0.024,
+        "model_rate": 0.024000000000050887,
+        "error_bp": 5.088637844430366e-10
+      },
+      {
+        "curve": "EUR-OIS",
+        "tenor": "3Y",
+        "market_rate": 0.0238,
+        "model_rate": 0.02380000000000058,
+        "error_bp": 5.793976409762536e-12
+      },
+      {
+        "curve": "EUR-OIS",
+        "tenor": "4Y",
+        "market_rate": 0.0238,
+        "model_rate": 0.023800000000011836,
+        "error_bp": 1.1834283553113778e-10
+      },
+      {
+        "curve": "EUR-OIS",
+        "tenor": "5Y",
+        "market_rate": 0.024,
+        "model_rate": 0.023999999999987098,
+        "error_bp": -1.290287321431549e-10
+      },
+      {
+        "curve": "EUR-OIS",
+        "tenor": "6Y",
+        "market_rate": 0.0242,
+        "model_rate": 0.024199999999992755,
+        "error_bp": -7.244205235679146e-11
+      },
+      {
+        "curve": "EUR-OIS",
+        "tenor": "7Y",
+        "market_rate": 0.0245,
+        "model_rate": 0.024499999999985627,
+        "error_bp": -1.4373918721943824e-10
+      },
+      {
+        "curve": "EUR-OIS",
+        "tenor": "8Y",
+        "market_rate": 0.0248,
+        "model_rate": 0.024799999999991003,
+        "error_bp": -8.996275946415722e-11
+      },
+      {
+        "curve": "EUR-OIS",
+        "tenor": "9Y",
+        "market_rate": 0.0251,
+        "model_rate": 0.02509999999999388,
+        "error_bp": -6.120104423246175e-11
+      },
+      {
+        "curve": "EUR-OIS",
+        "tenor": "10Y",
+        "market_rate": 0.0254,
+        "model_rate": 0.02539999999999602,
+        "error_bp": -3.9794556538907955e-11
+      },
+      {
+        "curve": "EUR-OIS",
+        "tenor": "12Y",
+        "market_rate": 0.026,
+        "model_rate": 0.025999999999989636,
+        "error_bp": -1.0363238045485446e-10
+      },
+      {
+        "curve": "EUR-OIS",
+        "tenor": "15Y",
+        "market_rate": 0.0267,
+        "model_rate": 0.02670000000000001,
+        "error_bp": 6.938893903907228e-14
+      },
+      {
+        "curve": "EUR-EFFECTIVE-USD-COLLATERAL",
+        "tenor": "1M",
+        "market_forward": 1.1014,
+        "model_forward": 1.1014,
+        "relative_error": 0.0
+      },
+      {
+        "curve": "EUR-EFFECTIVE-USD-COLLATERAL",
+        "tenor": "3M",
+        "market_forward": 1.1041,
+        "model_forward": 1.1041,
+        "relative_error": 0.0
+      },
+      {
+        "curve": "EUR-EFFECTIVE-USD-COLLATERAL",
+        "tenor": "6M",
+        "market_forward": 1.1082,
+        "model_forward": 1.1082,
+        "relative_error": 0.0
+      },
+      {
+        "curve": "EUR-EFFECTIVE-USD-COLLATERAL",
+        "tenor": "1Y",
+        "market_forward": 1.1165,
+        "model_forward": 1.1165,
+        "relative_error": 0.0
+      },
+      {
+        "curve": "EUR-EFFECTIVE-USD-COLLATERAL",
+        "tenor": "2Y",
+        "market_forward": 1.1332,
+        "model_forward": 1.1332,
+        "relative_error": 0.0
+      },
+      {
+        "curve": "EUR-EFFECTIVE-USD-COLLATERAL",
+        "tenor": "3Y",
+        "market_forward": 1.1502,
+        "model_forward": 1.1501999999999997,
+        "relative_error": -2.220446049250313e-16
+      },
+      {
+        "curve": "EUR-EFFECTIVE-USD-COLLATERAL",
+        "tenor": "4Y",
+        "market_forward": 1.1674,
+        "model_forward": 1.1674,
+        "relative_error": 0.0
+      },
+      {
+        "curve": "EUR-EFFECTIVE-USD-COLLATERAL",
+        "tenor": "5Y",
+        "market_forward": 1.1849,
+        "model_forward": 1.1849,
+        "relative_error": 0.0
+      },
+      {
+        "curve": "EUR-EFFECTIVE-USD-COLLATERAL",
+        "tenor": "6Y",
+        "market_forward": 1.2027,
+        "model_forward": 1.2027,
+        "relative_error": 0.0
+      },
+      {
+        "curve": "EUR-EFFECTIVE-USD-COLLATERAL",
+        "tenor": "7Y",
+        "market_forward": 1.2207,
+        "model_forward": 1.2207,
+        "relative_error": 0.0
+      },
+      {
+        "curve": "EUR-EFFECTIVE-USD-COLLATERAL",
+        "tenor": "8Y",
+        "market_forward": 1.239,
+        "model_forward": 1.239,
+        "relative_error": 0.0
+      },
+      {
+        "curve": "EUR-EFFECTIVE-USD-COLLATERAL",
+        "tenor": "9Y",
+        "market_forward": 1.2576,
+        "model_forward": 1.2576,
+        "relative_error": 0.0
+      },
+      {
+        "curve": "EUR-EFFECTIVE-USD-COLLATERAL",
+        "tenor": "10Y",
+        "market_forward": 1.2765,
+        "model_forward": 1.2765,
+        "relative_error": 0.0
+      },
+      {
+        "curve": "EUR-EFFECTIVE-USD-COLLATERAL",
+        "tenor": "12Y",
+        "market_forward": 1.3152,
+        "model_forward": 1.3152,
+        "relative_error": 0.0
+      }
+    ],
+    "usd_swaption_rows": [
+      {
+        "currency": "USD",
+        "instrument": "2Yx8Y",
+        "market_value": 0.0280914932664307,
+        "model_value": 0.028238003325106065,
+        "relative_price_error": 0.005215459971664949
+      },
+      {
+        "currency": "USD",
+        "instrument": "3Yx7Y",
+        "market_value": 0.02988325273543292,
+        "model_value": 0.029652926493785613,
+        "relative_price_error": -0.007707535845795199
+      },
+      {
+        "currency": "USD",
+        "instrument": "4Yx6Y",
+        "market_value": 0.029351829228754803,
+        "model_value": 0.028774463903554925,
+        "relative_price_error": -0.019670505735780663
+      },
+      {
+        "currency": "USD",
+        "instrument": "5Yx5Y",
+        "market_value": 0.026964287768774794,
+        "model_value": 0.02628480492408523,
+        "relative_price_error": -0.02519936185655236
+      },
+      {
+        "currency": "USD",
+        "instrument": "6Yx4Y",
+        "market_value": 0.023031081316277315,
+        "model_value": 0.022608302113340334,
+        "relative_price_error": -0.018356897669332684
+      },
+      {
+        "currency": "USD",
+        "instrument": "7Yx3Y",
+        "market_value": 0.01802357331231631,
+        "model_value": 0.01793323355270363,
+        "relative_price_error": -0.0050123112685399596
+      },
+      {
+        "currency": "USD",
+        "instrument": "8Yx2Y",
+        "market_value": 0.012345181374519674,
+        "model_value": 0.01253615672309982,
+        "relative_price_error": 0.015469626794978986
+      },
+      {
+        "currency": "USD",
+        "instrument": "9Yx1Y",
+        "market_value": 0.00621239958978747,
+        "model_value": 0.0065287517642837155,
+        "relative_price_error": 0.050922702238325845
+      }
+    ],
+    "eur_swaption_rows": [
+      {
+        "currency": "EUR",
+        "instrument": "2Yx8Y",
+        "market_value": 0.025014057724061282,
+        "model_value": 0.025163535008215505,
+        "relative_price_error": 0.005975731158980979
+      },
+      {
+        "currency": "EUR",
+        "instrument": "3Yx7Y",
+        "market_value": 0.026866331034529244,
+        "model_value": 0.02660111590583994,
+        "relative_price_error": -0.009871654166266453
+      },
+      {
+        "currency": "EUR",
+        "instrument": "4Yx6Y",
+        "market_value": 0.026641392411583555,
+        "model_value": 0.025987056512295867,
+        "relative_price_error": -0.024560874641191277
+      },
+      {
+        "currency": "EUR",
+        "instrument": "5Yx5Y",
+        "market_value": 0.024675287823109543,
+        "model_value": 0.023901884303041,
+        "relative_price_error": -0.03134324209763484
+      },
+      {
+        "currency": "EUR",
+        "instrument": "6Yx4Y",
+        "market_value": 0.021194749974801166,
+        "model_value": 0.02070884203999244,
+        "relative_price_error": -0.022925863026760362
+      },
+      {
+        "currency": "EUR",
+        "instrument": "7Yx3Y",
+        "market_value": 0.016652738867473562,
+        "model_value": 0.01654662062774229,
+        "relative_price_error": -0.006372419610718993
+      },
+      {
+        "currency": "EUR",
+        "instrument": "8Yx2Y",
+        "market_value": 0.0114345637438575,
+        "model_value": 0.011652484763156333,
+        "relative_price_error": 0.01905809650288548
+      },
+      {
+        "currency": "EUR",
+        "instrument": "9Yx1Y",
+        "market_value": 0.005749928612692169,
+        "model_value": 0.006114175078545671,
+        "relative_price_error": 0.06334799792983148
+      }
+    ],
+    "fx_option_rows": [
+      {
+        "instrument": "EURUSD-ATM-1Y",
+        "market_black_vol": 0.125,
+        "model_black_vol": 0.125,
+        "vol_error": 0.0,
+        "diffusion_sigma": 0.1243849501676807
+      },
+      {
+        "instrument": "EURUSD-ATM-2Y",
+        "market_black_vol": 0.122,
+        "model_black_vol": 0.122,
+        "vol_error": 0.0,
+        "diffusion_sigma": 0.11650751347831635
+      },
+      {
+        "instrument": "EURUSD-ATM-3Y",
+        "market_black_vol": 0.12,
+        "model_black_vol": 0.12,
+        "vol_error": 0.0,
+        "diffusion_sigma": 0.11098661616011118
+      },
+      {
+        "instrument": "EURUSD-ATM-5Y",
+        "market_black_vol": 0.117,
+        "model_black_vol": 0.11699999999999999,
+        "vol_error": -1.3877787807814457e-17,
+        "diffusion_sigma": 0.102166197124764
+      },
+      {
+        "instrument": "EURUSD-ATM-7Y",
+        "market_black_vol": 0.115,
+        "model_black_vol": 0.115,
+        "vol_error": 0.0,
+        "diffusion_sigma": 0.09003231532570666
+      },
+      {
+        "instrument": "EURUSD-ATM-10Y",
+        "market_black_vol": 0.112,
+        "model_black_vol": 0.112,
+        "vol_error": 0.0,
+        "diffusion_sigma": 0.06584207481769967
+      }
+    ],
+    "metrics": {
+      "max_ois_error_bp": 5.088637844430366e-10,
+      "usd_swaption_weighted_rms_relative_error": 0.02319233083945347,
+      "eur_swaption_weighted_rms_relative_error": 0.028855625791260633,
+      "fx_max_abs_vol_error": 1.3877787807814457e-17
+    }
+  },
+  "martingale_diagnostics": {
+    "maturity_years": 10.01917808219178,
+    "domestic_discount": {
+      "sample": {
+        "mean": 0.6801322831907002,
+        "standard_deviation": 0.09856861263315198,
+        "standard_error": 0.0005690861503739824,
+        "confidence_95_low": 0.6790168948318667,
+        "confidence_95_high": 0.6812476715495337
+      },
+      "target": 0.6802341133779011
+    },
+    "discounted_fx_zero_coupon": {
+      "sample": {
+        "mean": 0.8681864771783206,
+        "standard_deviation": 0.32051345334960823,
+        "standard_error": 0.0018504852857029288,
+        "confidence_95_low": 0.8645595926644216,
+        "confidence_95_high": 0.8718133616922197
+      },
+      "target": 0.8684570681797135
+    },
+    "discounted_fx_bank_account": {
+      "sample": {
+        "mean": 1.1001682153598042,
+        "standard_deviation": 0.34179748453574904,
+        "standard_error": 0.001973368697050517,
+        "confidence_95_low": 1.0963004837853665,
+        "confidence_95_high": 1.104035946934242
+      },
+      "target": 1.1
+    }
+  },
+  "regression": [
+    {
+      "call_index": 0,
+      "training_paths": 10000,
+      "rank": 10,
+      "basis_size": 10,
+      "condition_number": 4.730334257784005,
+      "ridge": 0.0,
+      "residual_rms": 20658669.369527902,
+      "backward_exercise_fraction": 0.1412
+    },
+    {
+      "call_index": 1,
+      "training_paths": 10000,
+      "rank": 10,
+      "basis_size": 10,
+      "condition_number": 4.866156119754189,
+      "ridge": 0.0,
+      "residual_rms": 19321627.7173967,
+      "backward_exercise_fraction": 0.1968
+    },
+    {
+      "call_index": 2,
+      "training_paths": 10000,
+      "rank": 10,
+      "basis_size": 10,
+      "condition_number": 4.826063863039865,
+      "ridge": 0.0,
+      "residual_rms": 18019286.339332785,
+      "backward_exercise_fraction": 0.2219
+    },
+    {
+      "call_index": 3,
+      "training_paths": 10000,
+      "rank": 10,
+      "basis_size": 10,
+      "condition_number": 5.026633966967274,
+      "ridge": 0.0,
+      "residual_rms": 16235162.00873833,
+      "backward_exercise_fraction": 0.2478
+    },
+    {
+      "call_index": 4,
+      "training_paths": 10000,
+      "rank": 10,
+      "basis_size": 10,
+      "condition_number": 5.35222980308282,
+      "ridge": 0.0,
+      "residual_rms": 14331088.705529138,
+      "backward_exercise_fraction": 0.2589
+    },
+    {
+      "call_index": 5,
+      "training_paths": 10000,
+      "rank": 10,
+      "basis_size": 10,
+      "condition_number": 5.4190293747712275,
+      "ridge": 0.0,
+      "residual_rms": 12068384.619530482,
+      "backward_exercise_fraction": 0.2706
+    },
+    {
+      "call_index": 6,
+      "training_paths": 10000,
+      "rank": 10,
+      "basis_size": 10,
+      "condition_number": 5.781716762256985,
+      "ridge": 0.0,
+      "residual_rms": 10267111.560819736,
+      "backward_exercise_fraction": 0.2735
+    },
+    {
+      "call_index": 7,
+      "training_paths": 10000,
+      "rank": 10,
+      "basis_size": 10,
+      "condition_number": 5.946050672274392,
+      "ridge": 0.0,
+      "residual_rms": 8111077.665103517,
+      "backward_exercise_fraction": 0.4071
+    }
+  ],
+  "schedule": {
+    "effective_date": "2026-08-18",
+    "maturity_date": "2036-08-18",
+    "usd_fixed_payment_dates": [
+      "2027-02-18",
+      "2027-08-18",
+      "2028-02-18",
+      "2028-08-18",
+      "2029-02-20",
+      "2029-08-20",
+      "2030-02-19",
+      "2030-08-19",
+      "2031-02-18",
+      "2031-08-18",
+      "2032-02-18",
+      "2032-08-18",
+      "2033-02-18",
+      "2033-08-18",
+      "2034-02-21",
+      "2034-08-18",
+      "2035-02-20",
+      "2035-08-20",
+      "2036-02-19",
+      "2036-08-18"
+    ],
+    "eur_estr_payment_dates": [
+      "2026-11-18",
+      "2027-02-18",
+      "2027-05-18",
+      "2027-08-18",
+      "2027-11-18",
+      "2028-02-18",
+      "2028-05-18",
+      "2028-08-18",
+      "2028-11-20",
+      "2029-02-20",
+      "2029-05-18",
+      "2029-08-20",
+      "2029-11-19",
+      "2030-02-19",
+      "2030-05-20",
+      "2030-08-19",
+      "2030-11-18",
+      "2031-02-18",
+      "2031-05-19",
+      "2031-08-18",
+      "2031-11-18",
+      "2032-02-18",
+      "2032-05-18",
+      "2032-08-18",
+      "2032-11-18",
+      "2033-02-18",
+      "2033-05-18",
+      "2033-08-18",
+      "2033-11-18",
+      "2034-02-21",
+      "2034-05-18",
+      "2034-08-18",
+      "2034-11-20",
+      "2035-02-20",
+      "2035-05-18",
+      "2035-08-20",
+      "2035-11-19",
+      "2036-02-19",
+      "2036-05-19",
+      "2036-08-18"
+    ],
+    "exercise_dates": [
+      "2028-08-18",
+      "2029-08-20",
+      "2030-08-19",
+      "2031-08-18",
+      "2032-08-18",
+      "2033-08-18",
+      "2034-08-18",
+      "2035-08-20"
+    ]
+  },
+  "numerics": {
+    "training_paths": 10000,
+    "pricing_paths": 30000,
+    "chunk_size": 10000,
+    "seed": 1729,
+    "rng": "NUMPY_PCG64_ANTITHETIC",
+    "time_grid_size": 169,
+    "max_step_years": 0.08333333333333333,
+    "independent_training_and_pricing": true
+  },
+  "provenance": {
+    "normalized_input_sha256": "c391d15407e6875f30957faa2fc76c91f5d5d4c00ea35b602a5cad3f1fed3d84",
+    "quantlib_version": "1.43",
+    "numpy_version": "2.5.2",
+    "python_version": "3.13.5",
+    "runtime_seconds": 0.9787482080282643
+  },
+  "limitations": [
+    "Reference implementation; independent model validation is required before production use.",
+    "Rate volatility is one-piece constant per currency in model version 1.",
+    "Forecast/discount and cross-currency basis are deterministic.",
+    "FX uses ATM lognormal volatility and does not fit a strike smile.",
+    "EUR overnight compounding uses the continuous-time bank-account equivalent with zero lookback and lockout.",
+    "The LSM estimate is a lower bound and must be convergence-tested against a dual or nested-MC benchmark."
+  ]
+}

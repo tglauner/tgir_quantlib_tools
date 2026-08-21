@@ -1,0 +1,51 @@
+{
+  "schema": "callable-xccy-deal/1.0",
+  "trade_id": "EURUSD-10Y-NC2-ESTR-VS-USD4",
+  "effective_date": "2026-08-18",
+  "maturity": "10Y",
+  "reporting_currency": "USD",
+  "collateral_currency": "USD",
+  "notionals": {
+    "USD": 100000000.0,
+    "EUR": 90909090.91
+  },
+  "legs": [
+    {
+      "currency": "EUR",
+      "side": "RECEIVE",
+      "index": "ESTR",
+      "frequency": "3M",
+      "day_count": "ACT/360",
+      "spread": 0.0,
+      "payment_lag_days": 2
+    },
+    {
+      "currency": "USD",
+      "side": "PAY",
+      "fixed_rate": 0.04,
+      "frequency": "6M",
+      "day_count": "30/360",
+      "payment_lag_days": 2
+    }
+  ],
+  "notional_exchanges": {
+    "initial": true,
+    "final": true
+  },
+  "exercise": {
+    "style": "CANCEL_REMAINING_SWAP",
+    "holder": "DEAL_HOLDER",
+    "non_call": "2Y",
+    "frequency": "1Y",
+    "settlement_amount": 0.0,
+    "event_order": "PAY_DUE_THEN_CANCEL"
+  },
+  "numerics": {
+    "training_paths": 10000,
+    "pricing_paths": 30000,
+    "chunk_size": 10000,
+    "seed": 1729,
+    "max_step_years": 0.08333333333333333,
+    "exercise_tolerance": 0.0
+  }
+}

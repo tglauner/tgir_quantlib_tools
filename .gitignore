@@ -57,5 +57,17 @@ output/
 docs/_build/
 .ipynb_checkpoints/
 
+# LaTeX intermediate files
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.nav
+*.out
+*.snm
+*.synctex.gz
+*.toc
+*.vrb
+
 # Sensitive local files
 confidential/

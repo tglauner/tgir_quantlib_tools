@@ -29,7 +29,7 @@
   - Apache on `:443`
   - Gunicorn on `127.0.0.1:8008`
   - systemd service `tgir-quantlib-tools`
-  - app root `/opt/tgir_quantlib_tools`
+  - app root `/var/www/html/tgir_quantlib_tools`
 
 ## SSH and access findings
 

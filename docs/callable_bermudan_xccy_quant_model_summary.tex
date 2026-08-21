@@ -1,0 +1,187 @@
+\documentclass[9pt,letterpaper]{extarticle}
+
+\usepackage[letterpaper,top=0.50in,bottom=0.50in,left=0.56in,right=0.56in,headsep=8pt,footskip=18pt]{geometry}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{booktabs,tabularx,array}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{xcolor}
+\usepackage{microtype}
+\usepackage{titlesec}
+\usepackage{fontspec}
+\usepackage{hyperref}
+
+\setmainfont{Helvetica Neue}
+\setmonofont{Menlo}
+\definecolor{QuantNavy}{HTML}{17324D}
+\definecolor{QuantBlue}{HTML}{2D678F}
+\definecolor{QuantGray}{HTML}{5D6873}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=QuantBlue,
+  urlcolor=QuantBlue,
+  pdftitle={Callable Bermudan Cross-Currency Swap - Quantitative Model Summary},
+  pdfauthor={TG Investments and Research}
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{QuantGray}Quantitative Model Summary}
+\fancyhead[R]{\small\color{QuantGray}Callable Bermudan XCCY Swap}
+\fancyfoot[C]{\small\color{QuantGray}Page \thepage\ of 2}
+\renewcommand{\headrulewidth}{0.3pt}
+\renewcommand{\footrulewidth}{0pt}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{1.5pt plus 0.4pt minus 0.4pt}
+\setlist[itemize]{leftmargin=*,itemsep=0.5pt,topsep=1.5pt,parsep=0pt}
+\setlist[enumerate]{leftmargin=*,itemsep=0.5pt,topsep=1.5pt,parsep=0pt}
+\titlespacing*{\section}{0pt}{5pt}{1.5pt}
+\titlespacing*{\subsection}{0pt}{3.5pt}{1pt}
+\titleformat{\section}{\large\bfseries\color{QuantBlue}}{}{0pt}{}
+\titleformat{\subsection}{\normalsize\bfseries\color{QuantNavy}}{}{0pt}{}
+
+\newcommand{\Qd}{\mathbb{Q}^{d}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\F}{\mathcal{F}}
+\newcommand{\dd}{\,\mathrm{d}}
+\newcommand{\DOM}{\ensuremath{\mathrm{DOM}}}
+\newcommand{\FOR}{\ensuremath{\mathrm{FOR}}}
+
+\begin{document}
+
+{\Large\bfseries\color{QuantNavy} Callable Bermudan Cross-Currency Swap - Quantitative Model Summary}\par
+\vspace{2pt}
+\begin{tabular}{@{}>{\bfseries}l l@{}}
+Model: & two Hull-White rate factors + lognormal FX + Bermudan LSM \\
+Numeraire: & domestic money-market account; values in domestic currency \\
+Perspective: & positive cash flows are receipts by the exercise holder
+\end{tabular}
+
+\section{1. Product and notation}
+
+Consider a two-currency swap with domestic and foreign cash-flow legs, optional initial/final notional exchanges, and exercise dates $t_1<\cdots<t_M$. Define
+\begin{itemize}
+  \item $S_t$ as FX in units of \DOM{} per one unit of \FOR{};
+  \item $P_d(t,T)$ as the domestic collateral discount bond; and
+  \item $P_f^{*}(t,T)$ as the foreign effective discount bond consistent with domestic collateral and cross-currency basis.
+\end{itemize}
+A foreign cash flow $CF_f(T)$ has pathwise domestic value $S_TCF_f(T)$. All cash flows are discounted by the domestic money-market numeraire.
+
+At decision date $t_i$, partition the value into common cash flows $A_i$, an exercise-only settlement $J_i$, and the cancellable continuation tail $Y_i$. With continuation estimate
+\[
+  C_i=\E^{\Qd}\!\left[Y_i\mid\F_{t_i}\right],
+  \qquad
+  \tau^*=\inf\{t_i:J_i>C_i+\varepsilon_{\mathrm{ex}}\},
+\]
+the decision-date value is $A_i+\max(J_i,C_i)$. For zero-fee cancellation, $J_i=0$, so the holder cancels when continuation is negative. For an entry option, $J_i$ is the state-dependent value of entering the swap plus settlement.
+
+\section{2. Joint stochastic model}
+
+Work under the domestic risk-neutral measure $\Qd$. With $S=\DOM/\FOR$, use Hull-White one-factor rates and lognormal FX:
+\begin{align}
+  \dd r_d(t) &= \bigl[\theta_d(t)-a_dr_d(t)\bigr]\dd t+\sigma_d(t)\dd W_d(t), \\
+  \dd r_f(t) &= \bigl[\theta_f(t)-a_fr_f(t)-\rho_{fS}\sigma_f(t)\sigma_S(t)\bigr]\dd t
+                 +\sigma_f(t)\dd W_f(t), \\
+  \frac{\dd S_t}{S_t} &= \bigl[r_d(t)-r_f(t)\bigr]\dd t+\sigma_S(t)\dd W_S(t).
+\end{align}
+The negative foreign-rate quanto term is the measure-change adjustment for the stated FX quotation. Calibrate the foreign curve fit under its foreign/effective numeraire measure and then transform to $\Qd$. Equivalently, verify
+\[
+  S_0P_f^{*}(0,T)=\E^{\Qd}\!\left[D_d(0,T)S_T\right].
+\]
+Reversing the FX quotation or changing numeraire changes the adjustment and requires a fresh derivation.
+
+The instantaneous Brownian correlation matrix is
+\[
+R=
+\begin{pmatrix}
+1 & \rho_{df} & \rho_{dS}\\
+\rho_{df} & 1 & \rho_{fS}\\
+\rho_{dS} & \rho_{fS} & 1
+\end{pmatrix},
+\qquad R=R^{\mathsf T},\quad R\succeq0.
+\]
+Constant correlation is the base model. FX is Black-Scholes only in diffusion form; stochastic rates make the full hybrid model non-analytic.
+
+\subsection{Multi-curve assumption}
+
+Use one stochastic rate factor per currency and deterministic forecast/discount basis. For currency $c$, freeze
+\[
+ B_c(0,T)=\frac{P_c^F(0,T)}{P_c^D(0,T)},
+ \qquad
+ P_c^F(t,T)=P_c^D(t,T)\frac{B_c(0,T)}{B_c(0,t)}.
+\]
+Forward coupons follow from $P_c^F(t,T)$. Stochastic tenor or cross-currency basis requires another factor and is outside the base model.
+
+\newpage
+
+\section{3. Calibration}
+
+\begin{itemize}
+  \item \textbf{Curves:} bootstrap domestic collateral and foreign effective curves from liquid OIS/basis instruments. Reprice the calibration set and enforce FX-forward parity:
+  \[
+    F_{FX}(0,T)=S_0\frac{P_f^{*}(0,T)}{P_d(0,T)}.
+  \]
+  \item \textbf{Domestic HW:} calibrate to domestic normal-vol swaptions on the exercise diagonal. Fix or tightly constrain $a_d$; regularize/bound piecewise $\sigma_d(t)$.
+  \item \textbf{Foreign HW:} use the analogous foreign swaption fit and identification constraints for $a_f$ and $\sigma_f(t)$.
+  \item \textbf{FX diffusion:} fit piecewise $\sigma_S(t)$ to selected ATM/benchmark-tenor FX vanillas in the full hybrid. For multiple strikes, minimize weighted price errors and report smile residuals; exact smile fitting needs local/stochastic volatility.
+  \item \textbf{Correlation:} use governed historical/implied estimates, validate positive semidefiniteness, and stress $\rho_{df}$, $\rho_{dS}$, and $\rho_{fS}$ independently.
+\end{itemize}
+Retain fitted parameters, helper market/model prices, relative errors, optimizer status, and curve/vol/correlation snapshot IDs. Test parameter stability and out-of-sample repricing.
+
+\section{4. Monte Carlo discretization}
+
+The event grid contains every fixing, accrual, payment, notional-exchange, decision, effective, and settlement date, with intermediate steps capped at a chosen maximum interval. Generate correlated normals from a Cholesky/eigen factorization of $R$.
+\begin{itemize}
+  \item Use exact conditional Gaussian Hull-White transitions when available.
+  \item Integrate domestic short rates consistently for pathwise discount factors.
+  \item Evolve log FX using
+  \[
+    \dd\log S_t=\left[r_d(t)-r_f(t)-\tfrac12\sigma_S^2(t)\right]\dd t+\sigma_S(t)\dd W_S(t).
+  \]
+  \item Value conditional zero-coupon bonds analytically from Hull-White states where possible and apply the deterministic basis mapping to forecast curves.
+  \item Start with antithetics; validate Sobol/Brownian-bridge variants independently.
+\end{itemize}
+An independently calculated non-callable XCCY cash-flow PV is the primary control variate and deterministic benchmark.
+
+\section{5. Bermudan exercise by least-squares Monte Carlo}
+
+Use a two-pass Longstaff-Schwartz algorithm.
+
+\textbf{Training pass.} Work backward from $t_M$. At $t_i$, regress the value discounted to $t_i$ of cancellable cash flows in $(t_i,t_{i+1}]$ plus the optimized value at $t_{i+1}$. Exclude common $A_i$ flows from both alternatives and add them outside the exercise comparison. A standardized basis may include
+\[
+\begin{aligned}
+1,&\ r_d,\ r_f,\ \log S,\ PV_d,\ S\,PV_f,\ r_d^2,\ r_f^2,\ (\log S)^2,\\
+& r_dr_f,\ r_d\log S,\ r_f\log S.
+\end{aligned}
+\]
+Use all alive paths for cancellation unless a candidate filter is validated. Record rank, condition number, coefficients, path count, and residual diagnostics; then freeze preprocessing and coefficients.
+
+\textbf{Pricing pass.} Apply the frozen policy forward on independent paths. The first exercise stops only the cancellable tail; retain paid and delayed/common cash flows and add settlement. Discount each realized cash flow to time zero and average. The result is an LSM lower bound. Re-train across seeds and evaluate policies on one common pricing sample to separate policy dispersion from sampling noise.
+
+\section{6. Measures, risks, and validation}
+
+Report callable and non-callable NPV, embedded option value, Monte Carlo error/confidence interval, exercise/no-exercise probabilities, expected exercise time, per-leg PV, and calibration/regression diagnostics. From the holder perspective,
+\[
+  V_{\mathrm{option}}=V_{\mathrm{callable}}-V_{\mathrm{noncallable}}\ge0
+\]
+up to the covariance-aware Monte Carlo error.
+
+Risk uses bump-and-revalue with common random numbers: domestic/foreign curve DV01, forecast- and cross-currency-basis risk, rate vegas, FX delta/gamma/vega, three correlation sensitivities, and Hull-White parameter stresses. State whether each bump recalibrates the model and retrains the stopping policy.
+
+Minimum validation:
+\begin{enumerate}
+  \item no exercise dates reproduce the non-callable XCCY PV;
+  \item zero-vol and identical-currency limits reproduce deterministic/single-currency values;
+  \item one exercise date matches an independent European or nested-MC benchmark;
+  \item domestic-numeraire-discounted domestic and FX-converted foreign assets are martingales under $\Qd$;
+  \item prices converge across paths, grids, bases, and training seeds;
+  \item representative multi-exercise cases compare the LSM lower bound with a dual upper bound or trusted nested-MC benchmark; and
+  \item differences use paired pathwise or covariance-aware errors under common random numbers.
+\end{enumerate}
+
+\vspace{1pt}
+\textbf{References.} F. A. Longstaff and E. S. Schwartz (2001), ``Valuing American Options by Simulation: A Simple Least-Squares Approach.'' QuantLib documentation: \url{https://www.quantlib.org/docs.shtml}.
+
+\end{document}

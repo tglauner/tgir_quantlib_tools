@@ -1,0 +1,123 @@
+{
+  "schema": "xccy-market/1.0",
+  "as_of": "2026-08-14",
+  "source": "ILLUSTRATIVE_REPLACE_WITH_APPROVED_MARKET_SNAPSHOT",
+  "fx": {
+    "pair": "EURUSD",
+    "quote": "USD_PER_EUR",
+    "spot": 1.1,
+    "forwards": [
+      {"tenor": "1M", "outright": 1.1014},
+      {"tenor": "3M", "outright": 1.1041},
+      {"tenor": "6M", "outright": 1.1082},
+      {"tenor": "1Y", "outright": 1.1165},
+      {"tenor": "2Y", "outright": 1.1332},
+      {"tenor": "3Y", "outright": 1.1502},
+      {"tenor": "4Y", "outright": 1.1674},
+      {"tenor": "5Y", "outright": 1.1849},
+      {"tenor": "6Y", "outright": 1.2027},
+      {"tenor": "7Y", "outright": 1.2207},
+      {"tenor": "8Y", "outright": 1.2390},
+      {"tenor": "9Y", "outright": 1.2576},
+      {"tenor": "10Y", "outright": 1.2765},
+      {"tenor": "12Y", "outright": 1.3152}
+    ]
+  },
+  "curves": {
+    "USD-SOFR": {
+      "settlement_days": 2,
+      "instruments": [
+        {"type": "OIS", "tenor": "1W", "rate": 0.0410},
+        {"type": "OIS", "tenor": "1M", "rate": 0.0408},
+        {"type": "OIS", "tenor": "3M", "rate": 0.0404},
+        {"type": "OIS", "tenor": "6M", "rate": 0.0398},
+        {"type": "OIS", "tenor": "1Y", "rate": 0.0390},
+        {"type": "OIS", "tenor": "2Y", "rate": 0.0378},
+        {"type": "OIS", "tenor": "3Y", "rate": 0.0372},
+        {"type": "OIS", "tenor": "4Y", "rate": 0.0370},
+        {"type": "OIS", "tenor": "5Y", "rate": 0.0371},
+        {"type": "OIS", "tenor": "6Y", "rate": 0.0373},
+        {"type": "OIS", "tenor": "7Y", "rate": 0.0376},
+        {"type": "OIS", "tenor": "8Y", "rate": 0.0379},
+        {"type": "OIS", "tenor": "9Y", "rate": 0.0382},
+        {"type": "OIS", "tenor": "10Y", "rate": 0.0385},
+        {"type": "OIS", "tenor": "12Y", "rate": 0.0390},
+        {"type": "OIS", "tenor": "15Y", "rate": 0.0395}
+      ]
+    },
+    "EUR-ESTR": {
+      "settlement_days": 2,
+      "instruments": [
+        {"type": "OIS", "tenor": "1W", "rate": 0.0255},
+        {"type": "OIS", "tenor": "1M", "rate": 0.0254},
+        {"type": "OIS", "tenor": "3M", "rate": 0.0252},
+        {"type": "OIS", "tenor": "6M", "rate": 0.0249},
+        {"type": "OIS", "tenor": "1Y", "rate": 0.0245},
+        {"type": "OIS", "tenor": "2Y", "rate": 0.0240},
+        {"type": "OIS", "tenor": "3Y", "rate": 0.0238},
+        {"type": "OIS", "tenor": "4Y", "rate": 0.0238},
+        {"type": "OIS", "tenor": "5Y", "rate": 0.0240},
+        {"type": "OIS", "tenor": "6Y", "rate": 0.0242},
+        {"type": "OIS", "tenor": "7Y", "rate": 0.0245},
+        {"type": "OIS", "tenor": "8Y", "rate": 0.0248},
+        {"type": "OIS", "tenor": "9Y", "rate": 0.0251},
+        {"type": "OIS", "tenor": "10Y", "rate": 0.0254},
+        {"type": "OIS", "tenor": "12Y", "rate": 0.0260},
+        {"type": "OIS", "tenor": "15Y", "rate": 0.0267}
+      ]
+    }
+  },
+  "rate_models": {
+    "USD": {"mean_reversion": 0.03, "initial_sigma": 0.01},
+    "EUR": {"mean_reversion": 0.04, "initial_sigma": 0.009}
+  },
+  "swaptions": {
+    "USD": {
+      "type": "NORMAL",
+      "points": [
+        {"expiry": "2Y", "tenor": "8Y", "normal_vol_bp": 78.0},
+        {"expiry": "3Y", "tenor": "7Y", "normal_vol_bp": 79.0},
+        {"expiry": "4Y", "tenor": "6Y", "normal_vol_bp": 80.0},
+        {"expiry": "5Y", "tenor": "5Y", "normal_vol_bp": 80.5},
+        {"expiry": "6Y", "tenor": "4Y", "normal_vol_bp": 80.0},
+        {"expiry": "7Y", "tenor": "3Y", "normal_vol_bp": 79.0},
+        {"expiry": "8Y", "tenor": "2Y", "normal_vol_bp": 77.5},
+        {"expiry": "9Y", "tenor": "1Y", "normal_vol_bp": 75.0}
+      ]
+    },
+    "EUR": {
+      "type": "NORMAL",
+      "points": [
+        {"expiry": "2Y", "tenor": "8Y", "normal_vol_bp": 64.0},
+        {"expiry": "3Y", "tenor": "7Y", "normal_vol_bp": 65.0},
+        {"expiry": "4Y", "tenor": "6Y", "normal_vol_bp": 66.0},
+        {"expiry": "5Y", "tenor": "5Y", "normal_vol_bp": 66.5},
+        {"expiry": "6Y", "tenor": "4Y", "normal_vol_bp": 66.0},
+        {"expiry": "7Y", "tenor": "3Y", "normal_vol_bp": 65.0},
+        {"expiry": "8Y", "tenor": "2Y", "normal_vol_bp": 63.5},
+        {"expiry": "9Y", "tenor": "1Y", "normal_vol_bp": 61.0}
+      ]
+    }
+  },
+  "fx_options": {
+    "type": "BLACK_ATM",
+    "points": [
+      {"tenor": "1Y", "black_vol": 0.125},
+      {"tenor": "2Y", "black_vol": 0.122},
+      {"tenor": "3Y", "black_vol": 0.120},
+      {"tenor": "5Y", "black_vol": 0.117},
+      {"tenor": "7Y", "black_vol": 0.115},
+      {"tenor": "10Y", "black_vol": 0.112}
+    ]
+  },
+  "correlation": {
+    "USD_EUR": 0.25,
+    "USD_FX": -0.15,
+    "EUR_FX": -0.30
+  },
+  "calibration_limits": {
+    "ois_error_bp": 0.01,
+    "swaption_weighted_rms_relative_error": 0.05,
+    "fx_abs_vol_error": 0.0025
+  }
+}

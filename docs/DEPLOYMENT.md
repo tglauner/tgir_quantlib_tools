@@ -7,7 +7,7 @@
 - Web tier: Apache
 - App tier: local Gunicorn service bound to `127.0.0.1:8008`
 - Process manager: `systemd`
-- App root: `/opt/tgir_quantlib_tools`
+- App root: `/var/www/html/tgir_quantlib_tools`
 
 ## Current Repo Deployment Assets
 
@@ -39,13 +39,16 @@ That means I could not verify the droplet's live Apache or systemd state from he
 
 ## Recommended Production Layout
 
+Deploy alongside the other apps already hosted on the droplet:
+
 ```text
-/opt/tgir_quantlib_tools/
-  current -> /opt/tgir_quantlib_tools/releases/<release-id>
-  releases/
-  shared/
-    .env
-    debug/
+/var/www/html/tgir_quantlib_tools/
+  .env
+  .venv/
+  debug/
+  tgir_quantlib_tools/
+  templates/
+  wsgi.py
 ```
 
 Apache should terminate TLS on `quant.tglauner.com` and reverse proxy to local Gunicorn on `127.0.0.1:8008`.
@@ -69,14 +72,13 @@ sudo systemctl restart apache2
 ### 3. App directories
 
 ```bash
-sudo mkdir -p /opt/tgir_quantlib_tools/releases
-sudo mkdir -p /opt/tgir_quantlib_tools/shared/debug
-sudo chown -R www-data:www-data /opt/tgir_quantlib_tools
+sudo mkdir -p /var/www/html/tgir_quantlib_tools/debug
+sudo chown -R www-data:www-data /var/www/html/tgir_quantlib_tools
 ```
 
-### 4. Shared environment
+### 4. App environment
 
-Create `/opt/tgir_quantlib_tools/shared/.env` with at least:
+Create `/var/www/html/tgir_quantlib_tools/.env` with at least:
 
 ```dotenv
 FLASK_SECRET_KEY=<long-random-secret>
@@ -88,8 +90,8 @@ FLASK_DEBUG=0
 Set permissions:
 
 ```bash
-sudo chown www-data:www-data /opt/tgir_quantlib_tools/shared/.env
-sudo chmod 600 /opt/tgir_quantlib_tools/shared/.env
+sudo chown www-data:www-data /var/www/html/tgir_quantlib_tools/.env
+sudo chmod 600 /var/www/html/tgir_quantlib_tools/.env
 ```
 
 ### 5. systemd service
@@ -134,7 +136,7 @@ The deploy workflow already expects these GitHub environment or repository secre
 Recommended values:
 
 - `DO_HOST`: droplet public IP until `quant.tglauner.com` DNS is stable, or the final hostname after that
-- `DO_APP_ROOT`: `/opt/tgir_quantlib_tools`
+- `DO_APP_ROOT`: `/var/www/html/tgir_quantlib_tools`
 - `DO_HEALTHCHECK_URL`: `https://quant.tglauner.com/health`
 
 ## Deployment Flow
@@ -144,14 +146,13 @@ The existing workflow in `.github/workflows/deploy_digitalocean.yml` is structur
 1. Run unit-test gates on `main`
 2. Package the repo
 3. Upload the tarball to the droplet
-4. Create `/opt/tgir_quantlib_tools/releases/<git-sha>`
+4. Replace the contents of `/var/www/html/tgir_quantlib_tools`
 5. Build a fresh `.venv`
 6. Install `requirements-production.txt`
-7. Symlink shared `.env` and `debug/`
-8. Repoint `current`
-9. Restart `tgir-quantlib-tools`
-10. Check local health on `127.0.0.1:8008`
-11. Check public health on `https://quant.tglauner.com/health`
+7. Keep `.env` and `debug/` in place
+8. Restart `tgir-quantlib-tools`
+9. Check local health on `127.0.0.1:8008`
+10. Check public health on `https://quant.tglauner.com/health`
 
 ## What Should Exist On The Droplet
 
@@ -161,7 +162,7 @@ Once deployed correctly, these commands should succeed:
 apachectl -S
 systemctl status tgir-quantlib-tools --no-pager
 ls -la /etc/apache2/sites-enabled
-ls -la /opt/tgir_quantlib_tools
+ls -la /var/www/html/tgir_quantlib_tools
 curl -fsS http://127.0.0.1:8008/health
 curl -fsS https://quant.tglauner.com/health
 ```
@@ -171,8 +172,7 @@ Expected shape:
 - Apache has a vhost for `quant.tglauner.com`
 - TLS cert paths resolve under `/etc/letsencrypt/live/quant.tglauner.com/`
 - Gunicorn listens only on `127.0.0.1:8008`
-- `current` points to a release directory
-- `shared/.env` exists and is readable by `www-data`
+- `.env` exists in the app root and is readable by `www-data`
 
 ## Suggested Verification Plan
 
@@ -189,7 +189,7 @@ ssh <user>@<host> '
   apachectl -S
   systemctl status tgir-quantlib-tools --no-pager --full | head -n 40
   ls -la /etc/apache2/sites-enabled
-  ls -la /opt/tgir_quantlib_tools
+  ls -la /var/www/html/tgir_quantlib_tools
 '
 ```
 
@@ -198,11 +198,11 @@ ssh <user>@<host> '
 1. Verify Apache site file path and enabled symlink
 2. Verify `ProxyPass` targets `127.0.0.1:8008`
 3. Verify cert paths match `quant.tglauner.com`
-4. Verify the systemd service uses `/opt/tgir_quantlib_tools/current/.venv/bin/gunicorn`
+4. Verify the systemd service uses `/var/www/html/tgir_quantlib_tools/.venv/bin/gunicorn`
 
 ### Phase 3: first release
 
-1. Put the shared `.env` in place
+1. Put the app `.env` in place
 2. Run GitHub Actions deploy or perform the same steps manually
 3. Hit `/health`
 4. Log in and test:
@@ -212,11 +212,10 @@ ssh <user>@<host> '
 
 ## Rollback
 
-Rollback is a symlink flip plus service restart:
+Rollback is restoring the previous app directory snapshot and restarting the service:
 
 ```bash
-sudo ls -1 /opt/tgir_quantlib_tools/releases
-sudo ln -sfn /opt/tgir_quantlib_tools/releases/<previous-release> /opt/tgir_quantlib_tools/current
+sudo cp -a /var/www/html/tgir_quantlib_tools /var/www/html/tgir_quantlib_tools.rollback.$(date +%Y%m%d%H%M%S)
 sudo systemctl restart tgir-quantlib-tools
 curl -fsS http://127.0.0.1:8008/health
 curl -fsS https://quant.tglauner.com/health

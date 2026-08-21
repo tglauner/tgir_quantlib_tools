@@ -6,9 +6,10 @@ After=network.target
 Type=simple
 User=www-data
 Group=www-data
-WorkingDirectory=/opt/tgir_quantlib_tools/current
-EnvironmentFile=/opt/tgir_quantlib_tools/shared/.env
-ExecStart=/opt/tgir_quantlib_tools/current/.venv/bin/gunicorn \
+WorkingDirectory=/var/www/html/tgir_quantlib_tools
+EnvironmentFile=/var/www/html/tgir_quantlib_tools/.env
+Environment=HOME=/var/www/html/tgir_quantlib_tools
+ExecStart=/var/www/html/tgir_quantlib_tools/.venv/bin/gunicorn \
     --workers 2 \
     --bind 127.0.0.1:8008 \
     --timeout 120 \

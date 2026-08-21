@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "callable-xccy-deal/1.0",
+  "title": "Callable 10Y NC2 EUR ESTR versus USD fixed deal",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "trade_id", "effective_date", "maturity", "reporting_currency", "collateral_currency", "notionals", "legs", "notional_exchanges", "exercise"],
+  "properties": {
+    "schema": {"const": "callable-xccy-deal/1.0"},
+    "trade_id": {"type": "string", "minLength": 1},
+    "effective_date": {"type": "string", "format": "date"},
+    "maturity": {"type": "string"},
+    "reporting_currency": {"const": "USD"},
+    "collateral_currency": {"const": "USD"},
+    "notionals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["USD", "EUR"],
+      "properties": {
+        "USD": {"type": "number", "exclusiveMinimum": 0},
+        "EUR": {"type": "number", "exclusiveMinimum": 0}
+      }
+    },
+    "legs": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {"$ref": "#/$defs/leg"}
+    },
+    "notional_exchanges": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["initial", "final"],
+      "properties": {
+        "initial": {"type": "boolean"},
+        "final": {"type": "boolean"}
+      }
+    },
+    "exercise": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["style", "holder", "non_call", "frequency", "settlement_amount", "event_order"],
+      "properties": {
+        "style": {"const": "CANCEL_REMAINING_SWAP"},
+        "holder": {"type": "string", "minLength": 1},
+        "non_call": {"type": "string"},
+        "frequency": {"type": "string"},
+        "settlement_amount": {"const": 0.0},
+        "event_order": {"const": "PAY_DUE_THEN_CANCEL"}
+      }
+    },
+    "numerics": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "training_paths": {"type": "integer", "minimum": 1},
+        "pricing_paths": {"type": "integer", "minimum": 1},
+        "chunk_size": {"type": "integer", "minimum": 1},
+        "seed": {"type": "integer", "minimum": 0},
+        "max_step_years": {"type": "number", "exclusiveMinimum": 0},
+        "exercise_tolerance": {"type": "number", "minimum": 0}
+      }
+    }
+  },
+  "$defs": {
+    "leg": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["currency", "side", "frequency", "day_count", "payment_lag_days"],
+      "properties": {
+        "currency": {"enum": ["USD", "EUR"]},
+        "side": {"enum": ["PAY", "RECEIVE"]},
+        "index": {"const": "ESTR"},
+        "fixed_rate": {"type": "number"},
+        "spread": {"type": "number"},
+        "frequency": {"type": "string"},
+        "day_count": {"enum": ["ACT/360", "ACT/365F", "30/360"]},
+        "payment_lag_days": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}

@@ -21,6 +21,7 @@ from portfolio import (
     CLIQUET_SCENARIO_VOL_SHOCKS_PCT,
     IR_FREQUENCY_MONTH_OPTIONS,
     SOFR_CURVE_TENOR_LABELS,
+    SOFR_DEFAULT_CURVE_QUOTES_PCT,
     SOFR_FORWARD_HORIZON_YEARS,
     SWAPTION_MATRIX_EXPIRY_LABELS,
     SWAPTION_MATRIX_TENOR_LABELS,
@@ -67,8 +68,9 @@ ZERO_RATE_NOTE = (
 )
 
 FORWARD_RATE_NOTE = (
-    "The strip below shows daily one-day simple forward rates over the next ten years from the "
-    "same QuantLib SOFR term structure using forwardRate(start, start + 1D, Actual360, Simple)."
+    "The strip below shows calendar-day one-day simple SOFR forwards for the next 30 years. "
+    "Each daily point is derived from the QuantLib zero curve with "
+    "forwardRate(start, start + 1D, Actual360, Simple); weekends are kept as calendar days."
 )
 
 EQUITY_MARKET_NOTE = (
@@ -350,7 +352,12 @@ def clamp_int(value, minimum, maximum):
 
 def curve_inputs(state):
     return [
-        {"label": label, "name": f"rate{index}", "value": state["market"]["curve_quotes_pct"][index]}
+        {
+            "label": label,
+            "name": f"rate{index}",
+            "regular_value": SOFR_DEFAULT_CURVE_QUOTES_PCT[index],
+            "value": state["market"]["curve_quotes_pct"][index],
+        }
         for index, label in enumerate(SOFR_CURVE_TENOR_LABELS)
     ]
 
@@ -363,6 +370,7 @@ def curve_market_zero_rows(state, zero_points):
         rows.append(
             {
                 "label": label,
+                "regular_rate_pct": SOFR_DEFAULT_CURVE_QUOTES_PCT[index],
                 "market_rate_pct": state["market"]["curve_quotes_pct"][index],
                 "zero_rate_pct": 0.0 if zero_point is None else zero_point["rate_pct"],
             }
@@ -528,10 +536,12 @@ def _curve_analytics(state):
     today = valuation_date(state)
     ql.Settings.instance().evaluationDate = today
     calendar = ql.UnitedStates(ql.UnitedStates.Settlement)
-    curve = build_sofr_curve(today, state["market"]["curve_quotes_pct"])
-    zero_points = curve_zero_rate_points(curve)
-    forward_points = daily_one_day_forward_points(curve)
-    return zero_points, forward_points
+    scenario_curve = build_sofr_curve(today, state["market"]["curve_quotes_pct"])
+    regular_curve = build_sofr_curve(today, SOFR_DEFAULT_CURVE_QUOTES_PCT)
+    zero_points = curve_zero_rate_points(scenario_curve)
+    regular_forward_points = daily_one_day_forward_points(regular_curve)
+    scenario_forward_points = daily_one_day_forward_points(scenario_curve)
+    return zero_points, regular_forward_points, scenario_forward_points
 
 
 def _forward_summary(forward_points):
@@ -639,27 +649,97 @@ def _curve_comparison_chart(curve_rate_rows):
     }
 
 
-def _forward_rate_chart(forward_points):
-    tick_indexes = []
-    if forward_points:
-        reference_date = ql.DateParser.parseISO(forward_points[0]["start_date_iso"])
-        point_index_by_iso = {
-            point["start_date_iso"]: index for index, point in enumerate(forward_points)
-        }
-        for year in range(SOFR_FORWARD_HORIZON_YEARS + 1):
-            tick_date = reference_date + ql.Period(year, ql.Years)
-            point_index = point_index_by_iso.get(tick_date.ISO())
-            if point_index is not None:
-                tick_indexes.append(point_index)
+def _forward_rate_chart(regular_forward_points, scenario_forward_points):
+    regular_forward_points = regular_forward_points or []
+    scenario_forward_points = scenario_forward_points or []
+    point_sets = [points for points in (regular_forward_points, scenario_forward_points) if points]
+    if not point_sets:
+        return _empty_multi_line_chart()
 
-    return _line_chart(
-        forward_points,
-        label_key="axis_label",
-        value_key="rate_pct",
-        marker_indexes=tick_indexes,
-        x_tick_indexes=tick_indexes,
-        width=620,
-    )
+    width = 620
+    height = 240
+    padding_left = 36
+    padding_right = 18
+    padding_top = 20
+    padding_bottom = 34
+    plot_width = width - padding_left - padding_right
+    plot_height = height - padding_top - padding_bottom
+
+    values = [point["rate_pct"] for points in point_sets for point in points]
+    min_value = min(values)
+    max_value = max(values)
+    buffer = max((max_value - min_value) * 0.18, 0.08)
+    y_min = min_value - buffer
+    y_max = max_value + buffer
+
+    def project_series(label, points, color, line_width):
+        denominator = max(len(points) - 1, 1)
+        chart_points = []
+        for index, point in enumerate(points):
+            x_position = padding_left + index * plot_width / denominator
+            ratio = 0.5 if y_max == y_min else (point["rate_pct"] - y_min) / (y_max - y_min)
+            y_position = padding_top + (1 - ratio) * plot_height
+            chart_points.append(
+                {
+                    "label": point["axis_label"],
+                    "value": point["rate_pct"],
+                    "x": round(x_position, 2),
+                    "y": round(y_position, 2),
+                }
+            )
+        return {
+            "label": label,
+            "color": color,
+            "line_width": line_width,
+            "point_count": len(points),
+            "polyline": " ".join(f"{point['x']},{point['y']}" for point in chart_points),
+        }
+
+    y_ticks = []
+    for step in range(4):
+        tick_value = y_min + (y_max - y_min) * step / 3
+        tick_ratio = 0.0 if y_max == y_min else (tick_value - y_min) / (y_max - y_min)
+        tick_y = padding_top + (1 - tick_ratio) * plot_height
+        y_ticks.append({"value": tick_value, "y": round(tick_y, 2)})
+
+    reference_points = scenario_forward_points or regular_forward_points
+    denominator = max(len(reference_points) - 1, 1)
+    reference_date = ql.DateParser.parseISO(reference_points[0]["start_date_iso"])
+    point_index_by_iso = {
+        point["start_date_iso"]: index for index, point in enumerate(reference_points)
+    }
+    tick_indexes = []
+    for year in range(0, SOFR_FORWARD_HORIZON_YEARS + 1, 5):
+        tick_date = reference_date + ql.Period(year, ql.Years)
+        point_index = point_index_by_iso.get(tick_date.ISO())
+        if point_index is not None:
+            tick_indexes.append((year, point_index))
+    last_index = len(reference_points) - 1
+    if not tick_indexes or tick_indexes[-1][1] != last_index:
+        tick_indexes.append((SOFR_FORWARD_HORIZON_YEARS, last_index))
+
+    x_ticks = []
+    for year, index in tick_indexes:
+        point = reference_points[index]
+        x_position = padding_left + index * plot_width / denominator
+        x_ticks.append(
+            {
+                "label": "Start" if index == 0 else f"{year}Y",
+                "date_iso": point["start_date_iso"],
+                "x": round(x_position, 2),
+            }
+        )
+
+    return {
+        "width": width,
+        "height": height,
+        "x_ticks": x_ticks,
+        "y_ticks": y_ticks,
+        "series": [
+            project_series("Regular SOFR daily 1D fwd", regular_forward_points, "#7f8da3", 1.05),
+            project_series("Scenario SOFR daily 1D fwd", scenario_forward_points, "#0b7463", 1.15),
+        ],
+    }
 
 
 def market_snapshot(state, zero_points, forward_points):
@@ -1210,9 +1290,10 @@ def dynamic_dashboard_payload(state):
 
     analytics_error = None
     zero_points = []
-    forward_points = []
+    regular_forward_points = []
+    scenario_forward_points = []
     try:
-        zero_points, forward_points = _curve_analytics(state)
+        zero_points, regular_forward_points, scenario_forward_points = _curve_analytics(state)
     except Exception as exc:
         analytics_error = str(exc)
 
@@ -1225,8 +1306,8 @@ def dynamic_dashboard_payload(state):
             "curve_inputs": curve_inputs(state),
             "curve_rate_rows": curve_market_zero_rows(state, zero_points),
             "curve_comparison_chart": _curve_comparison_chart(curve_market_zero_rows(state, zero_points)),
-            "forward_rate_chart": _forward_rate_chart(forward_points),
-            "market_snapshot": market_snapshot(state, zero_points, forward_points),
+            "forward_rate_chart": _forward_rate_chart(regular_forward_points, scenario_forward_points),
+            "market_snapshot": market_snapshot(state, zero_points, scenario_forward_points),
             "pricing_error": pricing_error or analytics_error,
             "last_update_label": datetime.now().strftime("%H:%M:%S"),
         }
@@ -1289,9 +1370,10 @@ def build_trade_editor_context(state, trade_type):
             trade_page_error = str(exc)
 
     zero_points = []
-    forward_points = []
+    regular_forward_points = []
+    scenario_forward_points = []
     try:
-        zero_points, forward_points = _curve_analytics(state)
+        zero_points, regular_forward_points, scenario_forward_points = _curve_analytics(state)
     except Exception as exc:
         trade_page_error = str(exc)
 
@@ -1373,7 +1455,7 @@ def build_trade_editor_context(state, trade_type):
         "trade_detail": detail,
         "trade_detail_rows": trade_detail_rows(trade_type, trade),
         "trade_summary_metrics": trade_summary_metrics,
-        "market_snapshot": market_snapshot(state, zero_points, forward_points),
+        "market_snapshot": market_snapshot(state, zero_points, scenario_forward_points),
         "selected_matrix_vol_bp": selected_matrix_vol_bp,
         "bermudan_schedule_rows": bermudan_schedule_rows,
         "bermudan_model_comparison": bermudan_model_comparison,

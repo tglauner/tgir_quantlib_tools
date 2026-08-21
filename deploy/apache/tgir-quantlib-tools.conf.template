@@ -1,13 +1,19 @@
 <VirtualHost *:80>
     ServerName quant.tglauner.com
+    ServerAdmin glaunertim@gmail.com
     Redirect permanent / https://quant.tglauner.com/
+
+    ErrorLog ${APACHE_LOG_DIR}/tgir-quantlib-tools-error.log
+    CustomLog ${APACHE_LOG_DIR}/tgir-quantlib-tools-access.log combined
 </VirtualHost>
 
 <IfModule mod_ssl.c>
 <VirtualHost *:443>
     ServerName quant.tglauner.com
+    ServerAdmin glaunertim@gmail.com
 
     SSLEngine on
+    Include /etc/letsencrypt/options-ssl-apache.conf
     SSLCertificateFile /etc/letsencrypt/live/quant.tglauner.com/fullchain.pem
     SSLCertificateKeyFile /etc/letsencrypt/live/quant.tglauner.com/privkey.pem
 

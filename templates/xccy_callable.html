@@ -1,0 +1,1335 @@
+{% extends "base.html" %}
+
+{% block title %}Callable XCCY Quant Lab{% endblock %}
+{% block body_class %}xccy-lab{% endblock %}
+
+{% block extra_head %}
+  <style>
+    body.xccy-lab {
+      --xccy-navy: #0b1d2b;
+      --xccy-navy-soft: #132f42;
+      --xccy-green: #18a784;
+      --xccy-mint: #9ee3ce;
+      --xccy-copper: #d17945;
+      --xccy-cream: #f7f2e8;
+      --xccy-grid: rgba(16, 47, 66, 0.055);
+      background:
+        linear-gradient(var(--xccy-grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--xccy-grid) 1px, transparent 1px),
+        radial-gradient(circle at 12% 3%, rgba(24, 167, 132, 0.12), transparent 30%),
+        #eae4d8;
+      background-size: 22px 22px, 22px 22px, auto, auto;
+    }
+
+    .xccy-lab .shell {
+      width: min(1480px, calc(100vw - 28px));
+    }
+
+    .xccy-hero {
+      position: relative;
+      display: grid;
+      grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.55fr);
+      gap: 24px;
+      overflow: hidden;
+      margin-bottom: 12px;
+      padding: clamp(24px, 4vw, 52px);
+      color: #f9f6ed;
+      border-radius: 22px;
+      background:
+        radial-gradient(circle at 88% 18%, rgba(24, 167, 132, 0.32), transparent 23%),
+        linear-gradient(128deg, #071722 0%, #0d2637 58%, #123c45 100%);
+      box-shadow: 0 26px 70px rgba(6, 23, 34, 0.22);
+      isolation: isolate;
+    }
+
+    .xccy-hero::after {
+      position: absolute;
+      right: -92px;
+      bottom: -154px;
+      width: 410px;
+      height: 410px;
+      content: "";
+      border: 1px solid rgba(158, 227, 206, 0.20);
+      border-radius: 50%;
+      box-shadow:
+        0 0 0 52px rgba(158, 227, 206, 0.045),
+        0 0 0 104px rgba(158, 227, 206, 0.03);
+      z-index: -1;
+    }
+
+    .xccy-hero > *,
+    .xccy-two-col > *,
+    .xccy-model-grid > *,
+    .xccy-validation-grid > *,
+    .xccy-flow > * {
+      min-width: 0;
+    }
+
+    .xccy-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 14px;
+      color: var(--xccy-mint);
+      font-family: Menlo, Monaco, monospace;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+    }
+
+    .xccy-eyebrow::before {
+      width: 22px;
+      height: 1px;
+      content: "";
+      background: currentColor;
+    }
+
+    .xccy-hero h1 {
+      max-width: 880px;
+      margin: 0;
+      font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+      font-size: clamp(2.15rem, 5vw, 4.7rem);
+      font-weight: 600;
+      line-height: 0.96;
+      letter-spacing: -0.045em;
+    }
+
+    .xccy-hero h1 em {
+      color: var(--xccy-mint);
+      font-style: italic;
+      font-weight: 500;
+    }
+
+    .xccy-hero-copy {
+      max-width: 790px;
+      margin: 18px 0 0;
+      color: rgba(249, 246, 237, 0.72);
+      font-size: 0.96rem;
+      line-height: 1.58;
+    }
+
+    .xccy-hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 22px;
+    }
+
+    .xccy-hero .btn-primary-xccy {
+      background: var(--xccy-mint);
+      color: var(--xccy-navy);
+      box-shadow: none;
+    }
+
+    .xccy-hero .btn-quiet-xccy {
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      background: rgba(255, 255, 255, 0.07);
+      box-shadow: none;
+    }
+
+    .xccy-snapshot-stamp {
+      align-self: end;
+      padding: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 14px;
+      background: rgba(4, 18, 27, 0.36);
+      backdrop-filter: blur(10px);
+    }
+
+    .xccy-stamp-line {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 8px 0;
+      color: rgba(249, 246, 237, 0.65);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+      font-family: Menlo, Monaco, monospace;
+      font-size: 0.7rem;
+    }
+
+    .xccy-stamp-line:first-child { padding-top: 0; }
+    .xccy-stamp-line:last-child { padding-bottom: 0; border-bottom: 0; }
+    .xccy-stamp-line strong { min-width: 0; color: #fff; text-align: right; overflow-wrap: anywhere; }
+
+    .xccy-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--xccy-mint);
+    }
+
+    .xccy-status::before {
+      width: 7px;
+      height: 7px;
+      content: "";
+      border-radius: 50%;
+      background: var(--xccy-green);
+      box-shadow: 0 0 0 4px rgba(24, 167, 132, 0.14);
+    }
+
+    .xccy-section-nav {
+      position: sticky;
+      top: 8px;
+      z-index: 12;
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      margin-bottom: 12px;
+      padding: 7px;
+      border: 1px solid rgba(11, 29, 43, 0.08);
+      border-radius: 13px;
+      background: rgba(247, 242, 232, 0.90);
+      box-shadow: 0 12px 35px rgba(11, 29, 43, 0.08);
+      backdrop-filter: blur(14px);
+      scrollbar-width: none;
+      max-width: 100%;
+    }
+
+    .xccy-section-nav::-webkit-scrollbar { display: none; }
+    .xccy-section-nav a {
+      flex: 0 0 auto;
+      padding: 7px 11px;
+      color: #415765;
+      border-radius: 8px;
+      font-family: Menlo, Monaco, monospace;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+
+    .xccy-section-nav a:hover,
+    .xccy-section-nav a:focus-visible {
+      color: var(--xccy-navy);
+      background: rgba(24, 167, 132, 0.11);
+    }
+
+    .xccy-section {
+      scroll-margin-top: 68px;
+      margin-bottom: 12px;
+      padding: clamp(18px, 2.5vw, 30px);
+      border: 1px solid rgba(11, 29, 43, 0.08);
+      border-radius: 18px;
+      background: rgba(249, 247, 241, 0.94);
+      box-shadow: 0 16px 45px rgba(11, 29, 43, 0.075);
+    }
+
+    .xccy-section-heading {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(220px, 0.45fr);
+      gap: 22px;
+      align-items: end;
+      margin-bottom: 22px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid rgba(11, 29, 43, 0.11);
+    }
+
+    .xccy-section-index {
+      display: block;
+      margin-bottom: 5px;
+      color: var(--xccy-green);
+      font-family: Menlo, Monaco, monospace;
+      font-size: 0.66rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    .xccy-section h2 {
+      margin: 0;
+      color: var(--xccy-navy);
+      font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+      font-size: clamp(1.65rem, 3vw, 2.45rem);
+      font-weight: 600;
+      line-height: 1.02;
+      letter-spacing: -0.028em;
+    }
+
+    .xccy-section-heading p {
+      margin: 0;
+      color: #647680;
+      font-size: 0.82rem;
+      line-height: 1.5;
+    }
+
+    .xccy-metric-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .xccy-metric {
+      min-width: 0;
+      padding: 15px;
+      border: 1px solid rgba(11, 29, 43, 0.09);
+      border-radius: 12px;
+      background: #fffdf8;
+    }
+
+    .xccy-metric.primary {
+      color: #fff;
+      border-color: var(--xccy-navy);
+      background: var(--xccy-navy);
+    }
+
+    .xccy-metric-label,
+    .xccy-cell-label {
+      display: block;
+      color: #687b86;
+      font-family: Menlo, Monaco, monospace;
+      font-size: 0.61rem;
+      font-weight: 700;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+    }
+
+    .xccy-metric.primary .xccy-metric-label { color: rgba(255, 255, 255, 0.55); }
+    .xccy-metric strong {
+      display: block;
+      overflow: hidden;
+      margin-top: 9px;
+      font-family: Menlo, Monaco, monospace;
+      font-size: clamp(0.95rem, 1.4vw, 1.22rem);
+      font-variant-numeric: tabular-nums;
+      text-overflow: ellipsis;
+    }
+
+    .xccy-metric small {
+      display: block;
+      margin-top: 7px;
+      color: #73838c;
+      font-size: 0.68rem;
+      line-height: 1.35;
+    }
+
+    .xccy-metric.primary small { color: rgba(255, 255, 255, 0.58); }
+
+    .xccy-two-col,
+    .xccy-model-grid,
+    .xccy-validation-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .xccy-card {
+      min-width: 0;
+      padding: 18px;
+      border: 1px solid rgba(11, 29, 43, 0.09);
+      border-radius: 13px;
+      background: #fffdf8;
+    }
+
+    .xccy-card.dark {
+      color: #fff;
+      border-color: var(--xccy-navy);
+      background: var(--xccy-navy);
+    }
+
+    .xccy-card h3 {
+      margin: 0 0 5px;
+      color: var(--xccy-navy);
+      font-size: 0.96rem;
+    }
+
+    .xccy-card.dark h3 { color: #fff; }
+    .xccy-card > p {
+      margin: 0 0 14px;
+      color: #6b7d87;
+      font-size: 0.78rem;
+      line-height: 1.48;
+    }
+    .xccy-card.dark > p { color: rgba(255, 255, 255, 0.60); }
+
+    .xccy-data-list {
+      display: grid;
+      gap: 0;
+      margin: 0;
+    }
+
+    .xccy-data-row {
+      display: grid;
+      grid-template-columns: minmax(120px, 0.65fr) minmax(0, 1fr);
+      gap: 18px;
+      padding: 9px 0;
+      border-bottom: 1px solid rgba(11, 29, 43, 0.075);
+    }
+
+    .xccy-data-row:last-child { border-bottom: 0; }
+    .xccy-data-row dt {
+      color: #71828b;
+      font-size: 0.73rem;
+    }
+    .xccy-data-row dd {
+      margin: 0;
+      color: var(--xccy-navy);
+      font-family: Menlo, Monaco, monospace;
+      font-size: 0.73rem;
+      font-weight: 700;
+      text-align: right;
+      overflow-wrap: anywhere;
+    }
+
+    .xccy-card.dark .xccy-data-row { border-bottom-color: rgba(255, 255, 255, 0.10); }
+    .xccy-card.dark .xccy-data-row dt { color: rgba(255, 255, 255, 0.55); }
+    .xccy-card.dark .xccy-data-row dd { color: #fff; }
+
+    .xccy-leg-band {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      gap: 14px;
+      align-items: center;
+      margin-bottom: 10px;
+      padding: 13px;
+      border-radius: 11px;
+      background: rgba(11, 29, 43, 0.045);
+    }
+
+    .xccy-leg-band:last-child { margin-bottom: 0; }
+    .xccy-leg-side {
+      min-width: 64px;
+      padding: 7px 8px;
+      color: #fff;
+      border-radius: 8px;
+      background: var(--xccy-green);
+      font-family: Menlo, Monaco, monospace;
+      font-size: 0.64rem;
+      font-weight: 700;
+      text-align: center;
+    }
+    .xccy-leg-side.pay { background: var(--xccy-copper); }
+    .xccy-leg-band strong { display: block; font-size: 0.86rem; }
+    .xccy-leg-band small { color: #70818b; font-size: 0.7rem; }
+
+    .xccy-equation-stack {
+      display: grid;
+      gap: 8px;
+    }
+
+    .xccy-equation {
+      padding: 13px 14px;
+      color: #d6efe7;
+      border-left: 2px solid var(--xccy-green);
+      background: rgba(255, 255, 255, 0.055);
+      font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+      font-size: clamp(0.84rem, 1.2vw, 1rem);
+      line-height: 1.4;
+      overflow-x: auto;
+      text-align: center;
+    }
+
+    .xccy-equation-label {
+      display: block;
+      margin-bottom: 5px;
+      color: rgba(255, 255, 255, 0.56);
+      font-family: Menlo, Monaco, monospace;
+      font-size: 0.58rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-align: left;
+      text-transform: uppercase;
+    }
+
+    .xccy-equation math {
+      min-width: max-content;
+      color: #f5fbf8;
+      font-family: "STIX Two Math", "Cambria Math", "Times New Roman", serif;
+      font-size: 1.08em;
+    }
+
+    .xccy-correlation {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 5px;
+      table-layout: fixed;
+    }
+
+    .xccy-correlation th,
+    .xccy-correlation td {
+      padding: 10px 5px;
+      border: 0;
+      border-radius: 7px;
+      font-family: Menlo, Monaco, monospace;
+      font-size: 0.7rem;
+      text-align: center;
+    }
+    .xccy-correlation th { color: rgba(255, 255, 255, 0.6); background: transparent; }
+    .xccy-correlation td { color: #fff; background: rgba(255, 255, 255, 0.08); }
+    .xccy-correlation td.diagonal { color: var(--xccy-mint); background: rgba(24, 167, 132, 0.15); }
+
+    .xccy-correlation-editor {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .xccy-correlation-field {
+      display: grid;
+      gap: 5px;
+    }
+
+    .xccy-correlation-field label {
+      color: rgba(255, 255, 255, 0.58);
+      font-family: Menlo, Monaco, monospace;
+      font-size: 0.57rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .xccy-correlation-field input {
+      width: 100%;
+      padding: 9px 8px;
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 8px;
+      outline: none;
+      background: rgba(255, 255, 255, 0.07);
+      font-family: Menlo, Monaco, monospace;
+      font-size: 0.76rem;
+      font-weight: 700;
+      text-align: right;
+    }
+
+    .xccy-correlation-field input:focus {
+      border-color: var(--xccy-mint);
+      box-shadow: 0 0 0 3px rgba(158, 227, 206, 0.12);
+    }
+
+    .xccy-pricing-control {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 14px;
+      align-items: end;
+      margin-top: 12px;
+      padding: 13px;
+      border: 1px solid rgba(158, 227, 206, 0.16);
+      border-radius: 10px;
+      background: rgba(24, 167, 132, 0.07);
+    }
+
+    .xccy-pricing-source strong,
+    .xccy-pricing-source small { display: block; }
+    .xccy-pricing-source strong { color: #fff; font-size: 0.73rem; }
+    .xccy-pricing-source small { margin-top: 4px; color: rgba(255, 255, 255, 0.55); font-size: 0.64rem; line-height: 1.4; }
+    .xccy-pricing-control .btn { color: var(--xccy-navy); background: var(--xccy-mint); box-shadow: none; white-space: nowrap; }
+    .xccy-pricing-control .btn[disabled] { cursor: wait; opacity: 0.72; transform: none; }
+
+    .xccy-matrix-status {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 9px;
+      color: rgba(255, 255, 255, 0.56);
+      font-family: Menlo, Monaco, monospace;
+      font-size: 0.6rem;
+    }
+
+    .xccy-matrix-status strong { color: var(--xccy-mint); }
+    .xccy-matrix-status strong.invalid { color: #ffb28d; }
+    .xccy-matrix-status .btn {
+      padding: 3px 6px;
+      color: var(--xccy-mint);
+      border-color: rgba(158, 227, 206, 0.22);
+      background: transparent;
+      font-size: 0.58rem;
+    }
+
+    .xccy-rms-definition {
+      display: grid;
+      grid-template-columns: minmax(260px, 0.8fr) minmax(0, 1.2fr);
+      gap: 18px;
+      align-items: center;
+      margin-bottom: 12px;
+      padding: 20px 18px;
+      color: #dceee9;
+      border-radius: 12px;
+      background: var(--xccy-navy);
+    }
+
+    .xccy-rms-definition math {
+      color: #fff;
+      font-family: "STIX Two Math", "Cambria Math", "Times New Roman", serif;
+      font-size: clamp(0.9072rem, 1.296vw, 1.08rem);
+      padding-block: 3px;
+      overflow-x: auto;
+      overflow-y: hidden;
+    }
+
+    .xccy-rms-definition p { margin: 0; color: rgba(255, 255, 255, 0.66); font-size: 0.73rem; line-height: 1.5; }
+    .xccy-rms-definition strong { color: var(--xccy-mint); }
+
+    .xccy-flow {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 22px;
+      margin-top: 12px;
+    }
+
+    .xccy-flow-step {
+      position: relative;
+      padding: 15px;
+      border: 1px solid rgba(11, 29, 43, 0.10);
+      border-radius: 11px;
+      background: #fffdf8;
+    }
+    .xccy-flow-step:not(:last-child)::after {
+      position: absolute;
+      top: 50%;
+      right: -18px;
+      content: "→";
+      color: var(--xccy-green);
+      font-family: Menlo, Monaco, monospace;
+      font-weight: 700;
+      transform: translateY(-50%);
+    }
+    .xccy-flow-step span { color: var(--xccy-green); font-family: Menlo, Monaco, monospace; font-size: 0.65rem; font-weight: 700; }
+    .xccy-flow-step strong { display: block; margin: 5px 0; font-size: 0.79rem; }
+    .xccy-flow-step small { color: #72828a; font-size: 0.68rem; line-height: 1.4; }
+
+    .xccy-bars {
+      display: grid;
+      gap: 10px;
+    }
+    .xccy-bar-row {
+      display: grid;
+      grid-template-columns: minmax(150px, 0.52fr) minmax(180px, 1fr) 86px;
+      gap: 12px;
+      align-items: center;
+    }
+    .xccy-bar-label strong { display: block; font-size: 0.75rem; }
+    .xccy-bar-label small { color: #76868f; font-size: 0.65rem; }
+    .xccy-bar-track {
+      height: 9px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: rgba(11, 29, 43, 0.07);
+    }
+    .xccy-bar-fill {
+      height: 100%;
+      min-width: 2px;
+      border-radius: inherit;
+      background: var(--xccy-green);
+    }
+    .xccy-bar-fill.negative { background: var(--xccy-copper); }
+    .xccy-bar-fill.no-exercise { background: var(--xccy-navy-soft); }
+    .xccy-bar-value {
+      color: var(--xccy-navy);
+      font-family: Menlo, Monaco, monospace;
+      font-size: 0.69rem;
+      font-weight: 700;
+      text-align: right;
+    }
+
+    .xccy-check-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .xccy-check {
+      padding: 13px;
+      border: 1px solid rgba(11, 29, 43, 0.09);
+      border-radius: 10px;
+      background: #fffdf8;
+    }
+    .xccy-check-top { display: flex; justify-content: space-between; gap: 8px; align-items: flex-start; }
+    .xccy-check-name { color: #647680; font-size: 0.68rem; line-height: 1.35; }
+    .xccy-pass {
+      display: inline-flex;
+      padding: 3px 6px;
+      color: #087159;
+      border-radius: 999px;
+      background: rgba(24, 167, 132, 0.12);
+      font-family: Menlo, Monaco, monospace;
+      font-size: 0.57rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .xccy-pass.fail { color: #9d4328; background: rgba(209, 121, 69, 0.14); }
+    .xccy-check strong { display: block; margin-top: 10px; font-family: Menlo, Monaco, monospace; font-size: 0.78rem; }
+    .xccy-check small { color: #7b8a92; font-size: 0.63rem; }
+
+    .xccy-table-wrap {
+      width: 100%;
+      max-width: 100%;
+      overflow-x: auto;
+      border: 1px solid rgba(11, 29, 43, 0.08);
+      border-radius: 10px;
+    }
+    .xccy-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.72rem;
+    }
+    .xccy-table th {
+      padding: 9px 10px;
+      color: #6d7e87;
+      background: #f2eee5;
+      font-family: Menlo, Monaco, monospace;
+      font-size: 0.59rem;
+      letter-spacing: 0.06em;
+      text-align: left;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .xccy-table td {
+      padding: 9px 10px;
+      color: #273c49;
+      border-top: 1px solid rgba(11, 29, 43, 0.07);
+      font-variant-numeric: tabular-nums;
+    }
+    .xccy-table td.numeric,
+    .xccy-table th.numeric { text-align: right; }
+    .xccy-table .mono { font-family: Menlo, Monaco, monospace; font-size: 0.68rem; }
+
+    .xccy-details {
+      margin-top: 10px;
+      border: 1px solid rgba(11, 29, 43, 0.09);
+      border-radius: 10px;
+      background: #fffdf8;
+    }
+    .xccy-details summary {
+      padding: 11px 13px;
+      color: var(--xccy-navy);
+      cursor: pointer;
+      font-size: 0.76rem;
+      font-weight: 700;
+    }
+    .xccy-details[open] summary { border-bottom: 1px solid rgba(11, 29, 43, 0.08); }
+    .xccy-details-body { padding: 13px; }
+
+    .xccy-callout {
+      margin-top: 12px;
+      padding: 14px 16px;
+      color: #6a4b36;
+      border-left: 3px solid var(--xccy-copper);
+      border-radius: 0 9px 9px 0;
+      background: rgba(209, 121, 69, 0.09);
+      font-size: 0.76rem;
+      line-height: 1.5;
+    }
+
+    .xccy-command {
+      display: block;
+      overflow-x: auto;
+      margin: 8px 0 0;
+      padding: 13px 14px;
+      color: #c9f0e3;
+      border-radius: 9px;
+      background: #071722;
+      font-family: Menlo, Monaco, monospace;
+      font-size: 0.68rem;
+      line-height: 1.55;
+      white-space: pre;
+    }
+
+    .xccy-bullet-list {
+      display: grid;
+      gap: 8px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .xccy-bullet-list li {
+      position: relative;
+      padding-left: 16px;
+      color: #566d79;
+      font-size: 0.75rem;
+      line-height: 1.46;
+    }
+    .xccy-bullet-list li::before {
+      position: absolute;
+      left: 0;
+      top: 0.52em;
+      width: 5px;
+      height: 5px;
+      content: "";
+      border-radius: 50%;
+      background: var(--xccy-green);
+    }
+
+    .xccy-path {
+      display: inline-block;
+      padding: 4px 7px;
+      color: var(--xccy-navy);
+      border-radius: 6px;
+      background: rgba(11, 29, 43, 0.06);
+      font-family: Menlo, Monaco, monospace;
+      font-size: 0.63rem;
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      .xccy-hero { animation: xccy-enter 420ms ease-out both; }
+      .xccy-section { animation: xccy-enter 420ms ease-out both; }
+      .xccy-section:nth-of-type(2) { animation-delay: 45ms; }
+      .xccy-section:nth-of-type(3) { animation-delay: 90ms; }
+      @keyframes xccy-enter {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+    }
+
+    @media (max-width: 1100px) {
+      .xccy-hero,
+      .xccy-section-heading { grid-template-columns: 1fr; }
+      .xccy-snapshot-stamp { align-self: auto; }
+      .xccy-metric-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .xccy-check-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .xccy-flow { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .xccy-flow-step::after { display: none; }
+    }
+
+    @media (max-width: 720px) {
+      .xccy-hero { padding: 24px 20px; }
+      .xccy-metric-grid,
+      .xccy-two-col,
+      .xccy-model-grid,
+      .xccy-validation-grid,
+      .xccy-check-grid,
+      .xccy-flow { grid-template-columns: 1fr; }
+      .xccy-bar-row { grid-template-columns: 1fr; gap: 5px; }
+      .xccy-bar-value { text-align: left; }
+      .xccy-data-row { grid-template-columns: 1fr; gap: 3px; }
+      .xccy-data-row dd { text-align: left; }
+      .xccy-correlation-editor,
+      .xccy-pricing-control,
+      .xccy-rms-definition { grid-template-columns: 1fr; }
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+  <section class="xccy-hero">
+    <div>
+      <span class="xccy-eyebrow">Three-factor hybrid · Bermudan LSM</span>
+      <h1>Callable cross-currency <em>quant lab.</em></h1>
+      <p class="xccy-hero-copy">
+        A transparent research view of the 10Y NC2 EUR €STR versus USD fixed swap: economics, calibrated
+        Hull–White rate factors, lognormal EURUSD diffusion, domestic-measure quanto drift, Monte Carlo
+        valuation, least-squares stopping policy, exercise profile, and numerical controls.
+      </p>
+      <div class="xccy-hero-actions">
+        <a class="btn btn-primary-xccy" href="#valuation">Inspect valuation</a>
+        <a class="btn btn-quiet-xccy" href="{{ url_for('workbench.xccy_callable_json', dataset='deal') }}" target="_blank" rel="noopener noreferrer">Deal JSON</a>
+        <a class="btn btn-quiet-xccy" href="{{ url_for('workbench.xccy_callable_json', dataset='market') }}" target="_blank" rel="noopener noreferrer">Market JSON</a>
+        {% if result_available %}
+          <a class="btn btn-quiet-xccy" href="{{ url_for('workbench.xccy_callable_json', dataset='result') }}" target="_blank" rel="noopener noreferrer">Result JSON</a>
+        {% endif %}
+      </div>
+    </div>
+    <aside class="xccy-snapshot-stamp" aria-label="Valuation snapshot metadata">
+      <div class="xccy-stamp-line"><span>STATUS</span><strong class="xccy-status">{{ result.status if result_available else "NO SNAPSHOT" }}</strong></div>
+      <div class="xccy-stamp-line"><span>TRADE</span><strong>{{ deal.trade_id }}</strong></div>
+      <div class="xccy-stamp-line"><span>AS OF</span><strong>{{ result.as_of if result_available else market.as_of }}</strong></div>
+      <div class="xccy-stamp-line"><span>MEASURE</span><strong>{{ result.model.measure if result_available else "USD_MONEY_MARKET" }}</strong></div>
+      <div class="xccy-stamp-line"><span>MODEL</span><strong>{{ result.model.id if result_available else "HW1F × HW1F × BSFX" }}</strong></div>
+      <div class="xccy-stamp-line"><span>SNAPSHOT</span><strong>STORED · NOT LIVE</strong></div>
+    </aside>
+  </section>
+
+  <nav class="xccy-section-nav" aria-label="XCCY page sections">
+    <a href="#valuation">Valuation</a>
+    <a href="#economics">Economics</a>
+    <a href="#model">Model</a>
+    <a href="#calibration">Calibration</a>
+    <a href="#exercise">Exercise</a>
+    <a href="#validation">Validation</a>
+    <a href="#implementation">Implementation</a>
+  </nav>
+
+  <section class="xccy-section" id="valuation">
+    <div class="xccy-section-heading">
+      <div>
+        <span class="xccy-section-index">01 / Valuation snapshot</span>
+        <h2>Value decomposition and Monte Carlo uncertainty.</h2>
+      </div>
+      <p>
+        Values are read from <span class="xccy-path">{{ data_paths.result }}</span>. Opening this page does not
+        recalibrate or simulate; rerun the standalone pricer to refresh the snapshot.
+      </p>
+    </div>
+
+    {% if result_available %}
+      <div class="xccy-metric-grid">
+        {% for card in valuation_cards %}
+          <article class="xccy-metric {% if card.key == 'callable_npv' %}primary{% endif %}">
+            <span class="xccy-metric-label">{{ card.label }}</span>
+            <strong>{{ card.mean|signed_money }}</strong>
+            <small>SE {{ card.standard_error|money }} · 95% CI {{ card.confidence_95_low|signed_money }} to {{ card.confidence_95_high|signed_money }}</small>
+          </article>
+        {% endfor %}
+      </div>
+
+      <div class="xccy-two-col" style="margin-top: 12px;">
+        <article class="xccy-card">
+          <h3>Relative value map</h3>
+          <p>Absolute bar length is scaled to the largest displayed PV; color preserves economic sign.</p>
+          <div class="xccy-bars">
+            {% for row in value_bars %}
+              <div class="xccy-bar-row">
+                <div class="xccy-bar-label"><strong>{{ row.label }}</strong><small>{{ row.detail }}</small></div>
+                <div class="xccy-bar-track"><div class="xccy-bar-fill {{ row.direction }}" style="width: {{ '%.3f'|format(row.width_pct) }}%"></div></div>
+                <div class="xccy-bar-value">{{ row.mean|signed_money }}</div>
+              </div>
+            {% endfor %}
+          </div>
+        </article>
+        <article class="xccy-card dark">
+          <h3>Numerical configuration</h3>
+          <p>Independent samples fit and value the stopping policy, avoiding same-sample look-ahead bias.</p>
+          <dl class="xccy-data-list">
+            <div class="xccy-data-row"><dt>Training paths</dt><dd>{{ "{:,}".format(result.numerics.training_paths) }}</dd></div>
+            <div class="xccy-data-row"><dt>Pricing paths</dt><dd>{{ "{:,}".format(result.numerics.pricing_paths) }}</dd></div>
+            <div class="xccy-data-row"><dt>Time-grid nodes</dt><dd>{{ result.numerics.time_grid_size }}</dd></div>
+            <div class="xccy-data-row"><dt>Maximum step</dt><dd>{{ "%.5f"|format(result.numerics.max_step_years) }} years</dd></div>
+            <div class="xccy-data-row"><dt>Random generator</dt><dd>{{ result.numerics.rng }}</dd></div>
+            <div class="xccy-data-row"><dt>Seed</dt><dd>{{ result.numerics.seed }}</dd></div>
+            <div class="xccy-data-row"><dt>Runtime</dt><dd>{{ "%.3f"|format(result.provenance.runtime_seconds) }} seconds</dd></div>
+          </dl>
+        </article>
+      </div>
+    {% else %}
+      <div class="xccy-callout">No stored result is available. Run the standalone command in section 07 to create <span class="xccy-path">result.json</span>, then reload this page.</div>
+    {% endif %}
+  </section>
+
+  <section class="xccy-section" id="economics">
+    <div class="xccy-section-heading">
+      <div>
+        <span class="xccy-section-index">02 / Contract economics</span>
+        <h2>Cash flows, exchanges, and cancellation rights.</h2>
+      </div>
+      <p>Positive values and receipts are stated from the exercise holder’s perspective. Reporting and collateral currency are both USD.</p>
+    </div>
+
+    <div class="xccy-two-col">
+      <article class="xccy-card">
+        <h3>Two-leg structure</h3>
+        <p>The sample notionals are aligned at the initial EURUSD spot of {{ "%.4f"|format(market.fx.spot) }} USD per EUR.</p>
+        <div class="xccy-leg-band">
+          <span class="xccy-leg-side">RECEIVE</span>
+          <div><strong>EUR {{ "{:,.2f}".format(deal.notionals.EUR) }} · {{ eur_leg.index }} + {{ "%.1f"|format(eur_leg.spread * 10000) }} bp</strong><small>{{ eur_leg.frequency }} payments · {{ eur_leg.day_count }} · {{ eur_leg.payment_lag_days }} business-day lag</small></div>
+        </div>
+        <div class="xccy-leg-band">
+          <span class="xccy-leg-side pay">PAY</span>
+          <div><strong>USD {{ "{:,.2f}".format(deal.notionals.USD) }} · {{ "%.4f"|format(usd_leg.fixed_rate * 100) }}% fixed</strong><small>{{ usd_leg.frequency }} payments · {{ usd_leg.day_count }} · {{ usd_leg.payment_lag_days }} business-day lag</small></div>
+        </div>
+      </article>
+
+      <article class="xccy-card">
+        <h3>Lifecycle</h3>
+        <p>Contractual event ordering is explicit: due cash flows are paid before cancellation terminates only the remaining tail.</p>
+        <dl class="xccy-data-list">
+          <div class="xccy-data-row"><dt>Effective</dt><dd>{{ schedule.effective_date if result_available else deal.effective_date }}</dd></div>
+          <div class="xccy-data-row"><dt>Maturity</dt><dd>{{ schedule.maturity_date if result_available else deal.maturity }}</dd></div>
+          <div class="xccy-data-row"><dt>Non-call</dt><dd>{{ deal.exercise.non_call }}</dd></div>
+          <div class="xccy-data-row"><dt>Call frequency</dt><dd>{{ deal.exercise.frequency }}</dd></div>
+          <div class="xccy-data-row"><dt>Style</dt><dd>{{ deal.exercise.style }}</dd></div>
+          <div class="xccy-data-row"><dt>Event order</dt><dd>{{ deal.exercise.event_order }}</dd></div>
+          <div class="xccy-data-row"><dt>Initial / final exchange</dt><dd>{{ "YES" if deal.notional_exchanges.initial else "NO" }} / {{ "YES" if deal.notional_exchanges.final else "NO" }}</dd></div>
+        </dl>
+      </article>
+    </div>
+
+    {% if result_available %}
+      <details class="xccy-details">
+        <summary>Full generated schedule · {{ schedule.usd_fixed_payment_dates|length }} USD coupons · {{ schedule.eur_estr_payment_dates|length }} EUR coupons · {{ schedule.exercise_dates|length }} call dates</summary>
+        <div class="xccy-details-body xccy-two-col">
+          <div>
+            <span class="xccy-cell-label">USD fixed payment dates</span>
+            <p class="mono" style="font-size: 0.7rem; line-height: 1.7;">{{ schedule.usd_fixed_payment_dates|join(" · ") }}</p>
+          </div>
+          <div>
+            <span class="xccy-cell-label">EUR €STR payment dates</span>
+            <p class="mono" style="font-size: 0.7rem; line-height: 1.7;">{{ schedule.eur_estr_payment_dates|join(" · ") }}</p>
+          </div>
+        </div>
+      </details>
+    {% endif %}
+  </section>
+
+  <section class="xccy-section" id="model">
+    <div class="xccy-section-heading">
+      <div>
+        <span class="xccy-section-index">03 / Joint model</span>
+        <h2>Two Hull–White factors and lognormal FX.</h2>
+      </div>
+      <p>All dynamics are simulated jointly under the USD money-market measure with EURUSD quoted as USD per EUR.</p>
+    </div>
+
+    <div class="xccy-model-grid">
+      <article class="xccy-card dark">
+        <h3>Domestic-measure dynamics</h3>
+        <p>The negative EUR quanto term is required by the measure and FX quotation. The log-FX update includes the Itô correction.</p>
+        <div class="xccy-equation-stack">
+          <div class="xccy-equation">
+            <span class="xccy-equation-label">USD Hull–White</span>
+            <math display="block" aria-label="d r u equals theta u of t minus a u r u, times d t, plus sigma u d W u">
+              <mrow><mi mathvariant="normal">d</mi><msub><mi>r</mi><mi>u</mi></msub><mo>=</mo><mo>[</mo><msub><mi>θ</mi><mi>u</mi></msub><mo>(</mo><mi>t</mi><mo>)</mo><mo>−</mo><msub><mi>a</mi><mi>u</mi></msub><msub><mi>r</mi><mi>u</mi></msub><mo>]</mo><mi mathvariant="normal">d</mi><mi>t</mi><mo>+</mo><msub><mi>σ</mi><mi>u</mi></msub><mi mathvariant="normal">d</mi><msub><mi>W</mi><mi>u</mi></msub></mrow>
+            </math>
+          </div>
+          <div class="xccy-equation">
+            <span class="xccy-equation-label">EUR Hull–White under the USD measure</span>
+            <math display="block" aria-label="d r e equals theta e of t minus a e r e minus rho e S sigma e sigma S of t, times d t, plus sigma e d W e">
+              <mtable columnalign="left" rowspacing="0.18em"><mtr><mtd><mrow><mi mathvariant="normal">d</mi><msub><mi>r</mi><mi>e</mi></msub><mo>=</mo><mo>[</mo><msub><mi>θ</mi><mi>e</mi></msub><mo>(</mo><mi>t</mi><mo>)</mo><mo>−</mo><msub><mi>a</mi><mi>e</mi></msub><msub><mi>r</mi><mi>e</mi></msub><mo>−</mo><msub><mi>ρ</mi><mrow><mi>e</mi><mi>S</mi></mrow></msub><msub><mi>σ</mi><mi>e</mi></msub><msub><mi>σ</mi><mi>S</mi></msub><mo>(</mo><mi>t</mi><mo>)</mo><mo>]</mo><mi mathvariant="normal">d</mi><mi>t</mi></mrow></mtd></mtr><mtr><mtd><mrow><mspace width="2em"></mspace><mo>+</mo><msub><mi>σ</mi><mi>e</mi></msub><mi mathvariant="normal">d</mi><msub><mi>W</mi><mi>e</mi></msub></mrow></mtd></mtr></mtable>
+            </math>
+          </div>
+          <div class="xccy-equation">
+            <span class="xccy-equation-label">EURUSD level process</span>
+            <math display="block" aria-label="d S over S equals r u minus r e, times d t, plus sigma S of t d W S">
+              <mrow><mfrac><mrow><mi mathvariant="normal">d</mi><mi>S</mi></mrow><mi>S</mi></mfrac><mo>=</mo><mo>(</mo><msub><mi>r</mi><mi>u</mi></msub><mo>−</mo><msub><mi>r</mi><mi>e</mi></msub><mo>)</mo><mi mathvariant="normal">d</mi><mi>t</mi><mo>+</mo><msub><mi>σ</mi><mi>S</mi></msub><mo>(</mo><mi>t</mi><mo>)</mo><mi mathvariant="normal">d</mi><msub><mi>W</mi><mi>S</mi></msub></mrow>
+            </math>
+          </div>
+          <div class="xccy-equation">
+            <span class="xccy-equation-label">Log-EURUSD process</span>
+            <math display="block" aria-label="d log S equals r u minus r e minus one half sigma S squared of t, times d t, plus sigma S of t d W S">
+              <mtable columnalign="left" rowspacing="0.18em"><mtr><mtd><mrow><mi mathvariant="normal">d</mi><mi>log</mi><mi>S</mi><mo>=</mo><mo>[</mo><msub><mi>r</mi><mi>u</mi></msub><mo>−</mo><msub><mi>r</mi><mi>e</mi></msub><mo>−</mo><mfrac><mn>1</mn><mn>2</mn></mfrac><msubsup><mi>σ</mi><mi>S</mi><mn>2</mn></msubsup><mo>(</mo><mi>t</mi><mo>)</mo><mo>]</mo><mi mathvariant="normal">d</mi><mi>t</mi></mrow></mtd></mtr><mtr><mtd><mrow><mspace width="2em"></mspace><mo>+</mo><msub><mi>σ</mi><mi>S</mi></msub><mo>(</mo><mi>t</mi><mo>)</mo><mi mathvariant="normal">d</mi><msub><mi>W</mi><mi>S</mi></msub></mrow></mtd></mtr></mtable>
+            </math>
+          </div>
+        </div>
+      </article>
+
+      <form class="xccy-card dark" id="xccy-pricing-form" method="post" action="{{ url_for('workbench.xccy_callable_price') }}">
+        <input type="hidden" name="market_source" value="local_json">
+        <h3>Instantaneous correlation</h3>
+        <p>Edit the three independent entries. The symmetric 3×3 matrix is checked in the browser and validated again server-side before any calibration or simulation starts.</p>
+        <table class="xccy-correlation" aria-label="Model correlation matrix">
+          <thead><tr><th></th>{% for label in factor_labels %}<th>{{ label }}</th>{% endfor %}</tr></thead>
+          <tbody>
+            {% for row in correlation %}
+              {% set correlation_row_index = loop.index0 %}
+              <tr><th>{{ factor_labels[correlation_row_index] }}</th>{% for value in row %}<td id="corr-cell-{{ correlation_row_index }}-{{ loop.index0 }}" class="{% if loop.index0 == correlation_row_index %}diagonal{% endif %}">{{ "%.3f"|format(value) }}</td>{% endfor %}</tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <div class="xccy-correlation-editor">
+          <div class="xccy-correlation-field"><label for="rho_usd_eur">ρ USD, EUR</label><input id="rho_usd_eur" name="rho_usd_eur" type="number" min="-1" max="1" step="0.01" value="{{ '%.4f'|format(correlation_values.USD_EUR) }}" data-local-value="{{ market_correlation_values.USD_EUR }}" required></div>
+          <div class="xccy-correlation-field"><label for="rho_usd_fx">ρ USD, FX</label><input id="rho_usd_fx" name="rho_usd_fx" type="number" min="-1" max="1" step="0.01" value="{{ '%.4f'|format(correlation_values.USD_FX) }}" data-local-value="{{ market_correlation_values.USD_FX }}" required></div>
+          <div class="xccy-correlation-field"><label for="rho_eur_fx">ρ EUR, FX</label><input id="rho_eur_fx" name="rho_eur_fx" type="number" min="-1" max="1" step="0.01" value="{{ '%.4f'|format(correlation_values.EUR_FX) }}" data-local-value="{{ market_correlation_values.EUR_FX }}" required></div>
+        </div>
+        <div class="xccy-matrix-status" aria-live="polite"><span>det(R) = <strong id="correlation-determinant">{{ '%.6f'|format(correlation_determinant) }}</strong></span><button class="btn btn-ghost btn-mini" id="reset-correlation" type="button">Load local JSON values</button></div>
+        <div class="xccy-pricing-control">
+          <div class="xccy-pricing-source"><strong>Full recalibration + Monte Carlo repricing</strong><small>Reads {{ data_paths.market }} and {{ data_paths.deal }} afresh, applies only the three correlation values above, then atomically replaces {{ data_paths.result }}. The market JSON itself is not modified.</small></div>
+          <button class="btn" id="xccy-reprice-button" type="submit">Recalibrate &amp; reprice</button>
+        </div>
+      </form>
+    </div>
+
+    {% if result_available %}
+      <div class="xccy-metric-grid" style="margin-top: 12px;">
+        <article class="xccy-metric"><span class="xccy-metric-label">USD mean reversion</span><strong>{{ "%.4f"|format(result.model.usd_hull_white.a) }}</strong><small>One-factor Hull–White a<sub>USD</sub></small></article>
+        <article class="xccy-metric"><span class="xccy-metric-label">USD rate sigma</span><strong>{{ "%.4f"|format(result.model.usd_hull_white.sigma * 100) }}%</strong><small>Constant σ<sub>USD</sub></small></article>
+        <article class="xccy-metric"><span class="xccy-metric-label">EUR mean reversion</span><strong>{{ "%.4f"|format(result.model.eur_hull_white.a) }}</strong><small>One-factor Hull–White a<sub>EUR</sub></small></article>
+        <article class="xccy-metric"><span class="xccy-metric-label">EUR rate sigma</span><strong>{{ "%.4f"|format(result.model.eur_hull_white.sigma * 100) }}%</strong><small>Constant σ<sub>EUR</sub></small></article>
+        <article class="xccy-metric"><span class="xccy-metric-label">Basis treatment</span><strong>Deterministic</strong><small>{{ result.model.basis }}</small></article>
+      </div>
+    {% endif %}
+
+    <div class="xccy-flow" aria-label="Pricing process">
+      <div class="xccy-flow-step"><span>01</span><strong>Bootstrap curves</strong><small>USD SOFR, EUR €STR forecast, and USD-collateralized EUR effective curve.</small></div>
+      <div class="xccy-flow-step"><span>02</span><strong>Calibrate factors</strong><small>Rate sigmas to diagonal normal swaptions; FX buckets to ATM Black options.</small></div>
+      <div class="xccy-flow-step"><span>03</span><strong>Simulate jointly</strong><small>Exact OU rate kernels, integrated covariance, log FX, antithetics.</small></div>
+      <div class="xccy-flow-step"><span>04</span><strong>Fit LSM policy</strong><small>Backward continuation regressions on an independent training sample.</small></div>
+      <div class="xccy-flow-step"><span>05</span><strong>Price frozen policy</strong><small>Forward stopping on new paths with confidence intervals and diagnostics.</small></div>
+    </div>
+  </section>
+
+  <section class="xccy-section" id="calibration">
+    <div class="xccy-section-heading">
+      <div>
+        <span class="xccy-section-index">04 / Calibration</span>
+        <h2>Curve fit, rate smiles, and FX term structure.</h2>
+      </div>
+      <p>Rate calibration uses normal-vol diagonal swaptions. FX diffusion buckets are solved in the full stochastic-rate hybrid to reproduce selected ATM Black targets.</p>
+    </div>
+
+    {% if result_available %}
+      <div class="xccy-rms-definition">
+        <math display="block" aria-label="RMS relative error equals the square root of one over N times the sum of squared model value over market value minus one">
+          <mrow><msub><mi>RMS</mi><mi>rel</mi></msub><mo>=</mo><msqrt><mfrac><mn>1</mn><mi>N</mi></mfrac><munderover><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mi>N</mi></munderover><msup><mrow><mo>(</mo><mfrac><msubsup><mi>V</mi><mi>i</mi><mi>model</mi></msubsup><msubsup><mi>V</mi><mi>i</mi><mi>market</mi></msubsup></mfrac><mo>−</mo><mn>1</mn><mo>)</mo></mrow><mn>2</mn></msup></msqrt></mrow>
+        </math>
+        <p><strong>Exact implementation definition.</strong> Each diagonal swaption helper has equal weight, so “weighted RMS” in the versioned JSON means weights w<sub>i</sub> = 1. It measures typical relative pricing error, penalizes larger misses quadratically, and is dimensionless. The page reports it as a percentage; for example 0.02319 is 2.319%.</p>
+      </div>
+      <div class="xccy-check-grid">
+        {% for check in calibration_checks %}
+          <article class="xccy-check">
+            <div class="xccy-check-top"><span class="xccy-check-name">{{ check.label }}</span><span class="xccy-pass {% if not check.passes %}fail{% endif %}">{{ "pass" if check.passes else "fail" }}</span></div>
+            <strong>{{ "%.6g"|format(check.display_value) }} {{ check.unit }}</strong>
+            <small>Acceptance limit ≤ {{ "%.6g"|format(check.display_limit) }} {{ check.unit }}</small>
+          </article>
+        {% endfor %}
+      </div>
+
+      <div class="xccy-two-col">
+        <article class="xccy-card">
+          <h3>Hull–White diagonal fits</h3>
+          <p>Market and model values are normalized helper prices; errors are relative price errors.</p>
+          <div class="xccy-table-wrap">
+            <table class="xccy-table">
+              <thead><tr><th>CCY</th><th>Expiry × tenor</th><th class="numeric">Market</th><th class="numeric">Model</th><th class="numeric">Rel. error</th></tr></thead>
+              <tbody>
+                {% for row in usd_swaption_rows + eur_swaption_rows %}
+                  <tr><td><strong>{{ row.currency }}</strong></td><td class="mono">{{ row.instrument }}</td><td class="numeric mono">{{ "%.8f"|format(row.market_value) }}</td><td class="numeric mono">{{ "%.8f"|format(row.model_value) }}</td><td class="numeric mono">{{ "%+.3f"|format(row.relative_price_error * 100) }}%</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="xccy-card">
+          <h3>EURUSD ATM Black calibration</h3>
+          <p>Market implied vol differs from the hybrid diffusion coefficient because both interest rates are stochastic.</p>
+          <div class="xccy-table-wrap">
+            <table class="xccy-table">
+              <thead><tr><th>Instrument</th><th class="numeric">Market vol</th><th class="numeric">Model vol</th><th class="numeric">Hybrid σ</th></tr></thead>
+              <tbody>
+                {% for row in fx_calibration_rows %}
+                  <tr><td class="mono">{{ row.instrument }}</td><td class="numeric mono">{{ "%.3f"|format(row.market_black_vol * 100) }}%</td><td class="numeric mono">{{ "%.3f"|format(row.model_black_vol * 100) }}%</td><td class="numeric mono">{{ "%.3f"|format(row.diffusion_sigma * 100) }}%</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </div>
+
+      <details class="xccy-details">
+        <summary>Full curve and FX-forward repricing ledger · {{ result.calibration.curve_rows|length }} instruments</summary>
+        <div class="xccy-details-body">
+          {% for group in curve_groups %}
+            <h3 style="margin: 12px 0 7px;">{{ group.name }}</h3>
+            <div class="xccy-table-wrap" style="margin-bottom: 10px;">
+              <table class="xccy-table">
+                <thead><tr><th>Tenor</th><th class="numeric">Market rate / forward</th><th class="numeric">Model rate / forward</th><th class="numeric">Error</th></tr></thead>
+                <tbody>
+                  {% for row in group.rows %}
+                    <tr>
+                      <td class="mono">{{ row.tenor }}</td>
+                      {% if row.market_rate is defined %}
+                        <td class="numeric mono">{{ "%.6f"|format(row.market_rate * 100) }}%</td><td class="numeric mono">{{ "%.6f"|format(row.model_rate * 100) }}%</td><td class="numeric mono">{{ "%+.3e"|format(row.error_bp) }} bp</td>
+                      {% else %}
+                        <td class="numeric mono">{{ "%.6f"|format(row.market_forward) }}</td><td class="numeric mono">{{ "%.6f"|format(row.model_forward) }}</td><td class="numeric mono">{{ "%+.3e"|format(row.relative_error) }}</td>
+                      {% endif %}
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% endfor %}
+        </div>
+      </details>
+    {% endif %}
+  </section>
+
+  <section class="xccy-section" id="exercise">
+    <div class="xccy-section-heading">
+      <div>
+        <span class="xccy-section-index">05 / Bermudan exercise</span>
+        <h2>Backward regression, forward stopping.</h2>
+      </div>
+      <p>The holder cancels the remaining swap only when its estimated cancellable continuation value is negative beyond the configured tolerance.</p>
+    </div>
+
+    <div class="xccy-two-col">
+      <article class="xccy-card dark">
+        <h3>Decision rule</h3>
+        <p>Common cash flows due at the event date are excluded from the comparison, paid, and then retained regardless of the decision.</p>
+        <div class="xccy-equation-stack">
+          <div class="xccy-equation"><span class="xccy-equation-label">Conditional continuation</span><math display="block" aria-label="C i of X i equals the USD measure conditional expectation of future cancellable cash flows and optimized value"><mrow><msub><mi>C</mi><mi>i</mi></msub><mo>(</mo><msub><mi>X</mi><mi>i</mi></msub><mo>)</mo><mo>=</mo><msup><mi mathvariant="normal">E</mi><mi>USD</mi></msup><mo>[</mo><mtext>future cancellable cash flows</mtext><mo>+</mo><msub><mi>V</mi><mrow><mi>i</mi><mo>+</mo><mn>1</mn></mrow></msub><mo>|</mo><msub><mi>X</mi><mi>i</mi></msub><mo>]</mo></mrow></math></div>
+          <div class="xccy-equation"><span class="xccy-equation-label">Zero-fee cancellation</span><math display="block" aria-label="Cancel if zero is greater than estimated continuation plus exercise tolerance"><mrow><mtext>Cancel if</mtext><mspace width="0.5em"></mspace><mn>0</mn><mo>&gt;</mo><msub><mover><mi>C</mi><mo>^</mo></mover><mi>i</mi></msub><mo>(</mo><msub><mi>X</mi><mi>i</mi></msub><mo>)</mo><mo>+</mo><msub><mi>ε</mi><mi>exercise</mi></msub></mrow></math></div>
+          <div class="xccy-equation"><span class="xccy-equation-label">Deterministic tie rule</span><math display="block" aria-label="Continue when the absolute estimated continuation is within exercise tolerance"><mrow><mtext>Continue if</mtext><mspace width="0.5em"></mspace><mo>|</mo><msub><mover><mi>C</mi><mo>^</mo></mover><mi>i</mi></msub><mo>(</mo><msub><mi>X</mi><mi>i</mi></msub><mo>)</mo><mo>|</mo><mo>≤</mo><msub><mi>ε</mi><mi>exercise</mi></msub></mrow></math></div>
+        </div>
+        <p style="margin-top: 14px;">Regression state includes standardized USD/EUR rate factors, log FX, conditional PV features, squares, and cross terms. The frozen policy is applied to an independent pricing sample.</p>
+      </article>
+
+      <article class="xccy-card">
+        <h3>Forward exercise distribution</h3>
+        <p>Unconditional probability by first stopping date. “No exercise” means the deal survives to maturity.</p>
+        <div class="xccy-bars">
+          {% for row in exercise_rows %}
+            <div class="xccy-bar-row">
+              <div class="xccy-bar-label"><strong>{{ row.label }}</strong><small>{% if not row.is_no_exercise %}{{ "{:,}".format(row.exercise_paths) }} of {{ "{:,}".format(result.numerics.pricing_paths) }} paths{% else %}Survives all call dates{% endif %}</small></div>
+              <div class="xccy-bar-track"><div class="xccy-bar-fill {% if row.is_no_exercise %}no-exercise{% endif %}" style="width: {{ '%.3f'|format(row.bar_width_pct) }}%"></div></div>
+              <div class="xccy-bar-value">{{ "%.2f"|format(row.probability * 100) }}%</div>
+            </div>
+          {% endfor %}
+        </div>
+      </article>
+    </div>
+
+    {% if result_available %}
+      <details class="xccy-details">
+        <summary>LSM regression diagnostics · {{ result.regression|length }} exercise regressions</summary>
+        <div class="xccy-details-body xccy-table-wrap">
+          <table class="xccy-table">
+            <thead><tr><th>Call</th><th>Date</th><th class="numeric">Paths</th><th class="numeric">Rank / basis</th><th class="numeric">Condition no.</th><th class="numeric">Residual RMS</th><th class="numeric">Backward ex.</th></tr></thead>
+            <tbody>
+              {% for row in result.regression %}
+                <tr><td>{{ row.call_index + 1 }}</td><td class="mono">{{ schedule.exercise_dates[row.call_index] }}</td><td class="numeric mono">{{ "{:,}".format(row.training_paths) }}</td><td class="numeric mono">{{ row.rank }} / {{ row.basis_size }}</td><td class="numeric mono">{{ "%.3f"|format(row.condition_number) }}</td><td class="numeric mono">{{ row.residual_rms|money }}</td><td class="numeric mono">{{ "%.2f"|format(row.backward_exercise_fraction * 100) }}%</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </details>
+    {% endif %}
+  </section>
+
+  <section class="xccy-section" id="validation">
+    <div class="xccy-section-heading">
+      <div>
+        <span class="xccy-section-index">06 / Numerical validation</span>
+        <h2>Martingales, reproducibility, and known limits.</h2>
+      </div>
+      <p>These diagnostics are evidence for a research implementation, not a substitute for independent model validation or production approval.</p>
+    </div>
+
+    <div class="xccy-validation-grid">
+      <article class="xccy-card">
+        <h3>Domestic-numeraire martingales</h3>
+        <p>Sample expectations are compared with analytic targets; the indicator shown uses a three-standard-error diagnostic band.</p>
+        <div class="xccy-table-wrap">
+          <table class="xccy-table">
+            <thead><tr><th>Asset</th><th class="numeric">Sample</th><th class="numeric">Target</th><th class="numeric">z-score</th><th>Status</th></tr></thead>
+            <tbody>
+              {% for row in martingale_rows %}
+                <tr><td>{{ row.label }}</td><td class="numeric mono">{{ "%.8f"|format(row.mean) }}</td><td class="numeric mono">{{ "%.8f"|format(row.target) }}</td><td class="numeric mono">{{ "%+.3f"|format(row.z_score) }}</td><td><span class="xccy-pass {% if not row.passes %}fail{% endif %}">{{ "pass" if row.passes else "review" }}</span></td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <article class="xccy-card">
+        <h3>Model limitations</h3>
+        <p>Explicit boundaries prevent the reference result from being mistaken for a fully governed trading model.</p>
+        <ul class="xccy-bullet-list">
+          {% for limitation in result.limitations if result_available %}<li>{{ limitation }}</li>{% endfor %}
+        </ul>
+      </article>
+    </div>
+
+    <div class="xccy-callout">
+      Required next-level validation includes bucketed curve and basis risk, FX vega/smile risk, correlation stresses,
+      multi-seed policy dispersion, time-grid and regression-basis convergence, a trusted nested-MC comparison, and a
+      dual upper bound for the Bermudan exercise value.
+    </div>
+  </section>
+
+  <section class="xccy-section" id="implementation">
+    <div class="xccy-section-heading">
+      <div>
+        <span class="xccy-section-index">07 / Implementation & local use</span>
+        <h2>QuantLib where native; explicit hybrid logic where required.</h2>
+      </div>
+      <p>The Flask page is observational. The standalone engine remains the source of pricing results and the MCP server remains the machine-to-machine interface.</p>
+    </div>
+
+    <div class="xccy-two-col">
+      <article class="xccy-card">
+        <h3>QuantLib responsibilities</h3>
+        <ul class="xccy-bullet-list">
+          <li>Calendars, schedules, day counts, OIS helpers, yield curves, and discount factors.</li>
+          <li><span class="xccy-path">ql.HullWhite</span>, <span class="xccy-path">ql.SwaptionHelper</span>, and <span class="xccy-path">ql.JamshidianSwaptionEngine</span> for rate calibration.</li>
+          <li>Black-vol quote conventions and analytic building blocks used by calibration.</li>
+          <li>Reproducible curve and helper repricing diagnostics.</li>
+        </ul>
+      </article>
+      <article class="xccy-card dark">
+        <h3>Explicit Python responsibilities</h3>
+        <ul class="xccy-bullet-list">
+          <li>Joint USD-measure transition with the EUR quanto drift and stochastic-rate FX drift.</li>
+          <li>Exact OU kernels, interval covariance integration, and correlated antithetic paths.</li>
+          <li>Pathwise cross-currency cash flows, notional exchanges, discounting, and FX conversion.</li>
+          <li>Two-sample LSM cancellation policy, exercise accounting, confidence intervals, and martingale tests.</li>
+        </ul>
+      </article>
+    </div>
+
+    <div class="xccy-two-col" style="margin-top: 12px;">
+      <article class="xccy-card">
+        <h3>Refresh the reference valuation</h3>
+        <p>Run from the repository root. Reload this page after the command completes.</p>
+        <code class="xccy-command">./.venv/bin/python standalone_xccy_pricer.py \
+  --market data/xccy_market_eurusd.json \
+  --deal data/xccy_deal_10y_nc2.json \
+  --output result.json</code>
+      </article>
+      <article class="xccy-card">
+        <h3>Machine-to-machine pricing</h3>
+        <p>The MCP server validates a single deal and asks precise questions when required market data or economics are missing.</p>
+        <code class="xccy-command">./.venv/bin/python xccy_pricer_mcp.py \
+  --transport streamable-http \
+  --host 127.0.0.1 --port 8765</code>
+      </article>
+    </div>
+
+    <details class="xccy-details">
+      <summary>Data lineage and reproducibility metadata</summary>
+      <div class="xccy-details-body">
+        <dl class="xccy-data-list">
+          <div class="xccy-data-row"><dt>Market source</dt><dd>{{ market.source }}</dd></div>
+          <div class="xccy-data-row"><dt>Market input</dt><dd>{{ data_paths.market }}</dd></div>
+          <div class="xccy-data-row"><dt>Deal input</dt><dd>{{ data_paths.deal }}</dd></div>
+          <div class="xccy-data-row"><dt>Result snapshot</dt><dd>{{ data_paths.result }}</dd></div>
+          {% if result_available %}
+            <div class="xccy-data-row"><dt>Normalized input SHA-256</dt><dd>{{ result.provenance.normalized_input_sha256 }}</dd></div>
+            <div class="xccy-data-row"><dt>Run ID</dt><dd>{{ result.run_id }}</dd></div>
+            <div class="xccy-data-row"><dt>QuantLib / NumPy / Python</dt><dd>{{ result.provenance.quantlib_version }} / {{ result.provenance.numpy_version }} / {{ result.provenance.python_version }}</dd></div>
+          {% endif %}
+        </dl>
+      </div>
+    </details>
+  </section>
+
+  <script>
+    (() => {
+      const form = document.getElementById("xccy-pricing-form");
+      if (!form) return;
+      const inputs = {
+        usdEur: document.getElementById("rho_usd_eur"),
+        usdFx: document.getElementById("rho_usd_fx"),
+        eurFx: document.getElementById("rho_eur_fx"),
+      };
+      const determinantNode = document.getElementById("correlation-determinant");
+      const submitButton = document.getElementById("xccy-reprice-button");
+      const resetButton = document.getElementById("reset-correlation");
+      const setCell = (row, column, value) => {
+        const cell = document.getElementById(`corr-cell-${row}-${column}`);
+        if (cell) cell.textContent = Number.isFinite(value) ? value.toFixed(3) : "—";
+      };
+      const updateMatrix = () => {
+        const usdEur = Number.parseFloat(inputs.usdEur.value);
+        const usdFx = Number.parseFloat(inputs.usdFx.value);
+        const eurFx = Number.parseFloat(inputs.eurFx.value);
+        setCell(0, 1, usdEur); setCell(1, 0, usdEur);
+        setCell(0, 2, usdFx); setCell(2, 0, usdFx);
+        setCell(1, 2, eurFx); setCell(2, 1, eurFx);
+        const values = [usdEur, usdFx, eurFx];
+        const bounded = values.every((value) => Number.isFinite(value) && value >= -1 && value <= 1);
+        const determinant = bounded
+          ? 1 + 2 * usdEur * usdFx * eurFx - usdEur ** 2 - usdFx ** 2 - eurFx ** 2
+          : undefined;
+        const valid = bounded && determinant >= -1e-10;
+        determinantNode.textContent = Number.isFinite(determinant) ? determinant.toFixed(6) : "invalid";
+        determinantNode.classList.toggle("invalid", !valid);
+        inputs.usdEur.setCustomValidity(valid ? "" : "Correlation matrix must be positive semidefinite.");
+        submitButton.disabled = !valid;
+      };
+      Object.values(inputs).forEach((input) => input.addEventListener("input", updateMatrix));
+      resetButton.addEventListener("click", () => {
+        Object.values(inputs).forEach((input) => { input.value = Number(input.dataset.localValue).toFixed(4); });
+        updateMatrix();
+      });
+      form.addEventListener("submit", () => {
+        if (!form.checkValidity()) return;
+        submitButton.disabled = true;
+        submitButton.textContent = "Calibrating & pricing…";
+        form.setAttribute("aria-busy", "true");
+      });
+      updateMatrix();
+    })();
+  </script>
+{% endblock %}

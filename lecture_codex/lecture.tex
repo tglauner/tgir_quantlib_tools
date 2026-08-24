@@ -1,0 +1,133 @@
+\documentclass[aspectratio=169,11pt]{beamer}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{booktabs,array,multirow}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,shapes.geometric}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{hyperref}
+
+\definecolor{TgirNavy}{HTML}{0B1F2A}
+\definecolor{TgirTeal}{HTML}{00A88F}
+\definecolor{TgirMint}{HTML}{BFE9DD}
+\definecolor{TgirOrange}{HTML}{D06C3B}
+\definecolor{TgirPaper}{HTML}{F7F2E8}
+\definecolor{TgirGray}{HTML}{61717C}
+
+\setbeamercolor{normal text}{fg=TgirNavy,bg=TgirPaper}
+\setbeamercolor{structure}{fg=TgirTeal}
+\setbeamercolor{frametitle}{fg=TgirPaper,bg=TgirNavy}
+\setbeamercolor{title}{fg=TgirPaper}
+\setbeamercolor{subtitle}{fg=TgirMint}
+\setbeamercolor{block title}{fg=TgirPaper,bg=TgirTeal}
+\setbeamercolor{block body}{fg=TgirNavy,bg=TgirMint!35!TgirPaper}
+\setbeamercolor{alerted text}{fg=TgirOrange}
+\setbeamerfont{title}{size=\fontsize{30}{34}\selectfont,series=\bfseries}
+\setbeamerfont{subtitle}{size=\fontsize{15}{18}\selectfont}
+\setbeamerfont{frametitle}{size=\fontsize{17}{20}\selectfont,series=\bfseries}
+\setbeamerfont{normal text}{size=\fontsize{11}{14}\selectfont}
+\setbeamerfont{block title}{series=\bfseries}
+\setbeamertemplate{navigation symbols}{}
+\setbeameroption{hide notes}
+\setbeamertemplate{itemize item}{\color{TgirTeal}$\blacktriangleright$}
+\setbeamertemplate{itemize subitem}{\color{TgirOrange}$\bullet$}
+\setbeamersize{text margin left=8mm,text margin right=8mm}
+
+\setbeamertemplate{frametitle}{%
+  \nointerlineskip
+  \begin{beamercolorbox}[wd=\paperwidth,ht=14mm,dp=3mm,leftskip=8mm,rightskip=8mm]{frametitle}
+    \usebeamerfont{frametitle}\insertframetitle
+  \end{beamercolorbox}}
+
+\setbeamertemplate{footline}{%
+  \leavevmode
+  \hbox{%
+    \begin{beamercolorbox}[wd=.78\paperwidth,ht=3.2mm,dp=1.3mm,leftskip=8mm]{author in head/foot}%
+      \color{TgirGray}\scriptsize TGIR QuantLib Tools -- a chronological learning journey
+    \end{beamercolorbox}%
+    \begin{beamercolorbox}[wd=.22\paperwidth,ht=3.2mm,dp=1.3mm,rightskip=8mm plus1fil]{date in head/foot}%
+      \color{TgirTeal}\scriptsize\insertframenumber/\inserttotalframenumber
+    \end{beamercolorbox}}
+  \vskip0pt}
+
+\lstset{
+  basicstyle=\ttfamily\scriptsize,
+  keywordstyle=\color{TgirTeal}\bfseries,
+  commentstyle=\color{TgirGray},
+  stringstyle=\color{TgirOrange},
+  backgroundcolor=\color{white!70!TgirPaper},
+  frame=single,
+  rulecolor=\color{TgirMint},
+  breaklines=true,
+  showstringspaces=false
+}
+
+\newcommand{\takeaway}[1]{%
+  \vfill
+  \begin{beamercolorbox}[rounded=true,sep=1.5mm,wd=\linewidth]{block body}
+    \textbf{Takeaway.} #1
+  \end{beamercolorbox}}
+\newcommand{\src}[1]{\note{[Sources] #1}}
+\newcommand{\lesson}[6]{%
+  \begin{frame}{#1}
+    \begin{itemize}\setlength\itemsep{0.9em}
+      \item #2
+      \item #3
+      \item #4
+    \end{itemize}
+    \takeaway{#5}
+    \src{#6}
+  \end{frame}}
+\newcommand{\twocolesson}[7]{%
+  \begin{frame}{#1}
+    \begin{columns}[T,onlytextwidth]
+      \column{.48\textwidth}\textbf{#2}\par\medskip #3
+      \column{.48\textwidth}\textbf{#4}\par\medskip #5
+    \end{columns}
+    \takeaway{#6}
+    \src{#7}
+  \end{frame}}
+\newcommand{\chronology}[7]{%
+  \begin{frame}{#2}
+    \begin{columns}[T,onlytextwidth]
+      \column{.20\textwidth}
+      {\color{TgirTeal}\fontsize{24}{28}\selectfont\bfseries #1}
+      \column{.76\textwidth}
+      \begin{itemize}\setlength\itemsep{0.8em}\item #3\item #4\item #5\end{itemize}
+    \end{columns}
+    \takeaway{#6}
+    \src{#7}
+  \end{frame}}
+\newcommand{\sectionframe}[3]{%
+  \begin{frame}[plain]
+    \begin{tikzpicture}[remember picture,overlay]
+      \fill[TgirNavy] (current page.south west) rectangle (current page.north east);
+      \fill[TgirTeal] (current page.south west) rectangle ([xshift=8mm]current page.north west);
+      \node[anchor=west,text width=.84\paperwidth,align=left] at ([xshift=18mm]current page.west)
+      {\color{TgirMint}\large #1\par\vspace{3mm}\color{white}\fontsize{28}{32}\selectfont\bfseries #2};
+    \end{tikzpicture}
+    \src{#3}
+  \end{frame}}
+
+\title{Building a QuantLib Derivatives Workbench}
+\subtitle{Human-directed engineering with Codex and Claude, from vanilla pricing to a callable cross-currency hybrid engine}
+\author{Tim Launer with Codex and Claude -- QuantLib, Python, C++, macOS, and DigitalOcean}
+\date{Evidence through 22 August 2026}
+
+\begin{document}
+\input{sections/01_finance_foundations}
+\input{sections/02_quantlib_python_foundations}
+\input{sections/03_genesis_initial_models}
+\input{sections/04_sofr_curve_workstation}
+\input{sections/05_swaptions_bermudans}
+\input{sections/06_equity_cliquet_risk}
+\input{sections/07_architecture_testing_deployment}
+\input{sections/08_xccy_quantlib_assessment}
+\input{sections/09_xccy_extension}
+\input{sections/10_ai_assisted_engineering}
+\input{sections/10_integration_validation_lessons}
+\end{document}

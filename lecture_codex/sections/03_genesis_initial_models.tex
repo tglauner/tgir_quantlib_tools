@@ -1,0 +1,139 @@
+% Slides 41--60
+\sectionframe{03 / March 2025 to September 2025}{The sandbox begins with three rates instruments}{Git commits c78135e, 7b3b13c, 8e17f9f, 0bf36bb, 6bea9e2.}
+
+\chronology{15 Mar 2025}{The repository starts as an empty licensed shell}
+{Commit \texttt{c78135e} adds only \texttt{.gitignore} and the Apache 2.0 license.}
+{GitHub records the public repository creation at 10:14:37 UTC.}
+{The initial state establishes ownership and hygiene before any pricing code exists.}
+{Local Git history; GitHub repository metadata.}
+
+\chronology{15 Mar 2025}{A standalone Bermudan example appears first}
+{Commit \texttt{7b3b13c} seeds \texttt{price\_bermudan\_swaption.py}.}
+{Its later role becomes a thin command-line view over the shared portfolio path.}
+{The product ambition -- early-exercise rates optionality -- is present from day one.}
+{Git history for price\_bermudan\_swaption.py.}
+
+\chronology{15 Mar 2025}{Iteration 1 creates the Flask pricing demo}
+{Commit \texttt{8e17f9f} adds 139 lines across the app, pricing module, dependencies, and two templates.}
+{The commit message explicitly says the GPT-4.5 output was taken as-is without test runs.}
+{The demo prices a swap, European swaption, and purported Bermudan swaption.}
+{Commit 8e17f9f and its source tree.}
+
+\lesson{The first curve is deliberately simple -- and flawed}
+{One annual deposit helper is created per supplied rate, even though the index is SOFR.}
+{The curve uses \texttt{PiecewiseLinearZero} with Actual/360.}
+{No quoted instrument repricing table verifies the construction.}
+{This is sufficient to demonstrate object wiring, not a defensible SOFR OIS curve.}
+{portfolio.py at commit 8e17f9f.}
+
+\lesson{The first swap wires schedules, index, and discounting}
+{A five-year payer \texttt{VanillaSwap} uses annual fixed and floating schedules.}
+{The fixed leg uses 30/360; the floating leg uses SOFR and Actual/360.}
+{A discounting engine values the swap on the constructed curve.}
+{The structure teaches QuantLib composition even though conventions remain simplified.}
+{portfolio.py at commit 8e17f9f.}
+
+\lesson{The first European swaption uses Black volatility}
+{A \texttt{EuropeanExercise} wraps a date and a \texttt{Swaption} wraps the swap.}
+{\texttt{BlackSwaptionEngine} receives the curve and a flat 1 percent volatility.}
+{No market smile, quote convention, or calibration is present.}
+{The engine is a pricing example, not yet a market-calibrated mark.}
+{portfolio.py at commit 8e17f9f.}
+
+\lesson{The initial Bermudan implementation exposes a conceptual error}
+{A \texttt{BermudanExercise} contains multiple dates.}
+{The same \texttt{BlackSwaptionEngine} is assigned to the Bermudan instrument.}
+{Black's European closed form cannot solve optimal exercise across multiple dates.}
+{Matching an instrument type to an incompatible engine is a classic library-integration failure.}
+{portfolio.py at commit 8e17f9f.}
+
+\lesson{The original swaption underlying also needed separation}
+{The first version reused the live spot-start swap for both option types.}
+{A European swaption should reference a forward-starting underlying beginning at exercise.}
+{Bermudan exercise dates must align with remaining swap cash flows.}
+{Product construction errors can dominate any sophistication in the pricing engine.}
+{Diff from 8e17f9f to 6bea9e2.}
+
+\chronology{3 Sep 2025}{Documentation becomes the first reviewed improvement}
+{Pull request 1 adds a detailed README and is merged into \texttt{main}.}
+{The repository becomes easier to install, run, and inspect.}
+{Documentation establishes a shared description before deeper model repair.}
+{GitHub PR 1; commits 0bf36bb and 19b73aa.}
+
+\chronology{3 Sep 2025}{QuantLib API changes force explicit conventions}
+{Pull request 2 fixes \texttt{UnitedStates} calendar construction and \texttt{Thirty360} initialization.}
+{The SOFR index is constructed with a yield-term-structure handle.}
+{Flat volatility is passed through a quote handle expected by the modern binding.}
+{Library upgrades reveal implicit assumptions and should be covered by smoke tests.}
+{GitHub PR 2; commit 6bea9e2.}
+
+\lesson{The Bermudan engine is corrected to a Hull-White tree}
+{Commit \texttt{6bea9e2} creates a one-factor \texttt{ql.HullWhite} model on the curve.}
+{\texttt{TreeSwaptionEngine(model,50)} performs backward induction on a short-rate lattice.}
+{This matches the discrete exercise structure and replaces the invalid Black engine.}
+{Model and engine compatibility is more important than convenience.}
+{portfolio.py at commit 6bea9e2.}
+
+\lesson{A separate forward-starting swap is introduced}
+{The live swap starts today while the option underlying begins one year forward.}
+{The European expiry is aligned with that forward start.}
+{The Bermudan dates follow the forward start in annual increments.}
+{The change distinguishes current exposure from an option on future swap entry.}
+{portfolio.py at commit 6bea9e2.}
+
+\lesson{Why Hull-White is a natural first rates model}
+{It is a one-factor Gaussian short-rate model that fits the initial term structure through a time-dependent drift.}
+{Mean reversion controls persistence; volatility controls dispersion.}
+{Analytic bond prices and a recombining tree support efficient swaption valuation.}
+{Its simplicity makes assumptions visible, but one factor limits smile and correlation structure.}
+{Hull and White; QuantLib HullWhite class.}
+
+\begin{frame}{Hull-White one-factor dynamics}
+  \[
+    dr_t=\bigl(\theta(t)-a r_t\bigr)dt+\sigma dW_t,
+    \qquad
+    P(t,T)=A(t,T)e^{-B(t,T)r_t}.
+  \]
+  \begin{itemize}\setlength\itemsep{0.8em}
+    \item $a>0$ pulls rates toward the time-dependent level implied by $\theta(t)$.
+    \item $\sigma$ determines short-rate uncertainty; $B(t,T)=(1-e^{-a(T-t)})/a$.
+    \item The affine bond formula is central to trees, analytic swaptions, and later XCCY conditional PVs.
+  \end{itemize}
+  \takeaway{Hull-White separates exact initial-curve fit from a parsimonious stochastic factor.}
+  \src{Hull and White; QuantLib HullWhite implementation.}
+\end{frame}
+
+\lesson{The early tree remains uncalibrated}
+{The model uses default Hull-White parameters rather than a swaption-volatility surface.}
+{Fifty time steps are selected without a convergence study.}
+{The price is therefore illustrative and cannot claim market consistency.}
+{The next development phase must build curves correctly, add tests, and calibrate volatility.}
+{portfolio.py at commit 6bea9e2.}
+
+\lesson{The early UI is intentionally thin}
+{Flask collects a small rate vector and displays a three-row blotter.}
+{The web layer and pricing functions are directly coupled.}
+{There is no authentication, model diagnostics, persistent state, or risk view.}
+{The small surface is useful for learning but not yet an architecture.}
+{app.py and templates at commit 8e17f9f.}
+
+\lesson{What the first phase taught}
+{QuantLib object composition makes a working demo compact.}
+{Compact code can conceal convention, product, and engine mismatches.}
+{API repairs and a correct Bermudan engine were necessary before adding features.}
+{Tests and calibration become the next logical investments.}
+{Commits 8e17f9f and 6bea9e2.}
+
+\lesson{The maturity of a pricer is visible in its diagnostics}
+{Iteration 1 returns only NPVs.}
+{No curve residuals, calibration residuals, schedules, Greeks, or numerical error are exposed.}
+{Later work repeatedly adds these observables before adding new model complexity.}
+{Transparency evolves into a design principle for the entire repository.}
+{Git diffs across 2025--2026.}
+
+\lesson{The project pauses before a major rebuild}
+{No recorded commits occur between September 2025 and April 2026.}
+{The next changes arrive as runtime repair, OIS bootstrap, and automated tests.}
+{The pause separates a proof-of-concept phase from a workstation phase.}
+{Chronology should not infer activity where Git contains no evidence.}
+{Local Git log.}

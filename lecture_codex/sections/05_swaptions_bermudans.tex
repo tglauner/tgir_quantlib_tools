@@ -1,0 +1,195 @@
+% Slides 81--105
+\sectionframe{05 / 5 April 2026}{Swaptions become calibrated models, not flat-vol examples}{Commit 31df798; portfolio.py calibrated short-rate model path.}
+
+\chronology{5 Apr 2026}{Curve analytics and calibrated Bermudans arrive}
+{Commit \texttt{31df798} adds about 2,082 lines across pricing, model documentation, dashboards, routes, and tests.}
+{Hull-White calibration replaces default model parameters.}
+{G2++ appears as a comparison model and the QuantLib data-model page exposes construction details.}
+{The project begins to separate market fit, model choice, and numerical engine.}
+{Commit 31df798.}
+
+\lesson{European swaptions are calibration instruments}
+{A diagonal point is identified by option expiry and remaining swap tenor, such as 2Y x 8Y.}
+{The market normal volatility is converted into a helper price.}
+{The model price is compared with the same helper after assigning a calibration engine.}
+{This aligns calibration targets with the future swaps relevant to Bermudan exercise.}
+{portfolio.py \_create\_swaption\_helper and diagonal pillars.}
+
+\lesson{Jamshidian decomposition provides a Hull-White benchmark}
+{A one-factor coupon-bond option can be decomposed into options on zero-coupon bonds.}
+{QuantLib's \texttt{JamshidianSwaptionEngine} prices calibration helpers analytically under Hull-White.}
+{Fast helper valuation makes iterative calibration practical.}
+{The final Bermudan still uses a tree because multiple exercise dates require backward induction.}
+{QuantLib JamshidianSwaptionEngine; portfolio.py.}
+
+\lesson{Mean reversion is fixed; volatility is calibrated}
+{The UI supplies Hull-White $a$ as a governed input.}
+{The calibration mask fixes $a$ and solves the single constant $\sigma$.}
+{Levenberg-Marquardt minimizes the selected helper errors under explicit end criteria.}
+{Fixing one parameter avoids trying to identify both $a$ and $\sigma$ from a narrow diagonal.}
+{portfolio.py \_build\_hull\_white\_model.}
+
+\begin{frame}{The calibration problem is constrained nonlinear least squares}
+  \[
+    \widehat\sigma=\arg\min_{\sigma>0}
+    \sum_{i=1}^{N} w_i\left(\varepsilon_i(a,\sigma)\right)^2,
+    \qquad a\ \text{fixed}.
+  \]
+  \begin{itemize}\setlength\itemsep{0.8em}
+    \item $\varepsilon_i$ may be relative price error or absolute price error.
+    \item Initial values, bounds, and termination criteria influence robustness.
+    \item Every helper residual is retained for diagnostics and testing.
+  \end{itemize}
+  \takeaway{Calibration is a reproducible algorithm, not a call to ``fit.''}
+  \src{portfolio.py short-rate calibration functions.}
+\end{frame}
+
+\lesson{A Bermudan represents a sequence of remaining swaps}
+{A 5Y NC2 trade first exercises near year 2 and always ends at the original year-5 maturity.}
+{Later decisions enter or cancel progressively shorter remaining swaps.}
+{The repository builds labels such as 2Y x 3Y, 3Y x 2Y, and 4Y x 1Y.}
+{Holding final maturity fixed is essential; a fixed underlying tenor would describe a different trade.}
+{portfolio.py \_bermudan\_schedule\_context; tests/test\_sofr\_curve.py.}
+
+\lesson{Exercise dates are business-day objects}
+{The fixed schedule defines underlying start dates and final maturity.}
+{Exercise is placed one business day before the corresponding underlying start.}
+{QuantLib calendars adjust every date consistently.}
+{Tests assert the exact 2028--2031 dates for the benchmark schedule.}
+{tests/test\_sofr\_curve.py schedule test.}
+
+\lesson{The diagonal helper strip follows the call schedule}
+{Each exercise date maps to the remaining swap tenor.}
+{If an expiry is absent from the visible matrix, the repository interpolates between governed neighboring expiries.}
+{Source market points are retained and shown in the UI.}
+{Calibration lineage connects each model residual to an exercise opportunity.}
+{portfolio.py bermudan\_diagonal\_calibration\_pillars.}
+
+\lesson{Tree pricing performs backward induction}
+{The short-rate state is discretized on a recombining lattice.}
+{At the final exercise date, exercise and continuation values are known at each node.}
+{Moving backward, the engine takes the larger holder value at each eligible node.}
+{Discounted transition expectations propagate the optimal value to today.}
+{QuantLib TreeSwaptionEngine; BermudanSwaption example.}
+
+\begin{frame}{The local exercise rule}
+  \[
+    V(t_i,x)=\max\left(E(t_i,x),\ C(t_i,x)\right),
+    \qquad
+    C(t_i,x)=\mathbb E\!\left[D_{i,i+1}V(t_{i+1},X_{i+1})\mid X_i=x\right].
+  \]
+  \begin{itemize}\setlength\itemsep{0.8em}
+    \item The state $x$ is one-dimensional under Hull-White 1F.
+    \item Node values share successor states, producing a recombining tree.
+    \item Numerical time steps control approximation error between event dates.
+  \end{itemize}
+  \takeaway{A Bermudan price includes both cash-flow value and the value of a stopping policy.}
+  \src{Standard lattice backward induction; QuantLib TreeSwaptionEngine.}
+\end{frame}
+
+\lesson{Tree steps are a numerical parameter}
+{The repository scales steps with final maturity and enforces a minimum of 50.}
+{Too few steps distort exercise and curve fitting on the lattice.}
+{More steps increase runtime and may expose date-grid alignment effects.}
+{A production model needs an explicit tree-step convergence study.}
+{portfolio.py \_bermudan\_tree\_time\_steps.}
+
+\lesson{G2++ adds a second Gaussian rate factor}
+{Two mean-reverting factors allow richer yield-curve movements than Hull-White 1F.}
+{Volatilities $\sigma$ and $\eta$ are calibrated while mean reversions and factor correlation are fixed in this workbench.}
+{QuantLib provides a G2 swaption calibration engine and tree-compatible short-rate model machinery.}
+{The comparison reveals model risk without replacing the transparent Hull-White default.}
+{portfolio.py \_build\_g2\_model.}
+
+\begin{frame}{G2++ decomposes the short rate into two factors}
+  \[
+    r_t=\varphi(t)+x_t+y_t,
+    \quad dx_t=-a x_tdt+\sigma dW_t^x,
+    \quad dy_t=-b y_tdt+\eta dW_t^y,
+    \quad dW_t^x dW_t^y=\rho\,dt.
+  \]
+  \begin{itemize}\setlength\itemsep{0.8em}
+    \item $\varphi(t)$ fits today's term structure.
+    \item Two factors can represent level and slope-like movements.
+    \item More parameters improve flexibility but complicate identification and validation.
+  \end{itemize}
+  \takeaway{Additional factors should answer a measured model deficiency, not merely add sophistication.}
+  \src{QuantLib G2 model; portfolio.py.}
+\end{frame}
+
+\lesson{Calibration method becomes user-visible}
+{The trade stores relative-price-error or price-error selection.}
+{QuantLib helper enums are displayed rather than hidden behind an opaque label.}
+{The model view reports fixed and calibrated parameters separately.}
+{A user can explain why two calibrations differ instead of seeing only two NPVs.}
+{portfolio.py calibration method normalization; trade form.}
+
+\lesson{The model page documents the object graph}
+{It names instruments, factories, signatures, purposes, dependencies, fields, and enumerations.}
+{Schedules and model parameters become inspectable educational objects.}
+{Research references are linked to the actual repository implementations.}
+{Documentation is generated from the same normalized state used by pricing.}
+{tgir\_quantlib\_tools/quantlib\_model.py; templates/quantlib\_model.html.}
+
+\lesson{Workbook alignment adds an external benchmark}
+{A second Bermudan trade is seeded with the spreadsheet reference economics.}
+{The test expects a mark near USD 1.414 million within a USD 20,000 tolerance.}
+{The schedule, surface interpolation, model, and tree must work together to meet the benchmark.}
+{A benchmark test is stronger than checking only that NPV is positive.}
+{tests/test\_sofr\_curve.py workbook reference test.}
+
+\lesson{Exercise probabilities remain a known tree limitation}
+{The UI lists the call schedule and calibration sources.}
+{QuantLib's tree swaption engine returns value but does not expose the exercise probability profile used by this app.}
+{The repository says ``not exposed'' rather than inventing statistics.}
+{The later XCCY LSM engine records exercise counts explicitly because it owns the policy.}
+{portfolio.py exercise schedule rows; README.md.}
+
+\lesson{Sensitivity maps reveal calibration dependency}
+{The European swaption responds to one selected matrix pillar.}
+{The Bermudan responds to the diagonal and any interpolation source points.}
+{Mean-reversion bumps rebuild and recalibrate the model.}
+{Tests assert the exact nonzero volatility labels, turning data lineage into executable behavior.}
+{tests/test\_sofr\_curve.py sensitivity tests.}
+
+\lesson{The calibrated model still has deliberate simplifications}
+{A single constant volatility parameter compresses an entire diagonal strip.}
+{Mean reversion is fixed rather than statistically identified.}
+{The one-factor model cannot reproduce all swaption-surface shapes simultaneously.}
+{The workbench surfaces residuals so users can see the cost of parsimony.}
+{portfolio.py calibration diagnostics.}
+
+\lesson{Single-currency Bermudans are a tree problem here}
+{One curve economy and one short-rate state keep lattice dimensionality manageable.}
+{QuantLib already has the instrument, model, calibration helpers, and tree engine.}
+{This native path is retained unchanged when cross-currency work begins.}
+{A new XCCY engine should not destabilize a validated benchmark path.}
+{XCCY pricing specification sections 1 and 9.}
+
+\chronology{5 Apr 2026}{On-demand risk follows calibrated pricing}
+{Commit \texttt{aa50775} adds roughly 688 lines for trade risk analytics and richer trade pages.}
+{Curve, volatility, and model-parameter bumps are computed when requested.}
+{The dashboard stays responsive by avoiding unconditional scenario expansion.}
+{Risk is treated as a controlled workflow around the same pricing functions.}
+{Commit aa50775.}
+
+\lesson{Recalibration policy defines a Greek}
+{A curve or volatility bump may change both direct valuation inputs and calibrated model parameters.}
+{Holding parameters fixed measures one risk; full recalibration measures another.}
+{The repository's diagnostics state which convention is used.}
+{Comparisons are meaningful only when bump and calibration policies agree.}
+{portfolio.py risk functions; xccy\_pricer\_diagnostics.py.}
+
+\lesson{The Bermudan phase prepares the XCCY extension}
+{It establishes schedule semantics, diagonal calibration, residual reporting, and explicit exercise dates.}
+{It demonstrates native QuantLib backward induction in a low-dimensional setting.}
+{It also exposes what the native engine does not report or generalize.}
+{The later hybrid model keeps the economics and replaces only the state evolution and stopping engine.}
+{Git chronology and XCCY specification.}
+
+\lesson{A calibrated tree is a benchmark, not a universal engine}
+{Its strengths are speed, deterministic backward induction, and native QuantLib integration.}
+{Its boundary is the one-economy swaption instrument and low-dimensional short-rate state.}
+{Cross-currency optionality adds a second rate factor, FX, quanto drift, and two-currency cash flows.}
+{Recognizing that boundary prevents forcing the wrong abstraction onto the next product.}
+{QuantLib source assessment; repository model architecture.}

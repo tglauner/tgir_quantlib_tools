@@ -1,0 +1,198 @@
+% Slides 166--190
+\sectionframe{09 / 15--17 August 2026}{Extending QuantLib with an explicit Python hybrid engine}{standalone\_xccy\_pricer.py; schemas, tests, diagnostics, MCP, and web page.}
+
+\lesson{The input validator is the first pricing component}
+{Schemas require versioned market and deal objects.}
+{Semantic checks reject unsupported currencies, FX quote direction, exercise style, correlations, schedules, and nonpositive numerics.}
+{Unknown fields are rejected to prevent silent contract drift.}
+{The engine refuses to price economics it cannot represent faithfully.}
+{standalone\_xccy\_pricer.py validate\_inputs; data/schemas.}
+
+\lesson{The correlation matrix must be admissible}
+{Each off-diagonal correlation lies in $[-1,1]$.}
+{The symmetric matrix must be positive semidefinite.}
+{The web editor computes the determinant and disables repricing when the matrix is invalid.}
+{The simulator uses an eigenvalue-based covariance root robust to semidefinite cases.}
+{standalone\_xccy\_pricer.py \_correlation\_matrix and \_covariance\_root; xccy page.}
+
+\lesson{Three curves serve distinct jobs}
+{USD SOFR is the domestic discount curve.}
+{EUR ESTR is the foreign forecast curve for floating coupons.}
+{FX forwards imply an effective EUR curve consistent with USD collateral.}
+{The separation prevents a foreign forecast curve from being mistaken for the cross-currency discount curve.}
+{standalone\_xccy\_pricer.py build\_curves.}
+
+\begin{frame}{FX forwards imply the effective foreign curve}
+  \[
+    F(0,T)=S_0\frac{P_d(0,T)}{P_f^*(0,T)}
+    \quad\Longrightarrow\quad
+    P_f^*(0,T)=S_0\frac{P_d(0,T)}{F(0,T)}.
+  \]
+  \begin{itemize}\setlength\itemsep{0.8em}
+    \item $S$ and $F$ are both quoted USD per EUR.
+    \item Interpolated forward outrights carry collateralized cross-currency basis information.
+    \item The result report verifies every supplied forward against the constructed effective curve.
+  \end{itemize}
+  \takeaway{Cross-currency basis enters v1 deterministically through the effective foreign curve.}
+  \src{standalone\_xccy\_pricer.py build\_curves; market JSON.}
+\end{frame}
+
+\lesson{Each rate model is calibrated independently}
+{USD and EUR diagonal normal swaptions use their corresponding forecast/discount economy.}
+{Mean reversions are supplied as 3\% for USD and 4\% for EUR.}
+{One constant sigma per currency is solved with QuantLib helpers and Jamshidian engines.}
+{The stored result reports approximately 0.885\% USD sigma and 0.772\% EUR sigma.}
+{data/xccy\_market\_eurusd.json; result.json.}
+
+\lesson{Constant rate volatility is a deliberate v1 compromise}
+{Eight diagonal helpers cannot all be matched exactly by one sigma.}
+{The weighted RMS relative price error summarizes the residual strip.}
+{Calibration limits reject excessive aggregate error.}
+{Piecewise rate volatility is a future model version, not an undocumented tweak.}
+{standalone\_xccy\_pricer.py calibrate\_rate\_model; result limitations.}
+
+\lesson{FX volatility is calibrated in the hybrid variance}
+{Market targets are ATM Black volatilities at 1Y, 2Y, 3Y, 5Y, 7Y, and 10Y.}
+{With stochastic rates, the diffusion coefficient is not blindly copied from the Black quote.}
+{Bucket sigmas are solved so total hybrid log-FX variance reproduces the target maturity variance.}
+{The calibration reports re-implied vol and absolute residual at every tenor.}
+{standalone\_xccy\_pricer.py calibrate\_fx\_model.}
+
+\begin{frame}{Hybrid log-FX variance contains rate and FX terms}
+  \[
+  \mathrm{Var}[\log S_T]
+  =\int_0^T \left\|\sigma_S(u)e_S
+  +\sigma_d B_d(u,T)e_d
+  -\sigma_f B_f(u,T)e_f\right\|_R^2du.
+  \]
+  \begin{itemize}\setlength\itemsep{0.8em}
+    \item $R$ is the instantaneous correlation matrix.
+    \item Rate shocks enter terminal FX through integrated short-rate differentials.
+    \item Bucket calibration solves for nonnegative $\sigma_S$ consistent with accumulated variance.
+  \end{itemize}
+  \takeaway{An ATM Black quote is a target price statistic, not automatically the hybrid FX diffusion.}
+  \src{standalone\_xccy\_pricer.py \_variance\_log\_fx and calibrate\_fx\_model.}
+\end{frame}
+
+\lesson{Cash-flow planning happens before simulation}
+{QuantLib calendars and schedules generate EUR quarterly and USD semiannual periods.}
+{The plan records fixing/accrual boundaries, payment dates, currencies, signs, notionals, and exercise dates.}
+{Initial/final exchanges and payment lags are represented explicitly.}
+{Simulation consumes a deterministic event plan rather than reconstructing contracts path by path.}
+{standalone\_xccy\_pricer.py build\_cashflow\_plan.}
+
+\lesson{The time grid contains every economically relevant event}
+{Coupon boundaries, payments, notional exchanges, and call dates are inserted exactly.}
+{Intermediate dates cap each time step at one month by default.}
+{Piecewise FX-vol bucket ends also enter the grid.}
+{A controlled grid prevents accidental time aggregation across cash-flow or parameter discontinuities.}
+{standalone\_xccy\_pricer.py \_build\_grid.}
+
+\lesson{Exact OU transitions reduce discretization bias}
+{Hull-White state factors use exact conditional mean reversion over each interval.}
+{The transition matrix applies $e^{-a\Delta t}$ to each rate state.}
+{Integrated covariance includes rate states, log FX, and the domestic discount integral.}
+{Only deterministic coefficient integration remains numerical within each step.}
+{standalone\_xccy\_pricer.py \_state\_transition\_matrix and \_step\_covariance.}
+
+\begin{frame}{One exact Gaussian step}
+  \[
+    Z_{t+h}=M(h)Z_t+m(t,h)+L(t,h)\varepsilon,
+    \qquad \varepsilon\sim N(0,I),\quad LL^\top=Q(t,h).
+  \]
+  \begin{itemize}\setlength\itemsep{0.8em}
+    \item $Z$ contains rate factors, log FX, and integrated domestic short rate.
+    \item $M$ captures exact OU decay; $Q$ integrates all correlated diffusion kernels.
+    \item Eigen factorization handles covariance matrices close to singularity.
+  \end{itemize}
+  \takeaway{Exact conditional Gaussian structure is used wherever the chosen model permits it.}
+  \src{standalone\_xccy\_pricer.py StepTransition and simulation context.}
+\end{frame}
+
+\lesson{The log update preserves positive FX}
+{The state is $X=\log S$, not $S$ itself.}
+{Its drift includes $r_d-r_f-\tfrac12\sigma_S^2$.}
+{Exponentiation guarantees positive simulated EURUSD.}
+{The explicit Ito term prevents the common error of using the spot drift directly in log space.}
+{standalone\_xccy\_pricer.py simulate\_batch; quantitative summary.}
+
+\lesson{Floating EUR coupons use a deterministic basis mapping}
+{EUR rate uncertainty comes from the EUR Hull-White factor.}
+{The initial ratio between forecast and effective discount curves is frozen deterministically.}
+{Conditional forecast bonds derive floating accruals without simulating every overnight fixing.}
+{This is an explicit approximation with zero lookback and lockout in v1.}
+{XCCY specification multi-curve assumption; result limitations.}
+
+\lesson{Pathwise valuation respects currency and discounting}
+{USD cash flows are discounted by the simulated USD money-market factor.}
+{EUR cash flows are converted at pathwise EURUSD and discounted domestically.}
+{Leg PVs, non-callable PV, and interval PVs between call dates are retained separately.}
+{A deterministic static-curve benchmark checks the non-callable cash-flow plan.}
+{standalone\_xccy\_pricer.py simulate\_batch and \_static\_curve\_pv.}
+
+\lesson{LSM state variables explain continuation value}
+{Standardized states include both rate factors, log FX, and remaining-leg economics.}
+{The basis contains a constant, linear terms, squares, and pairwise cross-products.}
+{Mean and scale are frozen with the regression coefficients.}
+{Rank, condition number, ridge, residual RMS, and training count are reported per call date.}
+{standalone\_xccy\_pricer.py \_basis and train\_lsm.}
+
+\begin{frame}{Backward training learns when continuation is negative}
+  \begin{enumerate}\setlength\itemsep{0.75em}
+    \item Start with the realized cancellable tail after the last exercise date.
+    \item Regress the discounted continuation realization on current state variables.
+    \item For zero-fee cancellation, exercise when fitted continuation is below zero.
+    \item Replace future value by zero on exercised training paths and move backward.
+  \end{enumerate}
+  \takeaway{Cancellation is valuable because it removes a negative tail, not because it pays a positive intrinsic amount.}
+  \src{standalone\_xccy\_pricer.py train\_lsm.}
+\end{frame}
+
+\lesson{Forward policy application produces an honest price sample}
+{A new seed generates independent pricing paths.}
+{At each call date, the frozen basis and coefficients determine exercise for alive paths.}
+{The first exercise stops only the cancellable tail; prior and common flows remain in value.}
+{The sample average and standard error are computed without refitting.}
+{standalone\_xccy\_pricer.py apply\_lsm\_policy and price.}
+
+\lesson{The sample result exposes value decomposition}
+{The stored snapshot reports callable NPV around USD 8.34 million and non-callable NPV around USD 0.69 million.}
+{The embedded cancellation option is about USD 7.65 million in that stored run.}
+{Leg PVs and a static-curve benchmark support reconciliation.}
+{These values are illustrative and depend on the stored market, correlations, seed, and model version.}
+{result.json; illustrative market warning.}
+
+\lesson{Exercise statistics make the policy observable}
+{Eight annual call dates report alive paths, exercises, unconditional probability, and conditional probability.}
+{The stored run leaves roughly 51\% of paths unexercised through maturity.}
+{A late-date exercise spike can be investigated through regression and remaining-tail economics.}
+{The statistics describe the fitted policy, not real-world exercise frequencies.}
+{result.json exercise section.}
+
+\lesson{Martingale tests challenge the measure implementation}
+{The simulated domestic discount bond is compared with the USD curve target.}
+{Discounted FX-converted foreign zero-coupon value is compared with $S_0P_f^*(0,T)$.}
+{Discounted FX-converted foreign bank account is compared with spot.}
+{Z-scores assess whether sample differences are consistent with Monte Carlo error.}
+{standalone\_xccy\_pricer.py martingale diagnostics; validation tests.}
+
+\chronology{15 Aug 2026}{Diagnostics and MCP follow the core pricer}
+{Local timestamps place bump/convergence diagnostics and the MCP server after the first pricing tests.}
+{The MCP exposes validation and single-deal pricing rather than a portfolio batch.}
+{Optional flags add common-random-number Greeks and convergence evidence.}
+{The delivery interface grows only after a reusable \texttt{price()} function exists.}
+{Local timestamps; xccy\_pricer\_diagnostics.py; xccy\_pricer\_mcp.py.}
+
+\lesson{Rudimentary Greeks use full recalibration}
+{Central EURUSD spot delta scales forwards with spot to preserve $F/S$.}
+{USD and EUR parallel PV01 bump the respective OIS strips.}
+{Full- and half-bump values are compared with common random numbers.}
+{The diagnostics explicitly omit gamma, vega, correlation, bucketed basis risk, and AAD.}
+{xccy\_pricer\_diagnostics.py.}
+
+\chronology{16--17 Aug 2026}{Validation and the quantitative web page are added}
+{A detailed validation report is born 16 August.}
+{The page context, template, and route tests follow on 17 August.}
+{The lab displays dynamics, calibration, value, exercise, martingales, limitations, and raw JSON.}
+{Editable correlations trigger full recalibration and repricing from local market/deal files.}
+{Local timestamps; xccy page files.}

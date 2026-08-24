@@ -1,0 +1,141 @@
+% Slides 146--165
+\sectionframe{08 / 14--15 August 2026}{Does QuantLib natively price callable XCCY swaps?}{Official QuantLib v1.43 source and bindings; repository XCCY specifications.}
+
+\chronology{14 Aug 2026}{The work begins as specification, not code}
+{A quantitative model summary is created before the standalone implementation.}
+{The product, measure, dynamics, calibration, Monte Carlo, and LSM choices are written down.}
+{A separate trading-system integration specification keeps external API concerns distinct.}
+{Writing the contract first exposes ambiguities that code would otherwise hard-wire.}
+{Local timestamps; docs/callable\_bermudan\_xccy\_quant\_model\_summary.tex.}
+
+\lesson{The target deal is economically specific}
+{Ten-year constant-notional EUR/USD swap, non-callable for two years, then annually cancellable through year nine.}
+{The holder receives quarterly compounded EUR ESTR and pays semiannual USD fixed at 4\%.}
+{USD reporting and collateral, USD 100 million versus EUR 90.909 million, with initial and final exchanges.}
+{A zero-fee call cancels remaining cash flows after due payments under declared event ordering.}
+{data/xccy\_deal\_10y\_nc2.json.}
+
+\lesson{``Callable'' is not a complete product definition}
+{The right may cancel an existing swap or enter a remaining swap.}
+{The exercise holder, sign perspective, notice date, effective date, and settlement currency matter.}
+{Same-day coupons and notionals must be partitioned by event order.}
+{Version 1 supports \texttt{CANCEL\_REMAINING\_SWAP} with notice equal to decision date.}
+{docs/callable\_bermudan\_xccy\_swap\_pricing\_spec.md.}
+
+\lesson{The exercise decision separates common and exclusive cash flows}
+{Let $A_i$ contain flows that survive either decision through the effective date.}
+{Let $J_i$ be exercise-only settlement value and $Y_i$ the cancellable continuation tail.}
+{Compare $J_i$ with $\mathbb E[Y_i\mid\mathcal F_{t_i}]$; add $A_i$ after the decision.}
+{This prevents already-due or delayed common cash flows from disappearing at cancellation.}
+{XCCY pricing specification sections 2.4--2.5.}
+
+\lesson{The model needs three correlated risk factors}
+{One Hull-White factor drives USD rates.}
+{One Hull-White factor drives EUR rates.}
+{One lognormal factor drives EURUSD quoted as USD per EUR.}
+{A full positive-semidefinite 3-by-3 correlation matrix couples all Brownian shocks.}
+{XCCY pricing specification executive decision.}
+
+\lesson{Why not extend the single-currency lattice directly?}
+{A three-dimensional lattice grows rapidly in nodes and transition structure.}
+{Two currencies introduce path-dependent conversion and domestic-measure drift corrections.}
+{The existing \texttt{TreeSwaptionEngine} accepts one short-rate model and a swaption, not an arbitrary callable XCCY portfolio.}
+{Monte Carlo scales more naturally in factors and supports explicit pathwise cash flows.}
+{QuantLib TreeSwaptionEngine source; XCCY pricing specification.}
+
+\lesson{QuantLib 1.43 does support deterministic XCCY instruments}
+{Bindings expose constant-notional cross-currency swaps, basis swaps, and fixed-versus-floating swaps.}
+{A discounting constant-notional XCCY engine provides deterministic present-value benchmarks.}
+{Cross-currency rate helpers support curve construction.}
+{These primitives are reused conceptually even though the callable engine is custom.}
+{Official QuantLib v1.43 bindings and ql/instruments source, inspected 2026-08-21.}
+
+\lesson{QuantLib 1.43 supports the single-currency option pieces}
+{Hull-White and G2 short-rate models are native.}
+{Swaption helpers and Jamshidian engines support calibration.}
+{Tree and finite-difference swaption engines support Bermudan exercise on native swaption instruments.}
+{These components validate each currency separately but do not assemble the hybrid callable.}
+{Official QuantLib ql/pricingengines/swaption directory.}
+
+\lesson{QuantLib exposes multi-process simulation primitives}
+{\texttt{StochasticProcessArray} can correlate component process innovations.}
+{\texttt{GaussianMultiPathGenerator} can generate multiple state paths.}
+{Hull-White and Black-Scholes-Merton processes are individually available.}
+{A generic process array does not automatically impose the cross-currency measure change.}
+{Installed QuantLib 1.43 introspection; upstream process source.}
+
+\begin{frame}{The missing economics are in the drifts}
+  \[
+  \begin{aligned}
+  dr_d &= [\theta_d(t)-a_dr_d]dt+\sigma_d dW_d,\\
+  dr_f &= [\theta_f^{(f)}(t)-a_fr_f-\rho_{fS}\sigma_f\sigma_S(t)]dt+\sigma_f dW_f,\\
+  d\log S &= [r_d-r_f-\tfrac12\sigma_S^2(t)]dt+\sigma_S(t)dW_S.
+  \end{aligned}
+  \]
+  \takeaway{Correlating independent native processes is insufficient; the domestic-measure drift system must be implemented jointly.}
+  \src{XCCY quantitative summary; standalone\_xccy\_pricer.py.}
+\end{frame}
+
+\lesson{The quanto sign depends on declared conventions}
+{Domestic is USD, foreign is EUR, and $S$ is USD per EUR.}
+{The pricing measure uses the USD money-market numeraire.}
+{Under those conventions, the EUR short-rate drift receives $-\rho_{fS}\sigma_f\sigma_S$.}
+{Reversing the FX quotation or changing numeraire changes the derived drift.}
+{docs/callable\_bermudan\_xccy\_quant\_two\_pager.md.}
+
+\lesson{The foreign effective curve is a collateralized object}
+{USD collateral, EUR cash flows, spot FX, and FX forwards define an effective EUR discount curve under USD collateral.}
+{The identity $S_0P_f^*(0,T)=\mathbb E^{Q_d}[D_d(0,T)S_T]$ anchors the measure-consistent interpretation.}
+{The EUR forecast curve is mapped through a deterministic forecast/discount basis.}
+{This version has no stochastic cross-currency basis factor.}
+{XCCY pricing specification sections 5--6.}
+
+\lesson{Native support is a spectrum, not a yes/no answer}
+{Native: dates, calendars, schedules, OIS helpers, curves, swaption helpers, Hull-White calibration, analytic benchmarks.}
+{Partly native: XCCY deterministic instruments and generic multi-process utilities.}
+{Not native as one engine: the joint domestic-measure process, callable XCCY cash flows, and LSM stopping policy.}
+{The implementation boundary is selected component by component.}
+{Official QuantLib source assessment and repository design.}
+
+\twocolesson{Extension path: Python reference versus C++ engine}
+{Python reference}
+{Fast to inspect and modify; NumPy vectorization; direct JSON/MCP/web integration; ideal for validating signs, timing, and regression.}
+{C++ production}
+{Native QuantLib types; lower latency; tighter memory and concurrency control; reusable compiled engine behind C++ APIs.}
+{Economics and tests should stabilize before translating the hot path.}
+{XCCY pricing specification section 9.3.}
+
+\lesson{A C++ extension would define a coherent joint process}
+{State could be $(x_d,x_f,\log S,\int r_ddu)$ with exact or controlled transitions.}
+{The process would own measure-consistent drift and integrated covariance.}
+{A callable cash-flow instrument or engine would own event ordering and policy evaluation.}
+{Bindings would expose versioned inputs and structured results without leaking internal handles.}
+{Proposed production extension based on standalone\_xccy\_pricer.py.}
+
+\lesson{Python remains valuable even after C++ migration}
+{It can generate benchmark snapshots and regression vectors.}
+{It supports calibration investigation, scenario exploration, and model-validation notebooks.}
+{The Flask/MCP delivery layers can call a compiled library without changing their contracts.}
+{Independent implementations in two languages strengthen comparison when ownership is clear.}
+{REST and MCP integration documents.}
+
+\lesson{The v1 scope is intentionally narrower than a trading library}
+{Constant notionals, USD collateral, one exercise holder, no partial calls, and no collateral switching.}
+{Rate volatility is one-piece constant per currency; FX volatility is ATM and piecewise constant.}
+{Basis is deterministic; no stochastic volatility, jumps, XVA, or funding adjustment.}
+{Explicit exclusions keep the first model testable.}
+{README.md and result.json limitations.}
+
+\lesson{The decision: Monte Carlo plus two-pass LSM}
+{Monte Carlo handles two rates, FX, correlations, discounting, and pathwise currency conversion.}
+{Backward regression learns continuation value on independent training paths.}
+{A frozen policy is applied forward to a separately seeded pricing sample.}
+{The resulting estimate is a lower-bound policy value with reported sampling error.}
+{XCCY pricing specification sections 7--8.}
+
+\chronology{15 Aug 2026}{The specification becomes an executable reference engine}
+{Local birth times place the standalone pricer at 19:19, followed by deal/market JSON, schemas, and tests.}
+{The implementation stays separate from \texttt{portfolio.py}.}
+{QuantLib is reused for market construction and calibration; NumPy owns the hybrid simulation.}
+{The separation preserves existing single-currency prices while enabling rigorous experimentation.}
+{Local timestamps; standalone\_xccy\_pricer.py.}

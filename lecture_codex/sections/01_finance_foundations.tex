@@ -1,0 +1,157 @@
+% Slides 1--20
+\begin{frame}[plain]
+  \begin{tikzpicture}[remember picture,overlay]
+    \fill[TgirNavy] (current page.south west) rectangle (current page.north east);
+    \fill[TgirTeal] (current page.south west) rectangle ([xshift=10mm]current page.north west);
+    \node[anchor=west,text width=.82\paperwidth,align=left] at ([xshift=20mm]current page.west)
+    {\usebeamerfont{title}\color{white}\inserttitle\par\vspace{4mm}
+     \usebeamerfont{subtitle}\color{TgirMint}\insertsubtitle\par\vspace{7mm}
+     \color{white!70}\normalsize\insertauthor\hfill\insertdate};
+  \end{tikzpicture}
+  \src{Repository history and source tree through local commit f066cce; GitHub repository tglauner/tgir\_quantlib\_tools.}
+\end{frame}
+
+\sectionframe{01 / Finance foundations}{A derivative pricer is a disciplined cash-flow machine}{Hull, Options Futures and Other Derivatives; QuantLib documentation.}
+
+\lesson{A price is a conditional present value}
+{A derivative is a rule that maps future market states into dated cash flows.}
+{Pricing chooses a probability measure and discounts those cash flows with the associated numeraire.}
+{Implementation must preserve dates, currencies, signs, conventions, and information available at each decision time.}
+{The model is not the product; it is the machinery used to value the product's cash-flow rules.}
+{Hull; repository pricing specifications.}
+
+\lesson{Four layers keep pricing logic intelligible}
+{Product layer: contractual schedules, coupons, notionals, exercise rights, and settlement rules.}
+{Market layer: curves, volatilities, FX spot/forwards, correlations, fixings, and quote conventions.}
+{Model and numerical layers: dynamics, calibration, solver, grid, simulation, regression, and tolerances.}
+{Most serious pricing defects come from mixing these layers or leaving a convention implicit.}
+{docs/ARCHITECTURE.md; docs/callable\_bermudan\_xccy\_swap\_pricing\_spec.md.}
+
+\lesson{Discount factors are the common language}
+{A discount factor $P(0,T)$ is today's value of one currency unit paid with certainty at $T$.}
+{For a deterministic cash flow $C_T$, $PV=C_TP(0,T)$. For stochastic cash flow $X_T$, $PV=\mathbb E^Q[D(0,T)X_T]$.}
+{Zero and forward rates are representations derived from the same discount-factor curve.}
+{Build and validate discount factors first; every later instrument consumes them.}
+{QuantLib term-structure documentation; portfolio.py.}
+
+\lesson{A curve is inferred, not directly observed}
+{Markets quote deposits, futures, FRAs, swaps, and OIS rates rather than every maturity's discount factor.}
+{Bootstrapping solves instruments sequentially so each quoted instrument reprices on the constructed curve.}
+{Interpolation fills unquoted dates; extrapolation policy governs dates beyond the last liquid pillar.}
+{Curve construction is already a calibration problem, even before stochastic models appear.}
+{portfolio.py build\_sofr\_curve; tests/test\_sofr\_curve.py.}
+
+\lesson{Day counts and calendars move real money}
+{Accrual fractions depend on conventions such as Actual/360, Actual/365, or 30/360.}
+{Business-day rules move dates around holidays and weekends; spot lags change effective dates.}
+{A one-day scheduling mismatch can alter fixings, coupons, exercise eligibility, and discounting.}
+{Dates and conventions are model inputs, not cosmetic metadata.}
+{QuantLib date/calendar APIs; portfolio.py schedule builders.}
+
+\lesson{An interest-rate swap exchanges coupon systems}
+{A payer swap pays fixed and receives floating; a receiver swap does the reverse.}
+{Each leg is a signed collection of discounted cash flows with its own schedule and day count.}
+{At inception, the par fixed rate makes fixed-leg PV equal floating-leg PV.}
+{The swap NPV is linear in cash flows but nonlinear in the curve used to project and discount them.}
+{portfolio.py \_make\_ois\_swap; QuantLib swap instruments.}
+
+\begin{frame}{The par swap rate is an annuity-weighted forward rate}
+  \[
+    K_{\mathrm{par}}=\frac{P(0,T_0)-P(0,T_n)}{\sum_{i=1}^{n}\alpha_iP(0,T_i)},
+    \qquad
+    A(0)=\sum_{i=1}^{n}\alpha_iP(0,T_i).
+  \]
+  \begin{itemize}\setlength\itemsep{0.9em}
+    \item The numerator represents the floating-leg value in a single-curve idealization.
+    \item The denominator $A(0)$ is the fixed-leg annuity, the natural numeraire for swaption formulas.
+    \item Multi-curve pricing separates forwarding from discounting but retains the annuity intuition.
+  \end{itemize}
+  \takeaway{A swap is the bridge from observable term structures to optionality on rates.}
+  \src{Standard swap valuation; portfolio.py.}
+\end{frame}
+
+\lesson{Risk asks how value changes under controlled perturbations}
+{DV01 measures value change for a one-basis-point rate move; bucketed DV01 identifies maturity concentration.}
+{Vega measures sensitivity to volatility; delta and gamma describe first- and second-order spot exposure.}
+{Bump-and-revalue is simple and general, but every bump must preserve market-data consistency.}
+{A reported Greek is incomplete without bump size, units, recalibration rule, and randomness policy.}
+{portfolio.py trade\_point\_sensitivities; xccy\_pricer\_diagnostics.py.}
+
+\lesson{Options add nonlinear state dependence}
+{A call pays $\max(S_T-K,0)$; a put pays $\max(K-S_T,0)$.}
+{Volatility matters because convex payoffs benefit from dispersion even when the forward is unchanged.}
+{Exercise style determines when the holder may choose: European once, Bermudan on discrete dates, American continuously.}
+{Once choice enters the contract, pricing must represent both uncertainty and optimal decisions.}
+{Black and Scholes (1973); Longstaff and Schwartz (2001).}
+
+\lesson{A swaption is an option on a forward swap}
+{A payer swaption provides the right to pay fixed; a receiver swaption provides the right to receive fixed.}
+{The option's state variable is commonly the forward par swap rate, scaled by the fixed-leg annuity.}
+{European swaptions benchmark volatility surfaces and calibrate short-rate models.}
+{Bermudan swaptions add an exercise policy across a sequence of remaining swaps.}
+{docs/RESEARCH.md; portfolio.py swaption builders.}
+
+\twocolesson{Normal and lognormal volatility answer different questions}
+{Bachelier / normal}
+{$S_T=S_0+\sigma_N W_T$. Rates may cross zero; volatility is quoted in absolute rate units, often basis points.}
+{Black / lognormal}
+{$dS_t/S_t=\sigma_LdW_t$. The state stays positive; volatility is quoted as a percentage.}
+{The quote convention must match the pricing formula and calibration helper.}
+{QuantLib BachelierSwaptionEngine and BlackSwaptionEngine; repository normal-vol matrix.}
+
+\lesson{Calibration translates market prices into model parameters}
+{Select liquid instruments whose risks resemble the target product.}
+{Minimize a declared error measure: price error, relative price error, or implied-volatility error.}
+{Apply bounds, fixed-parameter masks, and convergence criteria to stabilize an underdetermined problem.}
+{A calibrated parameter is meaningful only together with the helper set and objective.}
+{portfolio.py short-rate calibration; standalone\_xccy\_pricer.py.}
+
+\begin{frame}{RMS error summarizes calibration dispersion}
+  \[
+  \mathrm{RMS}_{\mathrm{rel}}=
+  \sqrt{\frac{1}{N}\sum_{i=1}^{N}
+  \left(\frac{V_i^{\mathrm{model}}}{V_i^{\mathrm{market}}}-1\right)^2}.
+  \]
+  \begin{itemize}\setlength\itemsep{0.8em}
+    \item Squaring prevents positive and negative residuals from canceling.
+    \item The relative form gives comparable weight across instruments of different price magnitudes.
+    \item The repository's XCCY v1 report uses equal helper weights and discloses the exact definition.
+  \end{itemize}
+  \takeaway{One metric never replaces the instrument-by-instrument residual table.}
+  \src{standalone\_xccy\_pricer.py calibrate\_rate\_model; templates/xccy\_callable.html.}
+\end{frame}
+
+\lesson{A model is evaluated under a measure}
+{The risk-neutral measure is tied to a numeraire such as a domestic money-market account.}
+{Changing numeraire changes drifts while leaving correctly priced tradable values invariant.}
+{In cross-currency models, the foreign rate drift acquires a quanto correction under the domestic measure.}
+{Writing dynamics without the FX quotation and measure is incomplete.}
+{docs/callable\_bermudan\_xccy\_quant\_two\_pager.md.}
+
+\lesson{Trees discretize state; Monte Carlo discretizes paths}
+{A tree recombines future states and performs backward induction directly at nodes.}
+{Monte Carlo samples full paths and estimates expectations statistically.}
+{Trees work especially well for one- or two-factor early-exercise problems; dimensionality grows rapidly.}
+{Monte Carlo scales better in factors, but early exercise requires continuation-value estimation.}
+{QuantLib TreeSwaptionEngine; Longstaff-Schwartz.}
+
+\lesson{Monte Carlo error declines slowly}
+{For $N$ independent paths, the standard error is approximately $s/\sqrt{N}$.}
+{Halving error therefore requires roughly four times as many paths.}
+{Antithetic variates and common random numbers reduce noise without changing the model.}
+{Confidence intervals quantify sampling error, not model risk or exercise-policy bias.}
+{standalone\_xccy\_pricer.py \_summary and antithetic normals.}
+
+\lesson{Early exercise is an optimal stopping problem}
+{At each exercise date, compare immediate exercise value with conditional continuation value.}
+{A tree reads continuation from successor nodes; LSM estimates it by regression on simulated states.}
+{The decision must use only information available at that date and must respect event ordering.}
+{A policy fitted and valued on the same paths is optimistically biased; split the samples.}
+{Longstaff and Schwartz (2001); XCCY pricing specification.}
+
+\lesson{Validation separates implementation from belief}
+{Unit tests check deterministic identities and input behavior.}
+{Calibration tests confirm quoted instruments reprice within declared tolerances.}
+{Martingale, limiting-case, convergence, and independent-benchmark tests interrogate the model.}
+{A successful test suite is evidence, not proof that a model is fit for every trading use.}
+{tests/; docs/latex/xccy\_callable\_validation\_report.tex.}

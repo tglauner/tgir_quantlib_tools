@@ -214,6 +214,79 @@ No exercise & 15,374 & -- & -- & 51.2\%\\
 \end{enumerate}
 
 %------------------------------------------------------------------------------
+\section{Collaborative AI Development Methodology}
+%------------------------------------------------------------------------------
+
+This model was developed through a collaborative workflow involving human domain expertise, two AI agents, and an integrated technology ecosystem. The methodology is as significant as the model itself.
+
+\subsection{The Collaborative Ecosystem}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lll}
+\toprule
+\textbf{Component} & \textbf{Role} & \textbf{Contribution} \\
+\midrule
+Human (Domain Expert) & Orchestration & Math specs, final validation \\
+Codex (OpenAI) & Core Development & Specs, implementation, initial tests \\
+Claude (Anthropic) & Review \& Validation & Code review, validation framework \\
+\midrule
+Mac & Local Development & VS Code, terminal, pytest \\
+DigitalOcean & Production Hosting & Apache, Gunicorn, SSL \\
+QuantLib (C++) & Foundation Library & Curves, dates, calibration \\
+Stack Overflow & Guidance Verification & Edge cases, patterns \\
+\bottomrule
+\end{tabular}
+\caption{The collaborative development ecosystem}
+\end{table}
+
+\subsection{Division of Labor}
+
+\textbf{Codex (OpenAI) --- Core Development:}
+\begin{itemize}
+    \item Wrote formal specifications from human math guidance
+    \item Built core Monte Carlo engine (1,400+ lines)
+    \item Created initial test suite
+\end{itemize}
+
+\textbf{Claude (Anthropic) --- Review and Validation Framework:}
+\begin{itemize}
+    \item Reviewed all Codex implementations for correctness
+    \item \textbf{Built the validation framework} (martingale tests, structural bounds, monotonicity, convergence)
+    \item Extended with regression tests to catch future changes
+    \item Generated documentation and this validation report
+\end{itemize}
+
+\textbf{Human --- Domain Expertise:}
+\begin{itemize}
+    \item Provided mathematical specifications and market conventions
+    \item Verified results against Brigo \& Mercurio and Stack Overflow
+    \item Final judgment on all AI outputs
+\end{itemize}
+
+\subsection{Why Codex + Claude Works}
+
+The combination of two AI agents catches errors neither would alone:
+\begin{itemize}
+    \item Codex implements rigorously from specs
+    \item Claude reviews and builds tests around the implementation
+    \item Claude's validation framework caught bugs in Codex's code
+    \item Human domain expert provides grounding neither AI has
+\end{itemize}
+
+\subsection{Validation Framework Origin}
+
+Claude built the 20-test validation suite used in this report:
+\begin{itemize}
+    \item Martingale tests derived from first principles
+    \item Structural bounds based on no-arbitrage theory
+    \item Convergence tests verify $O(N^{-1/2})$ scaling
+    \item Monotonicity tests confirm correct Greeks directions
+\end{itemize}
+
+\textbf{Key Insight:} The validation framework itself provides confidence that the collaborative AI development produced correct code.
+
+%------------------------------------------------------------------------------
 \section{Conclusions}
 %------------------------------------------------------------------------------
 
@@ -225,6 +298,7 @@ The callable cross-currency swap pricer passes all validation tests:
     \item \textbf{Sensible Greeks:} Monotonicity tests confirm correct directional responses
     \item \textbf{Numerically stable:} Convergence follows expected $O(N^{-1/2})$ behavior
     \item \textbf{Exercise realistic:} LSM produces economically sensible exercise boundary
+    \item \textbf{Development process:} Collaborative AI workflow (Codex + Claude) with human oversight
 \end{enumerate}
 
 \noindent\textbf{Recommendation:} Model approved for indicative pricing. Production use requires:

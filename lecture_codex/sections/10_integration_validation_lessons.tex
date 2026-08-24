@@ -1,0 +1,81 @@
+% Slides 201--210
+\sectionframe{11 / 21 August 2026}{Integration, validation, deployment, and the next model version}{Commit f066cce; MCP/REST specs; validation evidence; DigitalOcean deployment.}
+
+\chronology{21 Aug 2026}{The XCCY body of work is committed as one model release}
+{Commit \texttt{f066cce} adds 9,196 lines across 39 files.}
+{The message states: ``Working XCCY callable 3-factor model with fixed vols.''}
+{The implementation was first deployed from the local commit and was subsequently pushed to GitHub \texttt{main}.}
+{One commit contains a week of timestamped specification, implementation, diagnostics, UI, and validation work.}
+{Local Git commit f066cce; GitHub \texttt{main} verified 2026-08-24.}
+
+\lesson{The MCP boundary supports guided single-deal pricing}
+{\texttt{xccy\_validate\_deal} returns readiness, issues, and concrete questions.}
+{\texttt{xccy\_price\_deal} prices one validated request and can include full audit output.}
+{stdio fits local agent integration; loopback Streamable HTTP fits controlled service integration.}
+{The server remains read-only and does not source missing market data automatically.}
+{xccy\_pricer\_mcp.py; docs/mcp\_xccy\_pricer.md.}
+
+\lesson{A C++ trading system should call a versioned REST contract}
+{The trading system owns a C++ REST client and sends normalized deal, market, model, numerics, and measure requests.}
+{Request IDs, idempotency keys, input hashes, status envelopes, and structured errors support replay.}
+{Synchronous validation is separated from potentially asynchronous pricing jobs.}
+{Transport contracts should not expose QuantLib handles or Python implementation details.}
+{docs/rest\_trading\_system\_integration\_spec.md.}
+
+\begin{frame}{Proposed production integration boundary}
+  \centering
+  \begin{tikzpicture}[node distance=8mm,every node/.style={font=\small,align=center}]
+    \node[draw,rounded corners,fill=TgirMint!55,minimum width=31mm,minimum height=12mm] (trade) {Trading system\\C++ API};
+    \node[draw,rounded corners,fill=white,right=of trade,minimum width=26mm,minimum height=12mm] (rest) {REST contract\\mTLS + JSON};
+    \node[draw,rounded corners,fill=TgirMint!55,right=of rest,minimum width=31mm,minimum height=12mm] (service) {Pricing service\\validation + jobs};
+    \node[draw,rounded corners,fill=white,right=of service,minimum width=29mm,minimum height=12mm] (engine) {Python reference\\or C++ engine};
+    \draw[-{Latex},thick,TgirTeal] (trade)--(rest);
+    \draw[-{Latex},thick,TgirTeal] (rest)--(service);
+    \draw[-{Latex},thick,TgirTeal] (service)--(engine);
+  \end{tikzpicture}
+  \vspace{7mm}
+  \takeaway{The wire contract can remain stable while the implementation migrates from Python to C++.}
+  \src{docs/rest\_trading\_system\_integration\_spec.md.}
+\end{frame}
+
+\lesson{Validation evidence is broad but not tier-one approval}
+{The local release passed 46 application tests and 20 dedicated quantitative validation tests.}
+{Coverage includes bounds, martingales, monotonicity, calibration, reproducibility, convergence, edge correlations, and static benchmarks.}
+{The DigitalOcean Python 3.12 environment passed the same dedicated 20-test quantitative suite after deployment.}
+{Formal organizationally independent validation, dual bounds, governed market data, and production controls remain outstanding.}
+{tests/; deployment verification 2026-08-21.}
+
+\lesson{The lower-bound gap is the central remaining numerical question}
+{An out-of-sample LSM policy avoids in-sample optimism but can still exercise suboptimally.}
+{More paths reduce sampling error without proving the policy is close to optimal.}
+{Representative trades need a trusted nested-MC benchmark or dual upper bound.}
+{Grid, basis, seed ensemble, and regularization studies should accompany path convergence.}
+{XCCY validation report and model limitations.}
+
+\lesson{The next risk layer is market-structure sensitivity}
+{Add bucketed USD and EUR curve risk, cross-currency-basis risk, FX vega/smile risk, and correlation stresses.}
+{Separate forecast-basis from effective foreign-discount sensitivities.}
+{Stabilize bumps with common random numbers and compare full versus half bumps.}
+{Document whether each scenario recalibrates rate and FX parameters.}
+{xccy\_pricer\_diagnostics.py limitations; validation recommendations.}
+
+\lesson{The next model layer should be evidence driven}
+{Piecewise Hull-White rate volatility can improve diagonal fit but needs regularization and identifiability controls.}
+{FX smile may require local or stochastic volatility rather than more ATM buckets.}
+{Stochastic basis is a new factor and measure system, not a curve tweak.}
+{C++ migration should follow profiling and interface stabilization, not precede them.}
+{Current result limitations; XCCY pricing specification future work.}
+
+\begin{frame}[plain]
+  \begin{tikzpicture}[remember picture,overlay]
+    \fill[TgirNavy] (current page.south west) rectangle (current page.north east);
+    \node[anchor=west,text width=.82\paperwidth,align=left] at ([xshift=18mm]current page.west)
+    {\color{TgirMint}\large The end state is a platform for construction and challenge.\par\vspace{4mm}
+     \color{white}\fontsize{23}{28}\selectfont\bfseries
+     Tim directs $\rightarrow$ Codex specifies and builds\\
+     $\rightarrow$ Claude reviews and extends validation\\
+     $\rightarrow$ Mac proves $\rightarrow$ DigitalOcean hosts\par\vspace{5mm}
+     \color{white!70}\normalsize A serious, rigorous hobby: QuantLib, Python, C++, community guidance, regression evidence, and a roughly USD 7/month host make the capability reusable beyond one pricer.};
+  \end{tikzpicture}
+  \src{TGIR QuantLib Tools repository; collaborative development record; official QuantLib v1.43 source; references listed throughout slide notes.}
+\end{frame}

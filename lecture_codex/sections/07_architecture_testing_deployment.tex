@@ -1,0 +1,148 @@
+% Slides 126--145
+\sectionframe{07 / 7--14 April 2026}{The quantitative sandbox becomes an operated web application}{Commits 7e08907, 65a2acb, 711ce0d, b9374c8, 754707f, 297e02c, d3b45a4.}
+
+\lesson{The application factory separates creation from execution}
+{\texttt{create\_app()} loads configuration, registers routes, and returns a Flask application.}
+{\texttt{app.py} is the local entrypoint; \texttt{wsgi.py} is the production entrypoint.}
+{Tests can create isolated apps with temporary configuration.}
+{This pattern prevents server startup side effects from contaminating model tests.}
+{tgir\_quantlib\_tools/app\_factory.py; app.py; wsgi.py.}
+
+\lesson{Authentication protects the workstation boundary}
+{The root page is a login screen and quantitative routes require a session.}
+{Credentials and the Flask secret come from environment configuration.}
+{Tests use explicit temporary credentials and disable secure cookies locally.}
+{The repository does not commit production secrets.}
+{tgir\_quantlib\_tools/auth.py and config.py; tests/test\_smoke.py.}
+
+\lesson{Routes remain delivery adapters}
+{Routes translate HTTP form or JSON input into normalized state.}
+{Pricing remains in \texttt{portfolio.py} or the standalone XCCY module.}
+{Context builders turn quantitative outputs into view-specific structures.}
+{Keeping Flask thin lets CLI, tests, MCP, and future C++ clients reuse the same economics.}
+{tgir\_quantlib\_tools/routes.py; dashboard.py.}
+
+\lesson{Server-rendered templates fit the project's scale}
+{Jinja templates produce the dashboard, trade forms, model page, and later XCCY lab.}
+{There is no separate React build, API gateway, or database.}
+{The architecture favors a single host and minimal infrastructure.}
+{This is a conscious deviation, not an unfinished split frontend.}
+{AGENTS.md; docs/ARCHITECTURE.md.}
+
+\lesson{Session state supports a demonstration workflow}
+{User-edited market and trade inputs live in the Flask session.}
+{Reset returns to deterministic defaults loaded from JSON.}
+{A realtime tick perturbs the demo state and returns updated analytics.}
+{Production multi-user state would require stronger persistence and audit semantics.}
+{dashboard.py; routes.py; tests/test\_smoke.py.}
+
+\chronology{11 Apr 2026}{UI and deployment documentation are consolidated}
+{Commit \texttt{65a2acb} changes 31 files, adds a handoff, deployment guide, screenshots, and extensive UI refinements.}
+{Local timestamps show the long-lived pricing module continuing to evolve after this commit.}
+{Operational documentation becomes part of the delivered system.}
+{A model is usable only when users can install, run, diagnose, and recover it.}
+{Commit 65a2acb; docs/DEPLOYMENT.md; SESSION\_HANDOFF.md.}
+
+\lesson{CI encodes repeatable confidence}
+{GitHub Actions creates Python 3.13, installs requirements, and runs selected test modules.}
+{GitHub records successful CI runs for the April 2026 main-branch commits.}
+{The local full suite is broader than the historical release-gate subset.}
+{A green pipeline is meaningful only when its selected tests match current critical paths.}
+{.github/workflows/ci.yml; GitHub Actions history.}
+
+\lesson{DigitalOcean deployment is a simple three-tier stack}
+{Apache terminates TLS and proxies requests.}
+{Gunicorn binds the Flask app only on \texttt{127.0.0.1:8008}.}
+{systemd owns process startup and restart under \texttt{www-data}; the application root is \texttt{/var/www/html/tgir\_quantlib\_tools}.}
+{One approximately USD 7-per-month Ubuntu droplet keeps the hobby affordable while preserving explicit process boundaries.}
+{docs/DEPLOYMENT.md; deploy templates.}
+
+\begin{frame}{Production request path}
+  \centering
+  \begin{tikzpicture}[node distance=9mm, every node/.style={font=\small}]
+    \node[draw,rounded corners,fill=TgirMint!50,minimum width=25mm,minimum height=10mm] (browser) {Browser};
+    \node[draw,rounded corners,fill=white,right=of browser,minimum width=29mm,minimum height=10mm] (apache) {Apache + TLS};
+    \node[draw,rounded corners,fill=TgirMint!50,right=of apache,minimum width=27mm,minimum height=10mm] (gunicorn) {Gunicorn};
+    \node[draw,rounded corners,fill=white,right=of gunicorn,minimum width=31mm,minimum height=10mm] (flask) {Flask + QuantLib};
+    \draw[-{Latex},thick,TgirTeal] (browser) -- node[above]{HTTPS} (apache);
+    \draw[-{Latex},thick,TgirTeal] (apache) -- node[above]{HTTP} (gunicorn);
+    \draw[-{Latex},thick,TgirTeal] (gunicorn) -- (flask);
+  \end{tikzpicture}
+  \vspace{7mm}
+  \begin{itemize}\setlength\itemsep{0.7em}
+    \item Secrets remain in a mode-600 server-side \texttt{.env}; deployment builds a fresh \texttt{.venv} at its final path.
+    \item Health checks test \texttt{127.0.0.1:8008/health} and \texttt{https://quant.tglauner.com/health}.
+  \end{itemize}
+  \takeaway{About USD 7 per month is enough to keep a serious quantitative hobby continuously reachable behind production-style controls.}
+  \src{deploy/apache and deploy/systemd templates; docs/DEPLOYMENT.md.}
+\end{frame}
+
+\lesson{Deployment failures expose architecture assumptions}
+{GitHub shows successful CI but repeated failed DigitalOcean workflows in April 2026.}
+{Automated delivery requires \texttt{DO\_HOST}, \texttt{DO\_USER}, \texttt{DO\_SSH\_KEY}, \texttt{DO\_APP\_ROOT}, and \texttt{DO\_HEALTHCHECK\_URL}.}
+{A prebuilt virtualenv could not be moved because executable shebangs contained absolute paths; rollback succeeded.}
+{The corrected release rebuilt its virtualenv at the final path and passed health checks.}
+{GitHub Actions history; deployment performed 2026-08-21; README virtualenv note.}
+
+\lesson{Rollback is part of deployment design}
+{The live app is preserved before replacement.}
+{A failed service health check restores the prior directory and restarts systemd.}
+{The successful August deployment retained a timestamped rollback copy.}
+{Recoverability matters more than pretending a release cannot fail.}
+{docs/DEPLOYMENT.md; August 2026 deployment verification.}
+
+\chronology{13 Apr 2026}{An IBKR comparison dashboard is added}
+{Commit \texttt{711ce0d} adds more than one thousand lines centered on a second dashboard.}
+{The interface compares workbench values with an execution-platform-style view.}
+{Routing and tests expand while the pricing core remains shared.}
+{Multiple views can consume one normalized pricing state without duplicating model code.}
+{Commit 711ce0d.}
+
+\lesson{Presentation changes should not change economics}
+{Subsequent commits tighten monitor layout, realtime ticks, and reset-control styling.}
+{Commit names \texttt{754707f}, \texttt{297e02c}, and \texttt{d3b45a4} are primarily interface refinements.}
+{Tests protect core marks and route behavior while CSS and templates evolve.}
+{Chronology distinguishes visual iterations from model changes.}
+{Git commits 754707f, 297e02c, d3b45a4.}
+
+\lesson{A dashboard bug demonstrates signature drift}
+{In August, \texttt{\_forward\_rate\_chart} required regular and scenario points but one caller supplied only one argument.}
+{The dashboard returned HTTP 500 after login.}
+{The call site was repaired and smoke tests were expanded.}
+{Function signatures shared across UI paths need direct route tests.}
+{Local traceback dated 2026-08-14; dashboard.py and tests/test\_smoke.py.}
+
+\lesson{Local timestamps refine the August sequence}
+{The XCCY quantitative summary was born 14 August.}
+{The standalone pricer, JSON deal/market files, schemas, and core tests were born 15 August.}
+{Diagnostics and MCP followed later on 15 August; validation and web work followed 16--17 August.}
+{Because these landed in one Git commit, filesystem times provide supporting -- not authoritative -- ordering.}
+{macOS birth/modification timestamps inspected 2026-08-21.}
+
+\lesson{Configuration keeps paths and secrets outside pricing code}
+{Config values identify market, deal, result, debug, authentication, and cookie behavior.}
+{Tests override paths with temporary directories.}
+{Production reads the same keys from the server environment.}
+{The design avoids hard-coded personal filesystem paths in runtime logic.}
+{tgir\_quantlib\_tools/config.py and tests.}
+
+\lesson{Thread safety matters around QuantLib globals}
+{The evaluation date and relinkable handles can be process-global or shared.}
+{Concurrent valuations with different as-of dates can interfere if not isolated.}
+{A production C++ or Python service should use serialized contexts or process isolation.}
+{The current demo uses a small Gunicorn process model and is not a high-throughput risk grid.}
+{REST integration specification; QuantLib Settings usage.}
+
+\lesson{The architecture optimizes for inspectability}
+{Source files remain direct and readable rather than distributed across services.}
+{JSON snapshots, CSV exports, HTML diagnostics, CLI scripts, and tests expose intermediate states to Tim, Codex, and Claude alike.}
+{The cost is limited concurrency and no database-backed audit store.}
+{For a research workbench, this tradeoff enables two agents to build, review, extend validation, and reproduce each other's evidence.}
+{AGENTS.md; docs/ARCHITECTURE.md.}
+
+\lesson{By mid-April, the platform is ready for a cross-asset challenge}
+{Curves, rates options, equity options, calibrated trees, risk, tests, authentication, and deployment all exist.}
+{The next requested product combines two curves, two short-rate factors, FX, and early cancellation.}
+{The existing architecture offers reusable primitives but not a native engine.}
+{Tim directs the August challenge; Codex begins with rigorous specifications before source implementation, creating a stable target for Claude's later review and validation extensions.}
+{Git chronology through d3b45a4 and local August timestamps.}

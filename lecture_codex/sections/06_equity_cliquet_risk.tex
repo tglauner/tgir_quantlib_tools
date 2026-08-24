@@ -1,0 +1,142 @@
+% Slides 106--125
+\sectionframe{06 / 5--8 April 2026}{Equity cliquets broaden the numerical toolkit}{Commit 7e08907; tests/test\_cliquet.py; docs/RESEARCH.md.}
+
+\chronology{7 Apr 2026}{The workbench aligns to a broader reference portfolio}
+{Commit \texttt{7e08907} merges pull request 3 and changes 42 files with about 4,363 insertions.}
+{Default market and trade JSON files become explicit data sources.}
+{The portfolio now includes a swap, European swaption, two Bermudans, and an SPX cliquet.}
+{The repository becomes a multi-asset educational workbench rather than a rates-only demo.}
+{GitHub PR 3; commit 7e08907.}
+
+\lesson{A cliquet is a strip of forward-start options}
+{The underlying return is measured independently over successive reset periods.}
+{Each period applies local strike or moneyness terms, then discounted values are summed.}
+{The contract is path-dependent through reset levels even when period options admit analytic decomposition.}
+{The structure teaches how product decomposition can avoid unnecessary full-path Monte Carlo.}
+{portfolio.py cliquet analytics; docs/RESEARCH.md.}
+
+\begin{frame}{A simple cliquet payoff decomposition}
+  \[
+    \Pi_T = Q\sum_{j=1}^{m}\max\!\left(\omega\left(\frac{S_{T_j}}{S_{T_{j-1}}}-K_j\right),0\right),
+    \qquad \omega\in\{+1,-1\}.
+  \]
+  \begin{itemize}\setlength\itemsep{0.8em}
+    \item Each reset creates a forward-start option for the next period.
+    \item Quantity $Q$, call/put sign $\omega$, reset frequency, and maturity define the strip.
+    \item Contract-specific caps, floors, and ratchets would change this generic formula.
+  \end{itemize}
+  \takeaway{Path dependence does not automatically imply one monolithic Monte Carlo engine.}
+  \src{portfolio.py cliquet implementation and tests/test\_cliquet.py.}
+\end{frame}
+
+\lesson{The equity market context is intentionally flat}
+{Inputs are SPX spot, a flat dividend yield, a flat risk-free curve mapping, and flat Black volatility.}
+{The calendar and day count are explicit.}
+{The simplified surface isolates payoff mechanics and Greeks.}
+{A production cliquet would require term/skew surfaces, corporate actions, and convention governance.}
+{README.md; portfolio.py \_build\_equity\_market\_context.}
+
+\lesson{Black-Scholes supplies period unit values}
+{Each forward-start period can be reduced to a normalized Black formula under flat deterministic inputs.}
+{Discounting and quantity scale the unit option value.}
+{Analytic delta, gamma, and vega can be aggregated across periods.}
+{The implementation uses transparent formulas where QuantLib's direct cliquet engine coverage is limited.}
+{portfolio.py \_cliquet\_period\_unit\_price and cliquet\_analytics.}
+
+\lesson{Reset schedules are part of the payoff}
+{Maturity and reset frequency determine observation dates.}
+{The final short stub must be handled rather than discarded.}
+{Business-day adjustment changes time fractions and therefore forward and volatility scaling.}
+{Tests cover periodic decomposition and schedule consistency.}
+{portfolio.py cliquet\_reset\_schedule; tests/test\_cliquet.py.}
+
+\lesson{Analytic identities become powerful tests}
+{The total cliquet NPV should equal the sum of discounted reset-period components.}
+{Call-put parity can be tested period by period under matching assumptions.}
+{Greeks can be compared with finite-difference approximations.}
+{Identity tests catch sign and scaling defects that a single regression mark may miss.}
+{tests/test\_cliquet.py.}
+
+\lesson{A payoff profile still benefits from Monte Carlo}
+{Simulation illustrates the distribution of realized cliquet payoffs across paths.}
+{The analytic NPV remains the benchmark under matching assumptions.}
+{Comparing analytic and simulated views teaches sampling error without making MC the production method.}
+{The dashboard separates expected value, scenarios, and payoff distribution.}
+{portfolio.py cliquet analytics; dashboard templates.}
+
+\lesson{Spot-vol scenarios expose nonlinear interaction}
+{A two-dimensional grid varies spot and volatility around the base market.}
+{Convexity makes the response non-planar.}
+{Scenario grids are intuitive, while Greeks summarize only local behavior.}
+{The trade page offers both so users see approximation limits.}
+{templates/trade\_form.html; portfolio.py.}
+
+\lesson{Delta, gamma, and vega need stable definitions}
+{Delta is the derivative with respect to spot in currency per index point.}
+{Gamma is the rate of change of delta and is sensitive to bump size.}
+{Vega must state whether it is per one volatility point or per unit volatility.}
+{The repository tests analytic and bump-based values under declared units.}
+{tests/test\_cliquet.py.}
+
+\lesson{Equity work changes the architecture, not only the blotter}
+{Market state now contains both rates and equity blocks.}
+{Trade editors and dashboard context must dispatch by product family.}
+{Risk tables need product-specific relevant and irrelevant cells.}
+{The shared application remains one Flask process despite heterogeneous pricing logic.}
+{data/default\_market\_data.json; portfolio.py; dashboard.py.}
+
+\lesson{A product factory must reject nonsensical combinations}
+{Option type, moneyness, reset frequency, maturity, and quantity are normalized.}
+{Reset frequency cannot exceed maturity.}
+{Unknown or malformed values fall back only where the workbench explicitly defines defaults.}
+{Input validation protects formulas from silently pricing a different product.}
+{portfolio.py normalize\_portfolio\_state.}
+
+\lesson{Research notes are linked to implementation choices}
+{The repository records references for swaption pricing and equity cliquets.}
+{Notes distinguish what QuantLib supplies from formulas implemented explicitly.}
+{The model page links literature to the code paths users can inspect.}
+{This turns documentation into a guide for challenge and extension.}
+{docs/RESEARCH.md; tgir\_quantlib\_tools/research.py.}
+
+\lesson{The cliquet demonstrates selective QuantLib use}
+{QuantLib remains valuable for dates, curves, discounting, and market handles.}
+{The repository implements transparent Black-style period formulas directly.}
+{Not every product needs a bespoke QuantLib C++ instrument before it can be studied rigorously.}
+{The same hybrid ownership philosophy later guides the XCCY pricer.}
+{docs/RESEARCH.md; portfolio.py.}
+
+\lesson{Risk analytics become on demand}
+{Full scenario expansion can dominate page latency.}
+{The UI requests detailed risk only when the user opens a trade analysis.}
+{The same normalized market context is reused across base and bumped valuations.}
+{Performance is managed at the workflow boundary before introducing distributed infrastructure.}
+{Commit aa50775 and current routes.py.}
+
+\lesson{Common random numbers foreshadow XCCY diagnostics}
+{For Monte Carlo Greeks, using identical random draws for up and down bumps reduces difference noise.}
+{The equity example teaches the idea even when analytic formulas are available.}
+{The XCCY diagnostics later make common seeds an explicit method field.}
+{Variance reduction is most valuable when estimating differences rather than levels.}
+{tests/test\_cliquet.py; xccy\_pricer\_diagnostics.py.}
+
+\lesson{The equity addition broadens model-risk vocabulary}
+{Rates models emphasize curve fit, mean reversion, and exercise policy.}
+{Equity options emphasize lognormal dynamics, dividend yield, smile, convexity, and path dependence.}
+{The later XCCY model combines both vocabularies: short rates plus lognormal FX.}
+{Cross-asset work becomes a synthesis rather than a disconnected feature.}
+{Repository chronology and XCCY model specification.}
+
+\lesson{Tests become a quantitative narrative}
+{A test name states the intended identity or monotonicity.}
+{Inputs and tolerances make the claim executable.}
+{Failures identify whether the issue is product logic, calibration, numerics, or UI integration.}
+{The lecture can therefore use tests as evidence of what the model promises.}
+{tests/test\_cliquet.py and tests/test\_sofr\_curve.py.}
+
+\lesson{The workbook-aligned phase closes the prototype gap}
+{Market and trade inputs move from hard-coded lists into versionable JSON.}
+{Reference marks, risk shapes, and UI views are tested.}
+{CI and deployment assets arrive in the same broad commit.}
+{The project is ready to be treated as an application, not just a notebook substitute.}
+{Commit 7e08907.}

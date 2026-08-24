@@ -1,0 +1,139 @@
+% Slides 61--80
+\sectionframe{04 / 3 April 2026}{The demo becomes a tested SOFR workstation}{Commits ca3d2d0, abfe66f, e13ff48, 7eaf671.}
+
+\chronology{3 Apr 2026}{A missing SOFR fixing reveals the valuation boundary}
+{Commit \texttt{ca3d2d0} fixes a runtime failure caused by a floating coupon requiring an unavailable historical fixing.}
+{The live swap is moved to a two-business-day spot start.}
+{A first Flask smoke-test file is added.}
+{Schedule design and data availability must agree; avoiding accidental historical fixings is an explicit choice.}
+{Commit ca3d2d0; tests/test\_smoke.py.}
+
+\lesson{Spot starting avoids an accidental fixing dependency}
+{A swap beginning on the evaluation date can contain an already-fixed or today's overnight observation.}
+{The demo has no historical fixing store, so that coupon cannot be projected safely.}
+{Advancing by two settlement business days makes all needed fixings prospective.}
+{Production systems should ingest fixings; a sandbox may instead define a clean forward-start boundary.}
+{portfolio.py at commit ca3d2d0.}
+
+\chronology{3 Apr 2026}{SOFR curve construction is rebuilt around OIS}
+{Commit \texttt{abfe66f} replaces generic annual deposits with an overnight front point and SOFR OIS helpers.}
+{The curve becomes \texttt{PiecewiseLogCubicDiscount}.}
+{Quoted calibration swaps are repriced and tested.}
+{The market instrument must match the index and collateral economics represented by the curve.}
+{Commit abfe66f.}
+
+\lesson{The curve strip grows into a market object}
+{Tenors ultimately span 1D, weekly, monthly, and annual pillars out to 30Y.}
+{Each quote is normalized from percentage units into decimal rates.}
+{The overnight point uses a deposit helper; longer points use \texttt{OISRateHelper} with \texttt{ql.Sofr}.}
+{A single ordering contract links JSON quotes, labels, helpers, and diagnostics.}
+{portfolio.py constants and build\_sofr\_curve.}
+
+\begin{frame}{Bootstrap logic: solve one maturity at a time}
+  \begin{enumerate}\setlength\itemsep{0.8em}
+    \item Convert each market quote into the instrument helper that owns its conventions.
+    \item Solve the next unknown curve segment so the new helper has zero NPV.
+    \item Interpolate log discount factors between solved pillars.
+    \item Reprice every input instrument and report its residual.
+  \end{enumerate}
+  \takeaway{The repricing table is the curve's unit test against its own market definition.}
+  \src{portfolio.py build\_sofr\_curve and reprice\_sofr\_calibration\_swaps.}
+\end{frame}
+
+\lesson{Log-cubic discount interpolation encodes shape assumptions}
+{Interpolation is performed on discount factors in logarithmic space, supporting positivity.}
+{Cubic behavior produces a smoother curve than piecewise-linear zero rates.}
+{Smoothness affects forwards and sensitivities between liquid pillars.}
+{Interpolation choice is part of the model and should be recorded with the curve snapshot.}
+{QuantLib PiecewiseLogCubicDiscount; portfolio.py.}
+
+\lesson{Discount, zero, and forward views serve different users}
+{Discount factors are consumed directly by pricing engines.}
+{Continuous Actual/365 zero rates make the identity $P(0,T)=e^{-zT}$ transparent.}
+{Daily one-day forwards reveal local interpolation behavior and scenario shape.}
+{The workstation exposes all three rather than treating a curve as one line chart.}
+{README.md; portfolio.py curve\_zero\_rate\_points and daily\_one\_day\_forward\_points.}
+
+\lesson{Calibration residuals are expected near machine precision}
+{Bootstrap helpers define the curve, so their model rates should match input quotes within numerical tolerance.}
+{The repository reports market rate, fair rate, and NPV across pillars.}
+{A residual spike often indicates a convention, ordering, or curve-range error.}
+{Exact in-sample fit does not guarantee realistic interpolation or out-of-sample instruments.}
+{build\_SOFR\_curve.py; tests/test\_sofr\_curve.py.}
+
+\chronology{3 Apr 2026}{Repository standards and architecture are documented}
+{Commit \texttt{e13ff48} adds architecture notes and Codex working rules.}
+{The mission is defined as a small QuantLib sandbox with Flask and standalone scripts.}
+{Quality gates become explicit commands rather than informal expectations.}
+{Architecture documentation changes how later features are integrated and reviewed.}
+{Commit e13ff48; AGENTS.md; docs/ARCHITECTURE.md.}
+
+\lesson{The quality gates make the project reproducible}
+{\texttt{unittest discover} checks the application and quantitative helpers.}
+{\texttt{build\_SOFR\_curve.py} acts as an executable calibration report.}
+{A Flask test-client request checks that the app can be created and routed.}
+{A small project benefits from boring, copyable commands more than elaborate infrastructure.}
+{AGENTS.md quality gates.}
+
+\chronology{3 Apr 2026}{The rates workstation expands dramatically}
+{Commit \texttt{7eaf671} adds roughly 2,547 lines and introduces the shared base template, dashboard, and trade form.}
+{The market surface expands to a swaption normal-volatility matrix.}
+{A Bermudan pricing grid and richer state management appear.}
+{The repository shifts from a three-row demo to an interactive quantitative workstation.}
+{Commit 7eaf671.}
+
+\lesson{State normalization protects the pricing core}
+{Defaults originate in JSON and Python constants, then user edits overlay selected fields.}
+{Types, ranges, frequencies, directions, and labels are normalized before QuantLib construction.}
+{The pricing functions receive one coherent state instead of raw form strings.}
+{Normalization is the boundary between untrusted UI input and quantitative objects.}
+{portfolio.py default\_portfolio\_state and normalize\_portfolio\_state.}
+
+\lesson{The workstation carries a full ATM normal-vol matrix}
+{Axes are defined explicitly by expiry and underlying-swap tenor labels.}
+{Values are stored in basis-point normal volatility, then converted to decimal absolute volatility.}
+{Interpolation supplies internal expiries needed by diagonal calibration without inventing on-screen pillars.}
+{The UI shows quote provenance and the model shows which points each trade consumes.}
+{README.md; portfolio.py swaption matrix helpers.}
+
+\lesson{Normal volatility fits the rates regime}
+{Bachelier pricing permits negative swap rates and quotes volatility in rate units.}
+{A quote of 80 bp means an annualized absolute standard deviation of 0.0080.}
+{QuantLib helpers must be told \texttt{ql.Normal}; passing the same number as lognormal vol changes meaning.}
+{Unit conversion and volatility type are both contractual fields.}
+{portfolio.py \_normal\_vol\_from\_bp and \_create\_swaption\_helper.}
+
+\lesson{The dashboard becomes a diagnostic surface}
+{It shows marks, market inputs, zero curves, forwards, OIS repricing, and a Bermudan grid.}
+{Trade editors expose payment and reset frequencies rather than burying conventions.}
+{Reset and scenario controls let users distinguish stored market state from perturbed state.}
+{The UI is designed to explain pricing, not merely return a number.}
+{templates/dashboard.html; templates/trade\_form.html.}
+
+\lesson{A debug CSV creates an audit seam}
+{Each calendar date can carry an input quote, zero rate, and one-day forward.}
+{The file allows independent plotting and curve inspection outside Flask.}
+{Paths are configured rather than exposed in the page response.}
+{Small audit artifacts make numerical behavior easier to review and reproduce.}
+{portfolio.py curve\_debug\_csv; routes.py curve debug download.}
+
+\lesson{Curve risk becomes pointwise}
+{Each quoted SOFR node is bumped and the trade repriced.}
+{The resulting vector shows where value depends on the curve.}
+{A swap should have zero vega cells; a swaption should respond to selected volatility pillars.}
+{Risk-shape tests detect accidental market dependencies better than one aggregate NPV test.}
+{portfolio.py trade\_point\_sensitivities; tests/test\_sofr\_curve.py.}
+
+\lesson{A configurable valuation date replaces the machine clock}
+{The default date becomes 10 March 2026 and anchors every schedule and curve.}
+{User changes propagate through normalization and reset QuantLib's evaluation date.}
+{Deterministic dates make screenshots, workbook comparisons, and tests reproducible.}
+{A production request would carry an explicit as-of timestamp and market snapshot ID.}
+{README.md; portfolio.py valuation\_date.}
+
+\lesson{The curve phase establishes a reusable pattern}
+{Build from appropriate helpers.}
+{Reprice every input instrument.}
+{Expose derived views and sensitivities.}
+{The later USD and EUR XCCY curve bootstraps deliberately reuse this pattern.}
+{portfolio.py and standalone\_xccy\_pricer.py build\_curves.}

@@ -1,0 +1,136 @@
+% Slides 21--40
+\sectionframe{02 / QuantLib and Python}{Use a library for conventions; own the economics you extend}{QuantLib v1.43 documentation and source; repository architecture.}
+
+\lesson{QuantLib is a C++ pricing library with language bindings}
+{The C++ core supplies instruments, term structures, models, engines, calendars, solvers, and numerical utilities.}
+{Python bindings expose much of that object model while Python orchestrates data, workflows, and presentation.}
+{The repository runs QuantLib 1.43 through Python, with NumPy, pandas, and Flask around it.}
+{The binding boundary is productive when native objects fit; it becomes visible when a bespoke joint process is required.}
+{Official QuantLib GitHub release v1.43; requirements.txt.}
+
+\lesson{Instrument, engine, and market data are separate objects}
+{An instrument describes contractual cash flows and exercise rights.}
+{A pricing engine implements a valuation method and reads market handles or model state.}
+{Relinkable handles let market data change without rebuilding every instrument.}
+{This separation is the central QuantLib design pattern used throughout the repository.}
+{QuantLib architecture; portfolio.py.}
+
+\lesson{The global evaluation date is powerful and dangerous}
+{\texttt{ql.Settings.instance().evaluationDate} defines ``today'' for many QuantLib objects.}
+{Every curve, schedule, fixing check, and option expiry must agree with it.}
+{Tests set it explicitly to prevent machine-date-dependent results.}
+{A server must serialize or isolate valuation contexts because this setting is process-global.}
+{today.py; portfolio.py valuation\_date; REST integration specification.}
+
+\lesson{Handles express observability and relinking}
+{A \texttt{QuoteHandle} wraps a market quote; a \texttt{YieldTermStructureHandle} wraps a curve.}
+{Models and engines subscribe to handles and see updated market objects.}
+{This supports bump-and-revalue without changing product definitions.}
+{It also means hidden shared state can surprise concurrent request processing.}
+{QuantLib handles; portfolio.py.}
+
+\lesson{Calendars and schedules deserve native library support}
+{Generating coupon dates correctly requires holiday calendars, business-day rules, stubs, and termination conventions.}
+{QuantLib's \texttt{Schedule} makes those rules explicit and testable.}
+{The repository uses settlement calendars and explicit spot starts rather than date arithmetic alone.}
+{Reusing native schedule machinery is safer than recreating conventions in custom Python.}
+{portfolio.py \_build\_schedule; standalone\_xccy\_pricer.py \_schedule.}
+
+\lesson{Python is the orchestration layer}
+{JSON parsing, schema validation, Flask routes, HTML contexts, diagnostics, and CLI behavior are concise in Python.}
+{NumPy handles vectorized path simulation and linear algebra for the custom XCCY engine.}
+{pandas structures portfolio tables and curve reports.}
+{Python optimizes iteration speed and transparency; it does not erase the need for numerical discipline.}
+{Repository source tree and requirements.txt.}
+
+\lesson{C++ is the native extension layer}
+{QuantLib models and engines are designed around C++ inheritance, templates, and shared pointers.}
+{A production custom stochastic process can live beside existing term structures and Monte Carlo engines.}
+{C++ offers tighter control over memory, parallelism, deterministic numerics, and wrapper exposure.}
+{The cost is build complexity, ABI management, longer iteration cycles, and a larger validation surface.}
+{Official QuantLib source; XCCY pricing specification section 9.}
+
+\twocolesson{Python and C++ solve different bottlenecks}
+{Python first}
+{Best for proving dynamics, calibration conventions, cash-flow partitioning, LSM policy design, schemas, and diagnostics.}
+{C++ next}
+{Best when path counts, latency, concurrency, integration policy, or governed library ownership demand it.}
+{Prototype the economics in Python; migrate measured bottlenecks and stable interfaces deliberately.}
+{standalone\_xccy\_pricer.py; docs/callable\_bermudan\_xccy\_swap\_pricing\_spec.md.}
+
+\lesson{Bindings are not automatic model composition}
+{QuantLib exposes \texttt{HullWhiteProcess}, \texttt{BlackScholesMertonProcess}, and \texttt{StochasticProcessArray}.}
+{Putting independent processes into an array correlates shocks but does not derive cross-currency drifts for you.}
+{The FX drift must be pathwise $r_d-r_f$ and the foreign factor needs its domestic-measure quanto term.}
+{A syntactically composable process array can still be economically wrong.}
+{Installed QuantLib 1.43 introspection; upstream stochasticprocessarray source.}
+
+\lesson{QuantLib provides multiple swaption engines}
+{Analytic engines include Black, Bachelier, Jamshidian, and G2 approaches.}
+{Finite-difference engines cover Hull-White and G2 variants.}
+{\texttt{TreeSwaptionEngine} handles lattice valuation for a QuantLib \texttt{Swaption}.}
+{Engine availability does not imply support for an arbitrary callable two-currency portfolio.}
+{Official QuantLib ql/pricingengines/swaption directory, inspected 2026-08-21.}
+
+\lesson{QuantLib now has native constant-notional XCCY instruments}
+{Version 1.43 exposes constant-notional cross-currency swaps, basis swaps, and fixed-versus-floating variants.}
+{A discounting constant-notional XCCY engine and cross-currency curve helpers are also available.}
+{These are valuable for deterministic cash-flow benchmarks and curve construction.}
+{They do not provide a Bermudan callable hybrid rate/FX engine.}
+{QuantLib v1.43 Python introspection and official crosscurrencyswap source.}
+
+\lesson{A native instrument is not a native callable engine}
+{The upstream source contains XCCY instruments and swaption engines as separate families.}
+{Code search finds no callable cross-currency swaption engine joining both families.}
+{The one-model tree swaption interface targets a swaption on one swap representation.}
+{The extension therefore reuses primitives while owning joint dynamics and optimal stopping.}
+{Official QuantLib GitHub code search, 2026-08-21.}
+
+\lesson{Repository architecture keeps Flask thin}
+{\texttt{app.py} creates the application; the package owns configuration, authentication, routes, and dashboard contexts.}
+{\texttt{portfolio.py} remains the core single-currency pricing module.}
+{The standalone XCCY engine is separate so its numerical workflow is usable without Flask.}
+{Thin delivery layers make model testing and future C++ replacement easier.}
+{AGENTS.md; docs/ARCHITECTURE.md; README.md.}
+
+\lesson{JSON makes pricing inputs auditable}
+{Versioned market and deal schemas distinguish economics from transport.}
+{Unknown fields and unsupported conventions are rejected rather than silently ignored.}
+{Normalized input hashing links a result to the exact semantic request.}
+{A reproducible pricer records inputs, model version, software versions, seed, and numerical controls.}
+{data/schemas; standalone\_xccy\_pricer.py.}
+
+\lesson{Errors should become actionable questions}
+{A generic ``bad request'' does not help a trading-system user complete a deal.}
+{The MCP validator maps missing or inconsistent fields to precise questions.}
+{Statuses separate READY, NEEDS\_INPUT, and INVALID.}
+{Explicit incompleteness is safer than guessing a currency, sign, fixing, or exercise rule.}
+{xccy\_pricer\_mcp.py; docs/mcp\_xccy\_pricer.md.}
+
+\lesson{Tests should mirror the architecture}
+{Curve tests reprice bootstrap helpers and inspect zero/forward outputs.}
+{Product tests check schedules, identities, marks, sensitivities, and limiting cases.}
+{Flask tests verify authentication, routes, rendering, and state updates.}
+{XCCY tests add calibration, martingales, convergence, LSM, and API validation.}
+{tests/ directory.}
+
+\lesson{A research workbench is not a production risk system}
+{The repository favors transparency, deterministic examples, and inspectable intermediate values.}
+{It intentionally omits databases, market feeds, distributed workers, XVA, and enterprise entitlements.}
+{Production approval would require independent validation, governed data, observability, access control, and release controls.}
+{The documentation states these boundaries instead of implying bank-grade approval.}
+{README.md; docs/ARCHITECTURE.md; model limitations in result.json.}
+
+\lesson{Technical architecture follows quantitative ownership}
+{QuantLib owns standard conventions, curves, helpers, and benchmark engines.}
+{Repository Python owns trade normalization, scenario orchestration, UI, and custom hybrid simulation.}
+{Deployment owns process isolation, secrets, TLS, service health, and rollback.}
+{Each boundary has different failure modes and therefore different tests.}
+{Repository source and deployment templates.}
+
+\lesson{The core engineering rule is explicitness}
+{Explicit dates beat implied schedules; explicit signs beat ``payer'' ambiguity across systems.}
+{Explicit units beat raw numbers; explicit measures beat drift formulas without numeraires.}
+{Explicit tolerances beat a green status without thresholds.}
+{Explicit limitations make a research model more useful, not less.}
+{AGENTS.md; callable XCCY specifications and schemas.}

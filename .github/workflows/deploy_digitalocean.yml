@@ -90,7 +90,14 @@ jobs:
             sudo mkdir -p \"\$APP_ROOT/debug\"
             sudo chown -R www-data:www-data \"\$APP_ROOT\"
             sudo systemctl restart tgir-quantlib-tools
-            curl -fsS http://127.0.0.1:8008/health
+            for attempt in \$(seq 1 20); do
+              if curl -fsS http://127.0.0.1:8008/health; then
+                exit 0
+              fi
+              sleep 1
+            done
+            sudo systemctl status tgir-quantlib-tools --no-pager --full
+            exit 1
           "
 
       - name: Run public health check

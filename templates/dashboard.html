@@ -237,7 +237,7 @@
     </section>
   </div>
 
-  <section class="panel panel-compact">
+  <section class="panel panel-compact" id="bermudan-grid-panel" hidden>
     <div class="panel-inner">
         <div class="panel-header tight-header">
           <div>
@@ -257,20 +257,7 @@
             </tr>
           </thead>
           <tbody id="bermudan-grid-body">
-            {% for row in bermudan_grid_rows %}
-              <tr>
-                <td><strong>{{ row["Non-call"] }}</strong></td>
-                {% for header in bermudan_grid_headers %}
-                  <td class="numeric mono">
-                    {% if row[header] is none %}
-                      -
-                    {% else %}
-                      <span class="signed-value {{ row[header]|sign_class }}">{{ row[header]|signed_money }}</span>
-                    {% endif %}
-                  </td>
-                {% endfor %}
-              </tr>
-            {% endfor %}
+            <tr><td colspan="{{ bermudan_grid_headers|length + 1 }}">Open this panel to calculate the grid.</td></tr>
           </tbody>
         </table>
       </div>
@@ -291,6 +278,7 @@
           class="btn btn-secondary"
           type="button"
           data-toggle-panel="forward-panel"
+          data-panel-name="forward"
           data-show-label="Show daily one-day forward SOFR"
           data-hide-label="Hide daily one-day forward SOFR"
           aria-expanded="false"
@@ -301,11 +289,23 @@
           class="btn btn-secondary"
           type="button"
           data-toggle-panel="calibration-panel"
+          data-panel-name="calibration"
           data-show-label="Show OIS SOFR repricing"
           data-hide-label="Hide OIS SOFR repricing"
           aria-expanded="false"
         >
           Show OIS SOFR repricing
+        </button>
+        <button
+          class="btn btn-secondary"
+          type="button"
+          data-toggle-panel="bermudan-grid-panel"
+          data-panel-name="bermudan-grid"
+          data-show-label="Calculate Bermudan grid"
+          data-hide-label="Hide Bermudan grid"
+          aria-expanded="false"
+        >
+          Calculate Bermudan grid
         </button>
       </div>
     </div>
@@ -444,12 +444,13 @@
 
   <script>
     (() => {
-      const realtimeKey = "tgir_quantlib_realtime_enabled";
       const toggleButton = document.getElementById("realtime-toggle");
       const liveStatus = document.getElementById("live-status-pill");
       const liveLastUpdate = document.getElementById("live-last-update");
       const bermudanGridHeaders = {{ bermudan_grid_headers|tojson }};
-      let realtimeEnabled = window.localStorage.getItem(realtimeKey) === "true";
+      const dashboardPanelUrls = {{ dashboard_panel_urls|tojson }};
+      const loadedPanels = new Set();
+      let realtimeEnabled = false;
       let requestInFlight = false;
 
       const moneyFormatter = new Intl.NumberFormat("en-US", {
@@ -641,10 +642,16 @@
         renderBlotter(payload.blotter_rows);
         renderCurveRateRows(payload.curve_rate_rows);
         renderCurveComparisonChart(payload.curve_comparison_chart);
-        renderCalibration(payload.calibration_rows);
-        renderBermudanGrid(payload.bermudan_grid_rows);
+        if (payload.calibration_rows) {
+          renderCalibration(payload.calibration_rows);
+        }
+        if (payload.bermudan_grid_rows) {
+          renderBermudanGrid(payload.bermudan_grid_rows);
+        }
         renderMarketSnapshot(payload.market_snapshot);
-        renderLineChart("forward-rate-chart-wrap", payload.forward_rate_chart, "Daily one-day forward SOFR chart");
+        if (payload.forward_rate_chart) {
+          renderLineChart("forward-rate-chart-wrap", payload.forward_rate_chart, "Daily one-day forward SOFR chart");
+        }
         applyCurveInputs(payload.curve_inputs, payload.market_snapshot.hw_mean_reversion);
         applyEquityInputs(payload.market_snapshot);
         liveLastUpdate.textContent = payload.last_update_label;
@@ -662,13 +669,60 @@
         }
       }
 
-      function togglePanel(button) {
+      async function loadPanel(button) {
+        const panelName = button.dataset.panelName;
+        if (!panelName || loadedPanels.has(panelName)) {
+          return;
+        }
+        const originalText = button.textContent;
+        button.disabled = true;
+        button.textContent = "Calculating...";
+        try {
+          const response = await fetch(dashboardPanelUrls[panelName], {
+            headers: {"X-Requested-With": "XMLHttpRequest"},
+          });
+          if (!response.ok) {
+            throw new Error(`Panel calculation failed with ${response.status}`);
+          }
+          const payload = await response.json();
+          if (payload.forward_rate_chart) {
+            renderLineChart("forward-rate-chart-wrap", payload.forward_rate_chart, "Daily one-day forward SOFR chart");
+            const summary = payload.forward_rate_summary;
+            document.getElementById("forward-start").textContent = pct(summary.start_pct);
+            document.getElementById("forward-3m").textContent = pct(summary.three_month_pct);
+            document.getElementById("forward-6m").textContent = pct(summary.six_month_pct);
+            document.getElementById("forward-1y").textContent = pct(summary.one_year_pct);
+          }
+          if (payload.calibration_rows) {
+            renderCalibration(payload.calibration_rows);
+          }
+          if (payload.bermudan_grid_rows) {
+            renderBermudanGrid(payload.bermudan_grid_rows);
+          }
+          loadedPanels.add(panelName);
+        } catch (error) {
+          renderPricingError(error.message);
+          throw error;
+        } finally {
+          button.disabled = false;
+          button.textContent = originalText;
+        }
+      }
+
+      async function togglePanel(button) {
         const panelId = button.dataset.togglePanel;
         const panel = document.getElementById(panelId);
         if (!panel) {
           return;
         }
         const shouldShow = panel.hidden;
+        if (shouldShow) {
+          try {
+            await loadPanel(button);
+          } catch (error) {
+            return;
+          }
+        }
         panel.hidden = !shouldShow;
         button.setAttribute("aria-expanded", shouldShow ? "true" : "false");
         button.textContent = shouldShow ? button.dataset.hideLabel : button.dataset.showLabel;
@@ -686,7 +740,6 @@
           });
           if (response.status === 401) {
             realtimeEnabled = false;
-            window.localStorage.setItem(realtimeKey, "false");
             const payload = await response.json();
             window.location.href = payload.login_url;
             return;
@@ -707,7 +760,6 @@
 
       toggleButton.addEventListener("click", () => {
         realtimeEnabled = !realtimeEnabled;
-        window.localStorage.setItem(realtimeKey, String(realtimeEnabled));
         updateRealtimeUI();
         if (realtimeEnabled) {
           tickRealtime();
@@ -715,14 +767,20 @@
       });
 
       document.querySelectorAll("[data-toggle-panel]").forEach((button) => {
-        button.addEventListener("click", () => togglePanel(button));
+        button.addEventListener("click", () => void togglePanel(button));
       });
 
       updateRealtimeUI();
-      if (realtimeEnabled) {
-        tickRealtime();
-      }
-      window.setInterval(tickRealtime, 1000);
+      document.addEventListener("visibilitychange", () => {
+        if (!document.hidden && realtimeEnabled) {
+          tickRealtime();
+        }
+      });
+      window.setInterval(() => {
+        if (!document.hidden) {
+          tickRealtime();
+        }
+      }, 5000);
     })();
   </script>
 {% endblock %}

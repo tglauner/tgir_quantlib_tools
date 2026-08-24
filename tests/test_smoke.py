@@ -10,7 +10,6 @@ from flask import render_template
 from tgir_quantlib_tools import create_app
 from portfolio import (
     DEFAULT_VALUATION_DATE_ISO,
-    SOFR_FORWARD_HORIZON_YEARS,
     SOFR_CURVE_TENOR_LABELS,
     SWAPTION_MATRIX_EXPIRY_LABELS,
     SWAPTION_MATRIX_TENOR_LABELS,
@@ -153,30 +152,46 @@ class PortfolioSmokeTests(unittest.TestCase):
         self.assertEqual(payload["market_snapshot"]["hw_mean_reversion"], 0.06)
         self.assertEqual(payload["market_snapshot"]["valuation_date_iso"], DEFAULT_VALUATION_DATE_ISO)
         self.assertEqual(len(payload["market_snapshot"]["zero_rate_rows"]), len(SOFR_CURVE_TENOR_LABELS))
-        expected_tick_labels = ["Start"] + [
-            f"{year}Y" for year in range(5, SOFR_FORWARD_HORIZON_YEARS + 1, 5)
-        ]
-        self.assertEqual(
-            [tick["label"] for tick in payload["forward_rate_chart"]["x_ticks"]],
-            expected_tick_labels,
-        )
-        self.assertEqual(
-            [series["label"] for series in payload["forward_rate_chart"]["series"]],
-            ["Regular SOFR daily 1D fwd", "Scenario SOFR daily 1D fwd"],
-        )
-        self.assertTrue(
-            all(series["point_count"] > 0 for series in payload["forward_rate_chart"]["series"])
-        )
         self.assertEqual(len(payload["blotter_rows"]), 5)
-        self.assertEqual(len(payload["bermudan_grid_rows"]), 9)
         self.assertEqual(payload["blotter_rows"][0]["Type"], "Swap")
         self.assertIn("blotter_totals", payload)
-        self.assertIn("Delta", payload["blotter_rows"][0])
-        self.assertIn("Gamma", payload["blotter_rows"][0])
-        self.assertIn("Vega", payload["blotter_rows"][0])
+        self.assertNotIn("forward_rate_chart", payload)
+        self.assertNotIn("calibration_rows", payload)
+        self.assertNotIn("bermudan_grid_rows", payload)
         self.assertNotEqual(payload["market_snapshot"]["equity_spot"], 5400.0)
         self.assertNotEqual(payload["market_snapshot"]["equity_volatility_pct"], 21.25)
         self.assertNotIn("NaN", response.get_data(as_text=True))
+
+    def test_dashboard_panels_are_calculated_on_demand(self):
+        self.login()
+
+        forward = self.client.get("/api/dashboard/panel/forward")
+        calibration = self.client.get("/api/dashboard/panel/calibration")
+        grid = self.client.get("/api/dashboard/panel/bermudan-grid")
+        risk = self.client.get("/api/dashboard/panel/risk")
+
+        self.assertEqual(forward.status_code, 200)
+        self.assertEqual(
+            [series["label"] for series in forward.get_json()["forward_rate_chart"]["series"]],
+            ["Regular SOFR daily 1D fwd", "Scenario SOFR daily 1D fwd"],
+        )
+        self.assertEqual(calibration.status_code, 200)
+        self.assertGreater(len(calibration.get_json()["calibration_rows"]), 0)
+        self.assertEqual(grid.status_code, 200)
+        self.assertEqual(len(grid.get_json()["bermudan_grid_rows"]), 9)
+        self.assertEqual(risk.status_code, 200)
+        self.assertEqual(len(risk.get_json()["blotter_rows"]), 5)
+        self.assertIn("Vega", risk.get_json()["blotter_rows"][0])
+
+    def test_dashboard_load_does_not_write_curve_debug_csv(self):
+        self.login()
+        debug_path = Path(self.curve_debug_csv_path)
+        debug_path.unlink(missing_ok=True)
+
+        response = self.client.get("/dashboard")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(debug_path.exists())
 
     def test_trade_editor_updates_swap_terms(self):
         self.login()

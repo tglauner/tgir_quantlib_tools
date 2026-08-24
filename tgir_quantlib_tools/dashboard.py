@@ -544,6 +544,35 @@ def _curve_analytics(state):
     return zero_points, regular_forward_points, scenario_forward_points
 
 
+def _curve_snapshot_analytics(state):
+    """Build only the curve information needed for the visible dashboard shell."""
+    today = valuation_date(state)
+    ql.Settings.instance().evaluationDate = today
+    scenario_curve = build_sofr_curve(today, state["market"]["curve_quotes_pct"])
+    zero_points = curve_zero_rate_points(scenario_curve)
+    reference_date = scenario_curve.referenceDate()
+    day_counter = ql.Actual360()
+    summary_dates = [
+        reference_date,
+        reference_date + ql.Period(3, ql.Months),
+        reference_date + ql.Period(6, ql.Months),
+        reference_date + ql.Period(1, ql.Years),
+    ]
+    summary_forward_points = []
+    for start_date in summary_dates:
+        rate_pct = (
+            scenario_curve.forwardRate(start_date, start_date + 1, day_counter, ql.Simple).rate()
+            * 100.0
+        )
+        summary_forward_points.append(
+            {
+                "start_date_iso": start_date.ISO(),
+                "rate_pct": rate_pct,
+            }
+        )
+    return zero_points, summary_forward_points
+
+
 def _forward_summary(forward_points):
     if not forward_points:
         return {
@@ -675,7 +704,12 @@ def _forward_rate_chart(regular_forward_points, scenario_forward_points):
     def project_series(label, points, color, line_width):
         denominator = max(len(points) - 1, 1)
         chart_points = []
-        for index, point in enumerate(points):
+        # A 620px chart cannot display ten thousand distinct daily vertices. Keep
+        # the exact daily calculation, but return at most one plotted point per
+        # horizontal pixel to avoid a needlessly large JSON/SVG payload.
+        plot_indexes = _sample_indexes(len(points), min(len(points), int(plot_width)))
+        for index in plot_indexes:
+            point = points[index]
             x_position = padding_left + index * plot_width / denominator
             ratio = 0.5 if y_max == y_min else (point["rate_pct"] - y_min) / (y_max - y_min)
             y_position = padding_top + (1 - ratio) * plot_height
@@ -1210,7 +1244,7 @@ def update_trade_state(state, trade_type, form) -> None:
     )
 
 
-def pricing_tables(state):
+def pricing_tables(state, *, include_calibration=False, include_bermudan_grid=False):
     portfolio_rows = []
     calibration_rows = []
     bermudan_grid_rows = []
@@ -1237,14 +1271,16 @@ def pricing_tables(state):
             market_context=market_context,
             bermudan_pricing_engine=bermudan_engine,
         ).to_dict("records")
-        calibration_rows = reprice_sofr_calibration_swaps(
-            curve,
-            state["market"]["curve_quotes_pct"],
-        ).to_dict("records")
-        bermudan_grid_rows = build_bermudan_pricing_grid(
-            state,
-            market_context=market_context,
-        ).to_dict("records")
+        if include_calibration:
+            calibration_rows = reprice_sofr_calibration_swaps(
+                curve,
+                state["market"]["curve_quotes_pct"],
+            ).to_dict("records")
+        if include_bermudan_grid:
+            bermudan_grid_rows = build_bermudan_pricing_grid(
+                state,
+                market_context=market_context,
+            ).to_dict("records")
     except Exception as exc:
         pricing_error = str(exc)
 
@@ -1270,6 +1306,9 @@ def enrich_portfolio_rows(portfolio_rows):
         enriched_rows.append(
             {
                 **row,
+                "Delta": float(row.get("Delta", 0.0)),
+                "Gamma": float(row.get("Gamma", 0.0)),
+                "Vega": float(row.get("Vega", 0.0)),
                 "EditURL": url_for("workbench.edit_trade", trade_type=trade_key),
                 "EditLabel": f"Edit {TRADE_TITLES[trade_key]}",
             }
@@ -1280,22 +1319,17 @@ def enrich_portfolio_rows(portfolio_rows):
 def dynamic_dashboard_payload(state):
     portfolio_rows, calibration_rows, bermudan_grid_rows, pricing_error = pricing_tables(state)
     blotter_rows = enrich_portfolio_rows(portfolio_rows)
-    blotter_totals = _blotter_totals([])
-    try:
-        monitor_rows, blotter_totals = build_blotter_monitor(state, portfolio_rows)
-        blotter_rows = enrich_portfolio_rows(monitor_rows)
-    except Exception as exc:
-        if pricing_error is None:
-            pricing_error = str(exc)
+    blotter_totals = _blotter_totals(blotter_rows)
 
     analytics_error = None
     zero_points = []
-    regular_forward_points = []
-    scenario_forward_points = []
+    summary_forward_points = []
     try:
-        zero_points, regular_forward_points, scenario_forward_points = _curve_analytics(state)
+        zero_points, summary_forward_points = _curve_snapshot_analytics(state)
     except Exception as exc:
         analytics_error = str(exc)
+
+    curve_rows = curve_market_zero_rows(state, zero_points)
 
     return _json_safe(
         {
@@ -1304,10 +1338,10 @@ def dynamic_dashboard_payload(state):
             "calibration_rows": calibration_rows,
             "bermudan_grid_rows": bermudan_grid_rows,
             "curve_inputs": curve_inputs(state),
-            "curve_rate_rows": curve_market_zero_rows(state, zero_points),
-            "curve_comparison_chart": _curve_comparison_chart(curve_market_zero_rows(state, zero_points)),
-            "forward_rate_chart": _forward_rate_chart(regular_forward_points, scenario_forward_points),
-            "market_snapshot": market_snapshot(state, zero_points, scenario_forward_points),
+            "curve_rate_rows": curve_rows,
+            "curve_comparison_chart": _curve_comparison_chart(curve_rows),
+            "forward_rate_chart": _empty_multi_line_chart(),
+            "market_snapshot": market_snapshot(state, zero_points, summary_forward_points),
             "pricing_error": pricing_error or analytics_error,
             "last_update_label": datetime.now().strftime("%H:%M:%S"),
         }
@@ -1335,6 +1369,10 @@ def build_dashboard_context(state):
             "default_market_data_json_path": str(DEFAULT_MARKET_DATA_JSON_PATH.relative_to(DEFAULT_MARKET_DATA_JSON_PATH.parent.parent)),
             "default_trade_data_json_path": str(DEFAULT_TRADE_DATA_JSON_PATH.relative_to(DEFAULT_TRADE_DATA_JSON_PATH.parent.parent)),
             "defaults_note": "Panels show the current session market state. Reset demo reloads the JSON defaults.",
+            "dashboard_panel_urls": {
+                panel: url_for("workbench.dashboard_panel", panel_name=panel)
+                for panel in ("forward", "calibration", "bermudan-grid", "risk")
+            },
         }
     )
     return payload
@@ -1342,8 +1380,54 @@ def build_dashboard_context(state):
 
 def build_realtime_payload(state):
     payload = dynamic_dashboard_payload(state)
-    payload["bermudan_grid_headers"] = [f"{year}Y" for year in BERMUDAN_GRID_MATURITIES_YEARS]
+    for deferred_key in ("calibration_rows", "bermudan_grid_rows", "forward_rate_chart"):
+        payload.pop(deferred_key, None)
     return payload
+
+
+def build_dashboard_panel_payload(state, panel_name):
+    if panel_name == "forward":
+        _zero_points, regular_points, scenario_points = _curve_analytics(state)
+        return _json_safe(
+            {
+                "panel": panel_name,
+                "forward_rate_chart": _forward_rate_chart(regular_points, scenario_points),
+                "forward_rate_summary": _forward_summary(scenario_points),
+            }
+        )
+
+    if panel_name == "calibration":
+        _portfolio_rows, calibration_rows, _grid_rows, pricing_error = pricing_tables(
+            state,
+            include_calibration=True,
+        )
+        if pricing_error:
+            raise RuntimeError(pricing_error)
+        return _json_safe({"panel": panel_name, "calibration_rows": calibration_rows})
+
+    if panel_name == "bermudan-grid":
+        _portfolio_rows, _calibration_rows, grid_rows, pricing_error = pricing_tables(
+            state,
+            include_bermudan_grid=True,
+        )
+        if pricing_error:
+            raise RuntimeError(pricing_error)
+        return _json_safe({"panel": panel_name, "bermudan_grid_rows": grid_rows})
+
+    if panel_name == "risk":
+        portfolio_rows, _calibration_rows, _grid_rows, pricing_error = pricing_tables(state)
+        if pricing_error:
+            raise RuntimeError(pricing_error)
+        monitor_rows, totals = build_blotter_monitor(state, portfolio_rows)
+        return _json_safe(
+            {
+                "panel": panel_name,
+                "blotter_rows": enrich_portfolio_rows(monitor_rows),
+                "blotter_totals": totals,
+            }
+        )
+
+    raise KeyError(panel_name)
 
 
 def build_trade_editor_context(state, trade_type):

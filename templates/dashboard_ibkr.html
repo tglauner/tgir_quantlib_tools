@@ -383,7 +383,7 @@
     </div>
     <div class="tws-summary-tile">
       <span>Grid rows</span>
-      <strong>{{ bermudan_grid_rows|length }}</strong>
+      <strong>On demand</strong>
     </div>
     <div class="tws-summary-tile">
       <span>Trades</span>
@@ -400,7 +400,10 @@
         </div>
         <span class="tws-window-tag">Book</span>
       </div>
-      <p>One trade per line with MTM, Delta, Gamma, and Vega.</p>
+      <p>Marks load with the page. Delta, Gamma, and Vega are calculated on demand to keep the screen responsive.</p>
+      <div class="btn-row" style="margin-bottom: 10px;">
+        <button class="btn btn-secondary" type="button" id="load-risk-button">Calculate portfolio risk</button>
+      </div>
 
       <div id="pricing-error-box">
         {% if pricing_error %}
@@ -467,6 +470,7 @@
               class="btn btn-secondary"
               type="button"
               data-toggle-panel="forward-panel"
+              data-panel-name="forward"
               data-show-label="Open forward strip"
               data-hide-label="Hide forward strip"
               aria-expanded="false"
@@ -477,11 +481,23 @@
               class="btn btn-secondary"
               type="button"
               data-toggle-panel="calibration-panel"
+              data-panel-name="calibration"
               data-show-label="Open OIS repricing"
               data-hide-label="Hide OIS repricing"
               aria-expanded="false"
             >
               Open OIS repricing
+            </button>
+            <button
+              class="btn btn-secondary"
+              type="button"
+              data-toggle-panel="bermudan-grid-panel"
+              data-panel-name="bermudan-grid"
+              data-show-label="Calculate Bermudan grid"
+              data-hide-label="Hide Bermudan grid"
+              aria-expanded="false"
+            >
+              Calculate Bermudan grid
             </button>
           </div>
         </div>
@@ -684,7 +700,7 @@
         </div>
       </section>
 
-      <section class="panel panel-compact">
+      <section class="panel panel-compact" id="bermudan-grid-panel" hidden>
         <div class="panel-inner">
           <div class="tws-window-title">
             <div>
@@ -705,20 +721,7 @@
                 </tr>
               </thead>
               <tbody id="bermudan-grid-body">
-                {% for row in bermudan_grid_rows %}
-                  <tr>
-                    <td><strong>{{ row["Non-call"] }}</strong></td>
-                    {% for header in bermudan_grid_headers %}
-                      <td class="numeric mono">
-                        {% if row[header] is none %}
-                          -
-                        {% else %}
-                          <span class="signed-value {{ row[header]|sign_class }}">{{ row[header]|signed_money }}</span>
-                        {% endif %}
-                      </td>
-                    {% endfor %}
-                  </tr>
-                {% endfor %}
+                <tr><td colspan="{{ bermudan_grid_headers|length + 1 }}">Open this panel to calculate the grid.</td></tr>
               </tbody>
             </table>
           </div>
@@ -736,6 +739,7 @@
               <span class="tws-window-tag">Fwd</span>
             </div>
             <p>{{ forward_rate_note }}</p>
+            <p class="table-note">Compares Regular SOFR daily 1D fwd with Scenario SOFR daily 1D fwd.</p>
 
             <div class="metric-strip compact-metrics">
               <div class="metric">
@@ -822,14 +826,16 @@
 
   <script>
     (() => {
-      const realtimeKey = "tgir_quantlib_realtime_enabled";
       const toggleButton = document.getElementById("realtime-toggle");
       const liveStatus = document.getElementById("live-status-pill");
       const liveLastUpdate = document.getElementById("live-last-update");
       const bermudanGridHeaders = {{ bermudan_grid_headers|tojson }};
+      const dashboardPanelUrls = {{ dashboard_panel_urls|tojson }};
+      const loadedPanels = new Set();
       let previousBlotterRows = {{ blotter_rows|tojson }};
       let previousBlotterTotals = {{ blotter_totals|tojson }};
-      let realtimeEnabled = window.localStorage.getItem(realtimeKey) === "true";
+      let realtimeEnabled = false;
+      let riskLoaded = false;
       let requestInFlight = false;
 
       const moneyFormatter = new Intl.NumberFormat("en-US", {
@@ -1050,13 +1056,40 @@
 
       function applyPayload(payload) {
         renderPricingError(payload.pricing_error);
-        renderBlotter(payload.blotter_rows, payload.blotter_totals);
+        let nextRows = payload.blotter_rows;
+        let nextTotals = payload.blotter_totals;
+        if (riskLoaded) {
+          const priorByTrade = new Map(previousBlotterRows.map((row) => [row.TradeKey, row]));
+          nextRows = payload.blotter_rows.map((row) => ({
+            ...row,
+            Delta: priorByTrade.get(row.TradeKey)?.Delta ?? 0,
+            Gamma: priorByTrade.get(row.TradeKey)?.Gamma ?? 0,
+            Vega: priorByTrade.get(row.TradeKey)?.Vega ?? 0,
+          }));
+          nextTotals = {
+            ...payload.blotter_totals,
+            Delta: previousBlotterTotals.Delta,
+            Gamma: previousBlotterTotals.Gamma,
+            Vega: previousBlotterTotals.Vega,
+          };
+          const riskButton = document.getElementById("load-risk-button");
+          if (riskButton) {
+            riskButton.textContent = "Risk stale — recalculate";
+          }
+        }
+        renderBlotter(nextRows, nextTotals);
         renderCurveRateRows(payload.curve_rate_rows);
         renderCurveComparisonChart(payload.curve_comparison_chart);
-        renderCalibration(payload.calibration_rows);
-        renderBermudanGrid(payload.bermudan_grid_rows);
+        if (payload.calibration_rows) {
+          renderCalibration(payload.calibration_rows);
+        }
+        if (payload.bermudan_grid_rows) {
+          renderBermudanGrid(payload.bermudan_grid_rows);
+        }
         renderMarketSnapshot(payload.market_snapshot);
-        renderLineChart("forward-rate-chart-wrap", payload.forward_rate_chart, "Daily one-day forward SOFR chart");
+        if (payload.forward_rate_chart) {
+          renderLineChart("forward-rate-chart-wrap", payload.forward_rate_chart, "Daily one-day forward SOFR chart");
+        }
         applyCurveInputs(payload.curve_inputs, payload.market_snapshot.hw_mean_reversion);
         applyEquityInputs(payload.market_snapshot);
         liveLastUpdate.textContent = payload.last_update_label;
@@ -1092,7 +1125,6 @@
         } catch (error) {
           renderPricingError(error.message);
           realtimeEnabled = false;
-          window.localStorage.setItem(realtimeKey, "false");
           updateRealtimeUI();
         } finally {
           requestInFlight = false;
@@ -1102,7 +1134,6 @@
       if (toggleButton) {
         toggleButton.addEventListener("click", () => {
           realtimeEnabled = !realtimeEnabled;
-          window.localStorage.setItem(realtimeKey, realtimeEnabled ? "true" : "false");
           updateRealtimeUI();
           if (realtimeEnabled) {
             runRealtimeTick();
@@ -1110,7 +1141,16 @@
         });
         updateRealtimeUI();
         renderBlotter(previousBlotterRows, previousBlotterTotals);
-        window.setInterval(runRealtimeTick, 1000);
+        document.addEventListener("visibilitychange", () => {
+          if (!document.hidden && realtimeEnabled) {
+            runRealtimeTick();
+          }
+        });
+        window.setInterval(() => {
+          if (!document.hidden) {
+            runRealtimeTick();
+          }
+        }, 5000);
       }
 
       document.querySelectorAll("[data-toggle-panel]").forEach((button) => {
@@ -1121,8 +1161,45 @@
         }
         const showLabel = button.dataset.showLabel || "Show";
         const hideLabel = button.dataset.hideLabel || "Hide";
-        button.addEventListener("click", () => {
+        button.addEventListener("click", async () => {
           const willShow = panel.hasAttribute("hidden");
+          const panelName = button.dataset.panelName;
+          if (willShow && panelName && !loadedPanels.has(panelName)) {
+            const originalText = button.textContent;
+            button.disabled = true;
+            button.textContent = "Calculating...";
+            try {
+              const response = await fetch(dashboardPanelUrls[panelName], {
+                headers: {"X-Requested-With": "XMLHttpRequest"},
+              });
+              if (!response.ok) {
+                throw new Error(`Panel calculation failed with ${response.status}`);
+              }
+              const payload = await response.json();
+              if (payload.forward_rate_chart) {
+                renderLineChart("forward-rate-chart-wrap", payload.forward_rate_chart, "Daily one-day forward SOFR chart");
+                const summary = payload.forward_rate_summary;
+                document.getElementById("forward-start").textContent = pct(summary.start_pct);
+                document.getElementById("forward-3m").textContent = pct(summary.three_month_pct);
+                document.getElementById("forward-6m").textContent = pct(summary.six_month_pct);
+                document.getElementById("forward-1y").textContent = pct(summary.one_year_pct);
+              }
+              if (payload.calibration_rows) {
+                renderCalibration(payload.calibration_rows);
+              }
+              if (payload.bermudan_grid_rows) {
+                renderBermudanGrid(payload.bermudan_grid_rows);
+              }
+              loadedPanels.add(panelName);
+            } catch (error) {
+              renderPricingError(error.message);
+              button.disabled = false;
+              button.textContent = originalText;
+              return;
+            }
+            button.disabled = false;
+            button.textContent = originalText;
+          }
           if (willShow) {
             panel.removeAttribute("hidden");
           } else {
@@ -1131,6 +1208,29 @@
           button.textContent = willShow ? hideLabel : showLabel;
           button.setAttribute("aria-expanded", willShow ? "true" : "false");
         });
+      });
+
+      const riskButton = document.getElementById("load-risk-button");
+      riskButton?.addEventListener("click", async () => {
+        riskButton.disabled = true;
+        riskButton.textContent = "Calculating risk...";
+        try {
+          const response = await fetch(dashboardPanelUrls.risk, {
+            headers: {"X-Requested-With": "XMLHttpRequest"},
+          });
+          if (!response.ok) {
+            throw new Error(`Risk calculation failed with ${response.status}`);
+          }
+          const payload = await response.json();
+          renderBlotter(payload.blotter_rows, payload.blotter_totals);
+          riskLoaded = true;
+          riskButton.textContent = "Recalculate portfolio risk";
+        } catch (error) {
+          renderPricingError(error.message);
+          riskButton.textContent = "Retry portfolio risk";
+        } finally {
+          riskButton.disabled = false;
+        }
       });
     })();
   </script>

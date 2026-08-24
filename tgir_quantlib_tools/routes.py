@@ -20,6 +20,7 @@ from .dashboard import (
     TRADE_FORM_DEFINITIONS,
     apply_realtime_tick,
     build_dashboard_context,
+    build_dashboard_panel_payload,
     build_realtime_payload,
     build_trade_editor_context,
     get_portfolio_state,
@@ -93,7 +94,6 @@ def health():
 @login_required
 def dashboard():
     state = get_portfolio_state()
-    _persist_curve_debug_csv(state)
     return render_template("dashboard.html", **build_dashboard_context(state))
 
 
@@ -101,7 +101,6 @@ def dashboard():
 @login_required
 def dashboard_ibkr():
     state = get_portfolio_state()
-    _persist_curve_debug_csv(state)
     return render_template("dashboard_ibkr.html", **build_dashboard_context(state))
 
 
@@ -109,7 +108,6 @@ def dashboard_ibkr():
 @login_required
 def quantlib_data_model():
     state = get_portfolio_state()
-    _persist_curve_debug_csv(state)
     return render_template(
         "quantlib_model.html",
         **build_quantlib_model_context(state),
@@ -197,8 +195,20 @@ def realtime_tick():
     state = get_portfolio_state()
     apply_realtime_tick(state)
     save_portfolio_state(state)
-    _persist_curve_debug_csv(state)
     return jsonify(build_realtime_payload(state))
+
+
+@workbench_bp.get("/api/dashboard/panel/<panel_name>")
+@login_required
+def dashboard_panel(panel_name):
+    state = get_portfolio_state()
+    try:
+        return jsonify(build_dashboard_panel_payload(state, panel_name))
+    except KeyError:
+        abort(404)
+    except Exception as exc:
+        current_app.logger.exception("Dashboard panel calculation failed: %s", panel_name)
+        return jsonify({"error": str(exc), "panel": panel_name}), 500
 
 
 @workbench_bp.route("/trade/<trade_type>", methods=["GET", "POST"])

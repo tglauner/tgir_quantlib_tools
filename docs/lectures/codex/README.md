@@ -14,27 +14,26 @@ It is a hobby project with a deliberately serious quality standard. The hosted a
 From the repository root:
 
 ```bash
-cd lecture_codex
-make
+make -C docs/lectures/codex
 ```
 
-The outputs are `tgir_quantlib_tools_chronology.pdf` and `tgir_quantlib_tools_summary_20.pdf` in this folder.
+The outputs are `tgir_quantlib_tools_chronology.pdf` and `tgir_quantlib_tools_summary_20.pdf` in this folder. LaTeX intermediate files are isolated in the ignored `build/` subdirectory.
 
 To build only the 20-slide summary:
 
 ```bash
-make summary
+make -C docs/lectures/codex summary
 ```
 
 ## Verify
 
 ```bash
-pdfinfo tgir_quantlib_tools_chronology.pdf | grep '^Pages:'
-pdfinfo tgir_quantlib_tools_summary_20.pdf | grep '^Pages:'
-pdftotext tgir_quantlib_tools_chronology.pdf - | grep -c 'Takeaway'
+pdfinfo docs/lectures/codex/tgir_quantlib_tools_chronology.pdf | grep '^Pages:'
+pdfinfo docs/lectures/codex/tgir_quantlib_tools_summary_20.pdf | grep '^Pages:'
+pdftotext docs/lectures/codex/tgir_quantlib_tools_chronology.pdf - | grep -c 'Takeaway'
 ```
 
-The expanded full PDF must contain exactly 210 pages and the summary PDF exactly 20 pages. LaTeX intermediate files are ignored by the repository's global `.gitignore` rules.
+The expanded full PDF must contain exactly 210 pages and the summary PDF exactly 20 pages. LaTeX intermediate files are ignored by the repository's global `.gitignore` rules and kept out of the source directory.
 
 ## Deliverables
 

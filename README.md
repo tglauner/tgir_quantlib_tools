@@ -162,6 +162,8 @@ Detailed documents:
 - [Quantitative two-pager](docs/callable_bermudan_xccy_quant_two_pager.md)
 - [Three-page implementation specification](docs/latex/standalone_callable_xccy_pricer_spec.tex)
 - [Local command-line guide](docs/local_command_line_testing.md)
+- [Compiled papers](docs/papers/)
+- [Lecture sources and PDFs](docs/lectures/)
 
 ### MCP Single-Deal Pricing
 
@@ -234,6 +236,8 @@ Build all PDFs with:
 ```bash
 make -C docs/latex
 ```
+
+Final PDFs are collected in `docs/papers/`. LaTeX intermediate files are isolated in the ignored `docs/latex/build/` subdirectory.
 
 That directory now includes:
 

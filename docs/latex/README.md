@@ -2,6 +2,8 @@
 
 This directory contains the LaTeX sources for the `tgir_quantlib_tools` documentation set. Final PDFs are written to `docs/papers/`; all LaTeX intermediate files stay in the ignored `docs/latex/build/` directory.
 
+All article and Beamer entrypoints use the shared `mastering_ir_derivatives` styles in `shared/`. The shared directory also contains the source TG logo and its flattened title-slide version, so builds do not depend on files elsewhere in Dropbox.
+
 ## Documents
 
 - `callable_bermudan_xccy_quant_model_summary.tex`

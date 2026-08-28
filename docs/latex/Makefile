@@ -3,6 +3,9 @@ LATEX_ENGINE := -pdf
 LATEXFLAGS := -interaction=nonstopmode -halt-on-error
 BUILD_DIR := build
 PAPER_DIR := ../papers
+SHARED_DIR := shared
+SHARED_FILES := $(wildcard $(SHARED_DIR)/*)
+TEXINPUTS := $(SHARED_DIR)//:
 
 ARTICLE_DOCS := \
 	callable_bermudan_xccy_quant_model_summary.pdf \
@@ -35,11 +38,11 @@ $(BUILD_DIR) $(PAPER_DIR):
 
 $(PAPER_DIR)/callable_bermudan_xccy_quant_model_summary.pdf: LATEX_ENGINE := -xelatex
 
-$(PAPER_TARGETS): $(PAPER_DIR)/%.pdf: %.tex | $(BUILD_DIR) $(PAPER_DIR)
-	$(LATEXMK) $(LATEX_ENGINE) $(LATEXFLAGS) -outdir=$(BUILD_DIR) $<
+$(PAPER_TARGETS): $(PAPER_DIR)/%.pdf: %.tex $(SHARED_FILES) | $(BUILD_DIR) $(PAPER_DIR)
+	TEXINPUTS="$(TEXINPUTS)" $(LATEXMK) $(LATEX_ENGINE) $(LATEXFLAGS) -outdir=$(BUILD_DIR) $<
 	cp $(BUILD_DIR)/$(@F) $@
 
 clean:
-	$(LATEXMK) -C -outdir=$(BUILD_DIR) $(ALL_SOURCES)
+	TEXINPUTS="$(TEXINPUTS)" $(LATEXMK) -C -outdir=$(BUILD_DIR) $(ALL_SOURCES)
 	test ! -d $(BUILD_DIR) || find $(BUILD_DIR) -type f -delete
 	test ! -d $(BUILD_DIR) || find $(BUILD_DIR) -depth -type d -empty -delete

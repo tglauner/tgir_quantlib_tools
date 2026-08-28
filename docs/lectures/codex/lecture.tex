@@ -1,4 +1,5 @@
 \documentclass[aspectratio=169,11pt]{beamer}
+\input{../../latex/shared/tgir-beamer-preamble}
 
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
@@ -9,7 +10,6 @@
 \usetikzlibrary{arrows.meta,positioning,calc,shapes.geometric}
 \usepackage{listings}
 \usepackage{xcolor}
-\usepackage{hyperref}
 
 \definecolor{TgirNavy}{HTML}{0B1F2A}
 \definecolor{TgirTeal}{HTML}{00A88F}
@@ -18,41 +18,8 @@
 \definecolor{TgirPaper}{HTML}{F7F2E8}
 \definecolor{TgirGray}{HTML}{61717C}
 
-\setbeamercolor{normal text}{fg=TgirNavy,bg=TgirPaper}
-\setbeamercolor{structure}{fg=TgirTeal}
-\setbeamercolor{frametitle}{fg=TgirPaper,bg=TgirNavy}
-\setbeamercolor{title}{fg=TgirPaper}
-\setbeamercolor{subtitle}{fg=TgirMint}
-\setbeamercolor{block title}{fg=TgirPaper,bg=TgirTeal}
-\setbeamercolor{block body}{fg=TgirNavy,bg=TgirMint!35!TgirPaper}
-\setbeamercolor{alerted text}{fg=TgirOrange}
-\setbeamerfont{title}{size=\fontsize{30}{34}\selectfont,series=\bfseries}
-\setbeamerfont{subtitle}{size=\fontsize{15}{18}\selectfont}
-\setbeamerfont{frametitle}{size=\fontsize{17}{20}\selectfont,series=\bfseries}
-\setbeamerfont{normal text}{size=\fontsize{11}{14}\selectfont}
-\setbeamerfont{block title}{series=\bfseries}
-\setbeamertemplate{navigation symbols}{}
 \setbeameroption{hide notes}
-\setbeamertemplate{itemize item}{\color{TgirTeal}$\blacktriangleright$}
-\setbeamertemplate{itemize subitem}{\color{TgirOrange}$\bullet$}
 \setbeamersize{text margin left=8mm,text margin right=8mm}
-
-\setbeamertemplate{frametitle}{%
-  \nointerlineskip
-  \begin{beamercolorbox}[wd=\paperwidth,ht=14mm,dp=3mm,leftskip=8mm,rightskip=8mm]{frametitle}
-    \usebeamerfont{frametitle}\insertframetitle
-  \end{beamercolorbox}}
-
-\setbeamertemplate{footline}{%
-  \leavevmode
-  \hbox{%
-    \begin{beamercolorbox}[wd=.78\paperwidth,ht=3.2mm,dp=1.3mm,leftskip=8mm]{author in head/foot}%
-      \color{TgirGray}\scriptsize TGIR QuantLib Tools -- a chronological learning journey
-    \end{beamercolorbox}%
-    \begin{beamercolorbox}[wd=.22\paperwidth,ht=3.2mm,dp=1.3mm,rightskip=8mm plus1fil]{date in head/foot}%
-      \color{TgirTeal}\scriptsize\insertframenumber/\inserttotalframenumber
-    \end{beamercolorbox}}
-  \vskip0pt}
 
 \lstset{
   basicstyle=\ttfamily\scriptsize,

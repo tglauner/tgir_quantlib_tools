@@ -1,0 +1,107 @@
+% mastering_ir_derivatives_beamer_1.0.sty
+
+\NeedsTeXFormat{LaTeX2e}
+
+% Set 3:2 aspect ratio to match perfectly my 3000x2000 surface aspect ratio
+%\usepackage[width=180mm, height=120mm]{geometry}
+%\setbeamersize{text width=160mm, text height=100mm}
+
+% Pages used
+\usepackage{fancyhdr}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{animate}
+\usepackage[english]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage{textpos}
+\usepackage{booktabs}
+% Use for currency signs such as EURO
+\usepackage{eurosym}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{pgfpages}
+\usepackage{amsthm}
+% Use adjustbox to resize graphs, tables, figures, etc
+\usepackage{adjustbox}
+% Format number amount such as $25,000
+\usepackage{siunitx}
+% Enhanced graphics package
+\usepackage{graphicx}
+% To animate graphs where things cancel out
+\usepackage{cancel}
+
+% Reduce the size of all captions
+\usepackage{caption}
+\captionsetup{font=scriptsize}
+
+% Specifics for tikz
+\usepackage{tikz}
+\usetikzlibrary{positioning,calc,arrows.meta,shapes,shapes.geometric}
+
+% Set themes
+\usetheme{default}
+\useinnertheme{rounded}
+\setbeamertemplate{headline}{}
+\setbeamertemplate{navigation symbols}{}
+\setbeamercovered{invisible}
+\beamerdefaultoverlayspecification{<+->}
+
+% Bring structure due to section outline every time
+\AtBeginSection[]{
+  \setbeamercovered{transparent}
+  \begin{frame}{Outline}
+    \tableofcontents[currentsection]
+  \end{frame}
+  \setbeamercovered{invisible}
+}
+
+% Popup table of contents at the beginning of each subsection
+\AtBeginSubsection[]{
+  \setbeamercovered{transparent}
+  \begin{frame}{Outline}
+    \tableofcontents[currentsection,currentsubsection]
+  \end{frame}
+  \setbeamercovered{invisible}
+}
+
+\defbeamertemplate*{footline}{my metropolis theme}{
+  \begin{beamercolorbox}[ht=3ex,dp=1ex,leftskip=.7em,rightskip=.7em]{author in head/foot}
+    TG Investments and Research
+    \hfill \texttt{mastering\_derivatives@tglauner.com}
+    \hfill \insertframenumber/\inserttotalframenumber
+    \hfill \insertshortdate
+  \end{beamercolorbox}
+}
+
+% Global variables specific to course
+\title{Mastering Interest Rate Derivatives}
+\author{Tim Glauner}
+\date{\today}
+
+% New frame that shows a blank screen as first item so students look at title
+\newenvironment{pause_frame}[1]
+{
+  \begin{frame}{#1}
+  \pause
+}
+{
+  \end{frame}
+}
+
+% Add the logo to the title page template.
+\setbeamertemplate{title page}{%
+  \begin{tikzpicture}[remember picture,overlay]
+    \node[anchor=north east] at ([xshift=-0.3cm,yshift=-0.3cm]current page.north east)
+    {\beameroriginal\includegraphics[height=0.75cm]{TG_logo_screenshot_white_background.jpg}};
+  \end{tikzpicture}%
+  \vfill
+  \centering
+  \usebeamercolor[fg]{titlegraphic}\inserttitlegraphic\par
+  \usebeamertemplate*{title}\par
+  \vskip0.25em%
+  \usebeamertemplate*{subtitle}\par
+  \vskip1em\par
+  \usebeamertemplate*{author}\par
+  \usebeamertemplate*{date}\par
+  \usebeamertemplate*{institute}\par
+}

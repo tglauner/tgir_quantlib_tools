@@ -1,0 +1,1053 @@
+\documentclass[conference]{IEEEtran}
+\input{shared/tgir-article-preamble}
+
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{microtype}
+\usepackage{textcomp}
+\usepackage{bookmark}
+\usepackage{xurl}
+\newcommand{\passthrough}[1]{#1}
+\newcounter{none} % for unnumbered tables
+\setlength{\emergencystretch}{3em} % prevent overfull lines
+\providecommand{\tightlist}{}
+\urlstyle{same}
+\hypersetup{
+  pdftitle={Callable Bermudan Cross-Currency Interest-Rate Swap Pricing Specification},
+  pdfauthor={Tim Glauner, TG Investments and Research, LLC},
+  pdfcreator={LaTeX via pandoc}}
+
+\title{Callable Bermudan Cross-Currency Interest-Rate Swap Pricing
+Specification}
+\author{\TGIRArticleAuthorBlock}
+\TGIRSetArticlePublicationDate{August 2026}
+
+\begin{document}
+\maketitle
+
+{
+\setcounter{tocdepth}{3}
+}
+\begin{center}
+\begin{tabularx}{\columnwidth}{>{\bfseries}p{0.28\columnwidth}X}
+\toprule
+Status & Proposed specification---no implementation \\
+Audience & Quantitative developers, model validators, and trading-system integrators \\
+Last updated & 2026-08-14 \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Executive decision}\label{1-executive-decision}
+
+Price the product with a three-factor Monte Carlo model and a two-pass
+Longstaff-Schwartz least-squares Monte Carlo (LSM) exercise algorithm:
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  one Hull-White one-factor short-rate model for the domestic currency;
+\item
+  one Hull-White one-factor short-rate model for the foreign currency;
+  and
+\item
+  one lognormal Black-Scholes diffusion for the FX rate, correlated with
+  both rate factors.
+\end{enumerate}
+
+This is a Monte Carlo model, not the short-rate lattice currently used
+by the repository\textquotesingle s single-currency Bermudan swaptions.
+That lattice uses Hull-White 1F by default and also supports a G2++
+comparison. A multidimensional cross-currency lattice is possible in
+principle, but it is not the recommended integration: it is harder to
+build, calibrate, and converge, and QuantLib\textquotesingle s
+\passthrough{\lstinline!TreeSwaptionEngine!} accepts one short-rate
+model and one \passthrough{\lstinline!Swaption!} rather than a callable
+cross-currency cash-flow portfolio.
+
+The existing QuantLib integration remains the benchmark and supplies
+conventions, curves, schedules, Hull-White calibration patterns, and
+regression tests. The new pricer should be a separate engine so the
+current \passthrough{\lstinline!ql.TreeSwaptionEngine!} results remain
+unchanged.
+
+\section{Product definition and sign
+convention}\label{2-product-definition-and-sign-convention}
+
+\subsection{Currencies and FX
+quotation}\label{21-currencies-and-fx-quotation}
+
+\begin{itemize}
+\tightlist
+\item
+  \passthrough{\lstinline!DOM!} is the reporting, collateral, and NPV
+  currency in the first implementation.
+\item
+  \passthrough{\lstinline!FOR!} is the other leg currency.
+\item
+  \passthrough{\lstinline!S(t)!} is quoted as units of
+  \passthrough{\lstinline!DOM!} per one unit of
+  \passthrough{\lstinline!FOR!}. A \passthrough{\lstinline!FOR!} cash
+  flow \passthrough{\lstinline!CF\_FOR!} paid at time
+  \passthrough{\lstinline!t!} is worth
+  \passthrough{\lstinline!S(t) * CF\_FOR!} in
+  \passthrough{\lstinline!DOM!} on that path.
+\item
+  All signed cash flows are from the option holder\textquotesingle s
+  perspective: receipts are positive and payments are negative.
+\end{itemize}
+
+\subsection{Underlying swap}\label{22-underlying-swap}
+
+The underlying contains two independently scheduled legs plus optional
+notional exchanges:
+
+\begin{itemize}
+\tightlist
+\item
+  a domestic fixed, term-floating, or compounded-overnight leg;
+\item
+  a foreign fixed, term-floating, or compounded-overnight leg;
+\item
+  optional initial and final notional exchanges;
+\item
+  optional mark-to-market FX-reset notionals, explicitly out of scope
+  for the first implementation unless selected as a separate product
+  variant; and
+\item
+  spreads, gearing, stubs, payment lags, calendars, day counts, and
+  business-day conventions on each leg.
+\end{itemize}
+
+The first supported trade should be a constant-notional cross-currency
+swap with optional initial/final exchanges. Do not silently interpret a
+mark-to-market cross-currency swap as constant-notional.
+
+\subsection{Callable versus enterable Bermudan
+rights}\label{23-callable-versus-enterable-bermudan-rights}
+
+The request must carry \passthrough{\lstinline!exercise\_style!}:
+
+\begin{itemize}
+\tightlist
+\item
+  \passthrough{\lstinline!CANCEL\_REMAINING\_SWAP!} - the holder may
+  terminate the remaining swap on specified dates. This is the initial
+  target.
+\item
+  \passthrough{\lstinline!ENTER\_REMAINING\_SWAP!} - the holder may
+  enter the remaining swap on specified dates, economically a
+  cross-currency Bermudan swaption. This is a later compatible variant.
+\end{itemize}
+
+The request must also identify
+\passthrough{\lstinline!exercise\_holder!} and the call settlement
+amount from that holder\textquotesingle s perspective. A bare word such
+as "callable" is insufficient because payer/receiver and issuer/holder
+usages differ between systems.
+
+For a cancellation right, exercising removes all contractually
+cancellable future cash flows and replaces them with the defined
+settlement cash flow. If the settlement is zero, a holder cancels when
+continuing has sufficiently negative value. For an entry right,
+exercising creates the remaining swap and any entry settlement.
+
+\subsection{Exercise event
+ordering}\label{24-exercise-event-ordering}
+
+Each exercise opportunity has four dates:
+
+\begin{itemize}
+\tightlist
+\item
+  notice date;
+\item
+  decision date;
+\item
+  effective termination or entry date; and
+\item
+  settlement date.
+\end{itemize}
+
+The trade definition must state whether coupons and notional exchanges
+on the effective date survive exercise. The default is: determine
+already-fixed coupons first, pay cash flows scheduled on or before the
+effective date, then remove later cancellable cash flows. No same-day
+ordering may be inferred from date equality alone.
+
+For version 1, \passthrough{\lstinline!notice\_date!} must equal
+\passthrough{\lstinline!decision\_date!}; the timestamp at which notice
+becomes irrevocable is the information time for the exercise decision.
+Reject a trade with an earlier notice deadline until the state observed
+at that deadline and the delayed exercise mechanics are specified.
+
+\subsection{Decision-date cash-flow
+partition}\label{25-decision-date-cash-flow-partition}
+
+For a cancellation opportunity decided at
+\passthrough{\lstinline!t\_i!}, partition domestic-equivalent
+decision-date value into:
+
+\begin{itemize}
+\tightlist
+\item
+  \passthrough{\lstinline!A\_i!} - cash flows that survive either
+  decision, including coupons/notional flows through the effective date
+  under the trade\textquotesingle s event ordering;
+\item
+  \passthrough{\lstinline!J\_i!} - exercise-only settlement cash flows,
+  converted and discounted from their actual settlement dates to
+  \passthrough{\lstinline!t\_i!}; and
+\item
+  \passthrough{\lstinline!Y\_i!} - cancellable cash flows and later
+  optionality that remain only if the holder continues.
+\end{itemize}
+
+The exercise comparison excludes the common component:
+
+\begin{align*}
+  \text{exercise if}\quad
+  J_i &> \mathbb{E}^{\mathbb{Q}_d}\!\left[Y_i\mid\mathcal{F}_{t_i}\right]
+        + \varepsilon_{\mathrm{ex}}, \\
+  V_i &= A_i + \max\!\left(J_i,C_i\right), \\
+  C_i &= \mathbb{E}^{\mathbb{Q}_d}\!\left[Y_i\mid\mathcal{F}_{t_i}\right].
+\end{align*}
+
+This partition applies even when the effective or settlement date is
+later than the decision date. For a zero-fee cancellation,
+\passthrough{\lstinline!J\_i = 0!}; surviving interim flows remain in
+\passthrough{\lstinline!A\_i!} and do not disappear. For
+\passthrough{\lstinline!ENTER\_REMAINING\_SWAP!}, define the exercise
+value as the state-dependent PV of the entered swap plus settlement, and
+compare it with the continuation value of the unexercised option.
+
+\section{Scope}\label{3-scope}
+
+\subsection{In scope}\label{31-in-scope}
+
+\begin{itemize}
+\tightlist
+\item
+  two currencies and one FX pair;
+\item
+  domestic-collateral valuation in the domestic currency;
+\item
+  Hull-White 1F dynamics for both short rates;
+\item
+  Black-Scholes lognormal FX dynamics with deterministic piecewise FX
+  volatility;
+\item
+  a full constant 3x3 instantaneous correlation matrix, with an
+  extension point for piecewise-constant correlation;
+\item
+  deterministic notionals in each currency;
+\item
+  discrete Bermudan cancellation dates;
+\item
+  LSM early exercise;
+\item
+  NPV, Monte Carlo error, cash-flow diagnostics, calibration
+  diagnostics, exercise statistics, and bump-and-revalue risks; and
+\item
+  reproducible results from recorded market, trade, model, and
+  random-seed inputs.
+\end{itemize}
+
+\subsection{Out of scope for the first
+implementation}\label{32-out-of-scope-for-the-first-implementation}
+
+\begin{itemize}
+\tightlist
+\item
+  stochastic basis, stochastic volatility, local volatility, jumps,
+  wrong-way credit risk, XVA, and funding valuation adjustments;
+\item
+  collateral switching or optional collateral currency;
+\item
+  mark-to-market/resettable notionals;
+\item
+  multiple exercise holders, partial calls, volume choice, or exercise
+  into an amended coupon;
+\item
+  historical fixing ingestion beyond values supplied in the request;
+\item
+  automatic market-data sourcing; and
+\item
+  replacing the existing single-currency Bermudan tree pricer.
+\end{itemize}
+
+\section{Required input contract}\label{4-required-input-contract}
+
+\subsection{Trade fields}\label{41-trade-fields}
+
+At minimum:
+
+\begin{center}
+\begin{tabularx}{\columnwidth}{>{\bfseries}p{0.28\columnwidth}X}
+\toprule
+Group & Required fields \\
+\midrule
+Identity & \code{trade\_id}, \code{version}, \code{book}, and
+  \code{as\_of\_date} \\
+Product & \code{exercise\_style}, \code{exercise\_holder},
+  \code{reporting\_currency}, and \code{collateral\_currency} \\
+Domestic leg & Currency, pay/receive, notional, coupon type, rate or
+  spread, index, schedule, day count, and payment lag \\
+Foreign leg & The same fields, specified independently \\
+FX & Pair, quote direction, spot, initial exchange rule, and final
+  exchange rule \\
+Exercise & Notice, decision, effective and settlement dates; settlement
+  amount and currency; and same-day event order \\
+Fixings & Index name, fixing date, value, and source timestamp \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Validation must reject inconsistent pay/receive signs, duplicate
+exercise dates, exercise after maturity, missing historical fixings,
+unsupported FX quote direction, and schedules that extend beyond the
+relevant curves.
+
+\subsection{Market fields}\label{42-market-fields}
+
+\begin{itemize}
+\tightlist
+\item
+  domestic discount curve and any distinct domestic forecast curve;
+\item
+  foreign discount curve and any distinct foreign forecast curve;
+\item
+  cross-currency basis incorporated consistently in curves or explicit
+  collateralized FX forwards;
+\item
+  domestic normal swaption-volatility surface;
+\item
+  foreign normal swaption-volatility surface;
+\item
+  FX spot and Black volatility term structure;
+\item
+  correlations \passthrough{\lstinline!rho\_dom\_for!},
+  \passthrough{\lstinline!rho\_dom\_fx!}, and
+  \passthrough{\lstinline!rho\_for\_fx!}; and
+\item
+  quote timestamps, market snapshot ID, source IDs, units, and
+  stale-data flags.
+\end{itemize}
+
+The correlation matrix must be symmetric, have ones on the diagonal, and
+be positive semidefinite. Reject it if materially invalid; a small
+documented eigenvalue floor may repair rounding noise only, and the
+result must disclose that repair.
+
+\subsection{Model and numerical
+fields}\label{43-model-and-numerical-fields}
+
+\begin{itemize}
+\tightlist
+\item
+  fixed or calibrated Hull-White mean reversions and volatility
+  parameterization for each currency;
+\item
+  calibration helper set and calibration error type;
+\item
+  FX volatility interpolation/extrapolation rule;
+\item
+  correlation source and effective date;
+\item
+  training-path count, pricing-path count, time steps, seed, RNG type,
+  antithetic flag, and optional Sobol settings;
+\item
+  regression basis ID, degree, regularization, standardization rule, and
+  candidate-path rule; and
+\item
+  requested risk scenarios and bump sizes.
+\end{itemize}
+
+\section{Market construction and
+calibration}\label{5-market-construction-and-calibration}
+
+\subsection{Curves}\label{51-curves}
+
+Build each currency\textquotesingle s discount and forecast curves from
+instruments appropriate to that currency and collateral agreement. The
+current \passthrough{\lstinline!build\_sofr\_curve()!} is the domestic
+USD template: it uses an overnight deposit at the front and SOFR OIS
+helpers beyond it. Generalize the pattern only when implementation
+begins; do not force non-USD markets through
+\passthrough{\lstinline!ql.Sofr!}.
+
+Cross-currency valuation must be internally arbitrage-consistent. In
+particular, the domestic and foreign discount curves, spot FX,
+collateral convention, cross-currency basis, and model-implied FX
+forwards must agree within tolerance. A deterministic non-callable
+cross-currency swap is the mandatory first calibration check.
+
+The first model has one stochastic rate factor per currency and no
+stochastic basis. The market snapshot must therefore supply:
+
+\begin{itemize}
+\tightlist
+\item
+  the domestic collateral discount curve
+  \passthrough{\lstinline!P\_d(0,T)!};
+\item
+  a foreign effective curve \passthrough{\lstinline!P\_f\_star(0,T)!}
+  consistent with domestic collateral, cross-currency basis, spot FX,
+  and collateralized FX forwards; and
+\item
+  any distinct index forecast curve as a deterministic basis mapping to
+  the corresponding modeled discount curve.
+\end{itemize}
+
+For a forecast curve \passthrough{\lstinline!P\_c\_fwd!}, freeze the
+initial multiplicative basis ratio in version 1:
+
+\begin{align*}
+  B_c(0,T) &= \frac{P_c^{\mathrm{fwd}}(0,T)}{P_c^{\mathrm{disc}}(0,T)}, \\
+  P_c^{\mathrm{fwd}}(t,T)
+    &= P_c^{\mathrm{disc}}(t,T)\frac{B_c(0,T)}{B_c(0,t)}.
+\end{align*}
+
+Floating coupons derive from \passthrough{\lstinline!P\_c\_fwd(t,T)!}.
+This makes the multi-curve assumption explicit: rate uncertainty comes
+from the currency\textquotesingle s Hull-White factor, while
+forecast/discount and cross-currency basis are deterministic. A
+stochastic-basis model is a different model version.
+
+\subsection{Hull-White calibration}\label{52-hull-white-calibration}
+
+Calibrate a separate \passthrough{\lstinline!ql.HullWhite!} model to
+each currency\textquotesingle s normal swaption surface. Stay close to
+the existing repository pattern:
+
+\begin{itemize}
+\tightlist
+\item
+  create \passthrough{\lstinline!ql.SwaptionHelper!} objects with
+  normal-volatility quotes;
+\item
+  use \passthrough{\lstinline!ql.JamshidianSwaptionEngine!} for helper
+  valuation;
+\item
+  use \passthrough{\lstinline!ql.LevenbergMarquardt!} and explicit end
+  criteria;
+\item
+  fix or calibrate mean reversion according to the model configuration;
+  and
+\item
+  report market value, model value, and calibration error for every
+  helper.
+\end{itemize}
+
+For the first benchmark, use a diagonal strip aligned to the
+trade\textquotesingle s exercise dates and remaining maturity, as
+\passthrough{\lstinline!bermudan\_diagonal\_calibration\_pillars()!}
+does today. Production validation should also compare against a broader
+surface calibration so a diagonal-only fit does not hide off-strip
+instability.
+
+\subsection{FX calibration}\label{53-fx-calibration}
+
+Represent FX volatility with QuantLib
+\passthrough{\lstinline!BlackVolTermStructure!} objects, starting with
+piecewise-constant ATM Black volatilities. "Black-Scholes FX" here means
+a lognormal FX diffusion. Because interest rates are stochastic, it does
+not mean that the complete product has the deterministic-rate analytic
+Black-Scholes price.
+
+Use market Black implied volatilities as initial targets, not
+automatically as the hybrid diffusion coefficients. Calibrate the
+piecewise \passthrough{\lstinline!sigma\_fx(t)!} buckets by pricing the
+same FX vanilla instruments in the two-rate-plus-FX hybrid model, then
+solve until model prices or re-implied Black volatilities meet section
+11.2. Use the same spot, effective curves, delta, premium, and quote
+conventions as the trading system.
+
+\subsection{Correlations}\label{54-correlations}
+
+Correlations are model inputs, not calibration leftovers. Source them
+from a governed historical/implied process, record observation windows
+and transformations, and provide stress values. At minimum report price
+sensitivity to each correlation and to a joint correlation stress.
+
+\section{Joint dynamics}\label{6-joint-dynamics}
+
+Work under the domestic risk-neutral measure. Let
+\passthrough{\lstinline!r\_d(t)!} and \passthrough{\lstinline!r\_f(t)!}
+be the domestic and foreign short rates and let
+\passthrough{\lstinline!X(t) = log(S(t))!}.
+
+Each rate follows a Hull-White 1F process fitted exactly to its modeled
+effective curve. Let \passthrough{\lstinline!theta\_f\_for(t)!} be the
+foreign-measure drift fitted to
+\passthrough{\lstinline!P\_f\_star(0,T)!}. With
+\passthrough{\lstinline!S = DOM/FOR!}, the domestic-measure form is:
+
+\begin{align*}
+  \mathrm{d}r_d(t)
+    &= \left[\theta_d(t)-a_dr_d(t)\right]\mathrm{d}t
+       +\sigma_d(t)\mathrm{d}W_d(t), \\
+  \mathrm{d}r_f(t)
+    &= \left[\theta_f^{\mathrm{for}}(t)-a_fr_f(t)\right]\mathrm{d}t \\
+    &\quad-\rho_{f,\mathrm{FX}}\sigma_f(t)\sigma_{\mathrm{FX}}(t)\mathrm{d}t
+       +\sigma_f(t)\mathrm{d}W_f(t).
+\end{align*}
+
+FX follows a Black-Scholes lognormal process under the domestic measure:
+
+\begin{equation*}
+  \frac{\mathrm{d}S_t}{S_t}
+    = \left[r_d(t)-r_f(t)\right]\mathrm{d}t
+      +\sigma_{\mathrm{FX}}(t)\mathrm{d}W_{\mathrm{FX}}(t).
+\end{equation*}
+
+The Brownian increments satisfy the configured 3x3 correlation matrix.
+The displayed quanto term assumes the stated FX quotation, domestic
+money-market numeraire, scalar factor loadings, and the sign convention
+above. The implementation must derive and unit-test the drift from those
+conventions; changing the FX orientation or numeraire changes the
+formula. It is not valid to simulate an unadjusted foreign-measure
+Hull-White process independently and then attach FX afterward.
+
+The implementation must document the exact numeraire and FX quote
+convention in code and model metadata. Martingale tests must verify
+discounted domestic assets and the domestic value of foreign
+money-market/zero-coupon assets within Monte Carlo error.
+
+\section{Simulation design}\label{7-simulation-design}
+
+\subsection{Time grid}\label{71-time-grid}
+
+The grid must contain every fixing, accrual boundary needed by the
+payoff, payment, notional exchange, notice, decision, effective
+exercise, and settlement date. Add intermediate steps so no interval
+exceeds the configured maximum, initially one month. OIS coupons should
+use QuantLib\textquotesingle s compounded-overnight cash-flow
+conventions or a validated conditional approximation; do not simulate
+every overnight fixing unless the accuracy test proves it necessary.
+
+\subsection{Path generation}\label{72-path-generation}
+
+\begin{itemize}
+\tightlist
+\item
+  use exact conditional Gaussian transitions for the Hull-White factors
+  where available;
+\item
+  use a log update for FX so simulated FX stays positive;
+\item
+  correlate independent normal draws with a Cholesky or eigen
+  factorization of the validated correlation matrix;
+\item
+  integrate short rates consistently for pathwise domestic discount
+  factors;
+\item
+  use antithetic paths initially and optionally Brownian bridge plus
+  Sobol after pseudo-random validation; and
+\item
+  split training and pricing samples so the same paths do not both fit
+  and value the stopping rule.
+\end{itemize}
+
+QuantLib 1.41 in the current Python environment exposes
+\passthrough{\lstinline!ql.HullWhiteProcess!},
+\passthrough{\lstinline!ql.BlackScholesMertonProcess!},
+\passthrough{\lstinline!ql.StochasticProcessArray!}, and
+\passthrough{\lstinline!ql.GaussianMultiPathGenerator!}. Do not simply
+place two independent rate processes and
+\passthrough{\lstinline!ql.BlackScholesMertonProcess!} in an array: that
+does not automatically create the pathwise
+\passthrough{\lstinline!r\_d-r\_f!} FX drift or the foreign-rate quanto
+adjustment. Use an explicit joint evolver (or custom QuantLib process)
+whose transition equations implement section 6;
+QuantLib\textquotesingle s grids, random sequences, correlations, curve
+objects, and statistics remain reusable.
+
+\subsection{Pathwise cash-flow
+value}\label{73-pathwise-cash-flow-value}
+
+On each path:
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  generate both rate factors, log FX, and domestic discount factors;
+\item
+  determine all already-fixed and simulated floating coupons without
+  look-ahead;
+\item
+  convert each foreign payment to domestic currency at the contractually
+  applicable FX rate on that path;
+\item
+  include or exclude notional exchanges exactly as the trade specifies;
+\item
+  apply call event ordering; and
+\item
+  discount realized domestic-equivalent cash flows to the valuation
+  date.
+\end{enumerate}
+
+At an exercise date, the state-dependent value of remaining legs should
+use analytic Hull-White conditional zero-coupon bond prices for
+\passthrough{\lstinline!P\_d!} and \passthrough{\lstinline!P\_f\_star!}
+where possible. Distinct forecast bonds come from the deterministic
+basis mapping in section 5.1. This reduces inner simulation and keeps
+the method a single outer Monte Carlo with regression, not a slow nested
+Monte Carlo.
+
+\section{Early exercise decision}\label{8-early-exercise-decision}
+
+\subsection{Decision rule}\label{81-decision-rule}
+
+For each alive path \passthrough{\lstinline!p!} and exercise date
+\passthrough{\lstinline!t\_i!}, define exclusive decision components as
+in section 2.5:
+
+\begin{itemize}
+\tightlist
+\item
+  \passthrough{\lstinline!E\_i(p)!} - exercise-only value
+  (\passthrough{\lstinline!J\_i!} for cancellation, or entered-swap
+  value plus settlement for entry); and
+\item
+  \passthrough{\lstinline!C\_i(p)!} - the conditional expected value of
+  the mutually exclusive continuation cash flows and later optionality,
+  estimated by regression.
+\end{itemize}
+
+Exercise when:
+
+\begin{equation*}
+  E_i(p)>C_i(p)+\varepsilon_{\mathrm{ex}}.
+\end{equation*}
+
+Use a deterministic tie rule: continue when the values are equal within
+tolerance. Add the common surviving component
+\passthrough{\lstinline!A\_i!} after the decision comparison. For a
+zero-fee cancellation, \passthrough{\lstinline!E\_i = J\_i = 0!}; the
+holder cancels when the estimated value of cancellable continuation cash
+flows and later optionality is negative enough.
+
+\subsection{Backward Longstaff-Schwartz
+algorithm}\label{82-backward-longstaff-schwartz-algorithm}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  Simulate training paths and compute terminal values.
+\item
+  Starting from the last call date, regress the discounted realized
+  value from continuing on state variables observed at that date.
+\item
+  Compare \passthrough{\lstinline!E\_i!} with the fitted
+  \passthrough{\lstinline!C\_i!} and replace the future path value with
+  the exercise value when the decision rule triggers.
+\item
+  Move one call date backward and repeat using only information
+  available at that date.
+\item
+  Freeze all preprocessing, coefficients, and exercise rules.
+\item
+  Simulate an independent pricing sample, apply the frozen policy, and
+  average discounted stopped cash flows.
+\end{enumerate}
+
+This is the same economic comparison performed by a tree during backward
+induction, but the conditional continuation value is estimated from
+simulated cross-currency states rather than read from lattice nodes.
+
+\subsection{Regression state and
+basis}\label{83-regression-state-and-basis}
+
+Initial standardized state variables:
+
+\begin{itemize}
+\tightlist
+\item
+  domestic Hull-White factor or short rate;
+\item
+  foreign Hull-White factor or short rate;
+\item
+  \passthrough{\lstinline!log(S)!};
+\item
+  domestic value of the remaining non-callable swap;
+\item
+  remaining domestic-leg PV;
+\item
+  domestic value of remaining foreign-leg PV; and
+\item
+  time to final maturity.
+\end{itemize}
+
+Initial basis: constant, linear terms, squares, and pairwise
+cross-products. Prefer orthogonal polynomials after standardization and
+cap the basis at a predeclared size. Record rank, condition number,
+coefficient vector, training count, and out-of-sample residual
+diagnostics at every exercise date. If regression is ill-conditioned or
+under-populated, fail with a diagnostic or use a preapproved simpler
+basis; never silently return an exercise-always rule.
+
+Use all alive paths for a cancellation right unless validation supports
+a narrower candidate set. The ordinary "in-the-money paths only"
+shortcut is not directly applicable when the immediate cancellation
+payoff is zero and the economic benefit is avoiding a negative
+continuation value.
+
+\section{QuantLib integration
+plan}\label{9-quantlib-integration-plan}
+
+\subsection{Reuse from this
+repository}\label{91-reuse-from-this-repository}
+
+Preserve and reuse these design patterns when implementation is
+authorized:
+
+\begin{itemize}
+\tightlist
+\item
+  \passthrough{\lstinline!valuation\_date()!} and the single
+  evaluation-date discipline;
+\item
+  explicit calendars, business-day handling, schedules, day counts, and
+  spot starts;
+\item
+  OIS construction and calibration repricing checks from
+  \passthrough{\lstinline!build\_sofr\_curve()!};
+\item
+  \passthrough{\lstinline!ql.SwaptionHelper!} construction and
+  normal-vol conversions;
+\item
+  Hull-White calibration and parameter reporting from
+  \passthrough{\lstinline!build\_bermudan\_short\_rate\_model()!};
+\item
+  trade-state normalization, structured result rows, deterministic
+  defaults, and bump-and-revalue reporting; and
+\item
+  unit-test style in
+  \passthrough{\lstinline!tests/test\_sofr\_curve.py!}.
+\end{itemize}
+
+\subsection{Do not reuse as the cross-currency
+engine}\label{92-do-not-reuse-as-the-cross-currency-engine}
+
+\begin{itemize}
+\tightlist
+\item
+  \passthrough{\lstinline!ql.Swaption!} represents a single underlying
+  swaption, not this two-currency callable cash-flow set.
+\item
+  \passthrough{\lstinline!ql.TreeSwaptionEngine!} is a short-rate
+  lattice engine for swaptions. It does not evolve two currency curves
+  plus FX.
+\item
+  a single domestic Hull-White tree with deterministic FX forwards omits
+  foreign-rate and FX/rate correlation risks and is only an
+  approximation/control, not the specified model.
+\end{itemize}
+
+\subsection{Python reference versus C++
+production}\label{93-python-reference-versus-c-production}
+
+QuantLib\textquotesingle s C++ library provides generic Monte Carlo and
+Longstaff-Schwartz infrastructure, but the installed Python 1.41 wrapper
+does not expose a generic
+\passthrough{\lstinline!LongstaffSchwartzPathPricer!}, and neither the
+installed package nor the current repo has a callable cross-currency
+instrument. Therefore:
+
+\begin{itemize}
+\tightlist
+\item
+  build the first transparent reference pricer in this repository with
+  QuantLib market/process objects and an explicit, testable LSM layer
+  only after approval; and
+\item
+  implement the production path pricer/engine in C++ against a pinned
+  QuantLib version, using QuantLib cash flows, curves, processes, random
+  sequences, regression utilities, and pricing-engine conventions.
+\end{itemize}
+
+Do not make a development branch of QuantLib itself the production
+dependency. The current Python environment is QuantLib 1.41. QuantLib
+1.43 is the latest official release as of this specification and adds
+constant-notional cross-currency swap instruments, which should be
+evaluated for the deterministic C++ layer. It still does not supply the
+complete callable three-factor MC-LSM engine specified here. Pin the
+selected release only after compatibility and regression testing.
+
+\section{Outputs}\label{10-outputs}
+
+Every result must include:
+
+\begin{itemize}
+\tightlist
+\item
+  NPV in reporting currency and currency unit;
+\item
+  standard error and 95 percent confidence interval;
+\item
+  non-callable underlying NPV;
+\item
+  callable value and embedded option value under a documented sign
+  convention;
+\item
+  path counts, rejected paths, time-grid size, seed, RNG, antithetic
+  setting, and runtime;
+\item
+  model parameters, calibration rows, correlation matrix, and market
+  snapshot ID;
+\item
+  unconditional exercise probability by date, conditional exercise
+  probability among surviving paths, no-exercise probability, and
+  expected exercise date;
+\item
+  regression diagnostics by date;
+\item
+  cash-flow PV by leg and currency; and
+\item
+  requested curve, volatility, FX spot, correlation, and model-parameter
+  risks.
+\end{itemize}
+
+All values are from the unilateral exercise holder\textquotesingle s
+perspective. Define
+\passthrough{\lstinline!embedded\_option\_value = callable\_value - non\_callable\_value!};
+it must be nonnegative within the comparison error defined in section 11
+because the holder can always choose not to exercise. For the
+counterparty perspective, negate the full callable trade result or price
+a separately defined request with the opposite holder; do not reverse
+cash-flow signs while silently preserving option ownership.
+
+\section{Validation and acceptance
+criteria}\label{11-validation-and-acceptance-criteria}
+
+For every comparison below, define
+\passthrough{\lstinline!comparison\_standard\_error!} explicitly:
+
+\begin{itemize}
+\tightlist
+\item
+  on common-random-number or otherwise paired paths, compute the
+  pathwise payoff difference
+  \passthrough{\lstinline!D\_p = PV\_A(p) - PV\_B(p)!} and use
+  \passthrough{\lstinline!stdev(D\_p) / sqrt(N)!};
+\item
+  on independent samples, use
+  \passthrough{\lstinline!sqrt(SE\_A\^2 + SE\_B\^2)!}; and
+\item
+  if a more general correlated estimator is used, use
+  \passthrough{\lstinline!sqrt(SE\_A\^2 + SE\_B\^2 - 2 * covariance(mean\_A, mean\_B))!}
+  and report the covariance estimate.
+\end{itemize}
+
+Do not add marginal standard errors or ignore covariance in a paired
+comparison.
+
+\subsection{Deterministic and limiting
+tests}\label{111-deterministic-and-limiting-tests}
+
+\begin{itemize}
+\tightlist
+\item
+  With no call dates, equal the analytic non-callable XCCY PV within
+  \passthrough{\lstinline!max(3 * comparison\_standard\_error, 0.25 bp * domestic\_notional)!}.
+\item
+  With FX volatility and both rate volatilities near zero, match
+  deterministic discounted cash flows within
+  \passthrough{\lstinline!0.10 bp * domestic\_notional!}.
+\item
+  With identical currencies, unit FX, identical curves, and consistent
+  legs, reduce to the corresponding single-currency result within
+  \passthrough{\lstinline!max(3 * comparison\_standard\_error, 0.25 bp * domestic\_notional)!}.
+\item
+  With one exercise date, match a high-accuracy European or nested-MC
+  benchmark within
+  \passthrough{\lstinline!max(3 * comparison\_standard\_error, 0.50 bp * domestic\_notional)!}.
+\item
+  With a prohibitively expensive exercise fee, converge to the
+  non-callable value.
+\item
+  With an immediately dominant zero-fee cancellation, the first-date
+  conditional exercise probability must be at least 99 percent.
+\item
+  \passthrough{\lstinline!callable\_value - non\_callable\_value!} must
+  equal the reported embedded option value and be no less than
+  \passthrough{\lstinline!-3 * comparison\_standard\_error!}.
+\end{itemize}
+
+\subsection{Martingale and calibration
+tests}\label{112-martingale-and-calibration-tests}
+
+\begin{itemize}
+\tightlist
+\item
+  Reprice both OIS calibration sets to no more than
+  \passthrough{\lstinline!0.01 bp!} par-rate error and
+  \passthrough{\lstinline!1e-8 * notional!} absolute NPV error.
+\item
+  Reprice domestic and foreign swaption helpers to no more than 10
+  percent relative price error per helper and 5 percent equal-weight RMS
+  relative price error across the approved strip. For helper
+  \passthrough{\lstinline!i!},
+  \passthrough{\lstinline!e\_i = V\_model\_i / V\_market\_i - 1!}, and
+  the implemented strip metric is
+  \passthrough{\lstinline!sqrt(sum(e\_i\^2) / N)!}.
+\item
+  Reprice FX vanilla calibration instruments to no more than
+  \passthrough{\lstinline!0.25!} volatility percentage points of
+  re-implied Black-vol error per quote.
+\item
+  Validate domestic-measure martingales for domestic and converted
+  foreign zero-coupon assets within three standard errors and
+  \passthrough{\lstinline!0.25 bp!} of notional.
+\item
+  Reprice a deterministic cross-currency swap against an independent
+  cash-flow calculation within
+  \passthrough{\lstinline!0.10 bp * domestic\_notional!}.
+\end{itemize}
+
+\subsection{Numerical convergence}\label{113-numerical-convergence}
+
+Demonstrate stability across:
+
+\begin{itemize}
+\tightlist
+\item
+  at least three path counts;
+\item
+  at least two time-grid densities;
+\item
+  multiple independent seeds;
+\item
+  simpler and richer regression bases;
+\item
+  pseudo-random and, after validation, low-discrepancy sequences; and
+\item
+  training/pricing sample splits.
+\end{itemize}
+
+For adjacent path-count or grid refinements, require an absolute price
+difference no greater than
+\passthrough{\lstinline!max(3 * comparison\_standard\_error, 0.50 bp * domestic\_notional)!}.
+For the official pricing sample, require:
+
+\begin{equation*}
+  \mathrm{SE}
+  \leq
+  \min\!\left(
+    1.00\,\mathrm{bp}\,N_d,
+    \max\!\left(0.5\%\,\lvert V_{\mathrm{option}}\rvert,
+                 0.05\,\mathrm{bp}\,N_d\right)
+  \right).
+\end{equation*}
+
+Pricing-path error is conditional on the fitted exercise policy and does
+not include training-policy uncertainty or LSM lower-bound bias. Run at
+least five independent training seeds. Freeze one common pricing sample,
+with at least the official pricing-path count and satisfying the
+single-price error threshold above, and evaluate every trained policy on
+those identical paths. The standard deviation across these paired policy
+values estimates training-policy dispersion and must be no greater than
+\passthrough{\lstinline!0.50 bp * domestic\_notional!}; report it
+separately from the pricing-sample standard error. Do not use
+independently seeded pricing samples for this test because that would
+mix ordinary pricing noise with policy uncertainty.
+
+\subsection{Independent benchmark}\label{114-independent-benchmark}
+
+Model validation should compare at least one trade with an independent
+implementation or vendor. A simplified two- or three-dimensional
+PDE/lattice benchmark is useful for short maturities and sparse calls
+even though it is not the production engine.
+
+\section{Risks and controls}\label{12-risks-and-controls}
+
+\begin{center}
+\begin{tabularx}{\columnwidth}{>{\bfseries}p{0.38\columnwidth}X}
+\toprule
+Risk & Required control \\
+\midrule
+Wrong FX quotation or sign & Explicit \code{DOM/FOR} metadata and unit
+  tests for conversion \\
+Wrong measure or quanto drift & Martingale tests and documented numeraire \\
+Regression look-ahead bias & Independent training and pricing paths \\
+Overfitting & Fixed basis policy, conditioning diagnostics, and
+  out-of-sample tests \\
+Hidden curve inconsistency & Deterministic XCCY repricing and FX-forward
+  checks \\
+Correlation instability & PSD validation, source metadata, and
+  bump/stress results \\
+Date/event ambiguity & Four-date exercise records and explicit event ordering \\
+Global QuantLib evaluation date & One valuation context per job/process
+  and concurrency tests \\
+False numerical precision & Standard error, convergence report, and
+  rounded display \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{Proposed implementation sequence - future work
+only}\label{13-proposed-implementation-sequence---future-work-only}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  Freeze the trade and market schemas and build a deterministic
+  non-callable XCCY cash-flow pricer.
+\item
+  Add both calibrated Hull-White models and FX vanilla validation.
+\item
+  Add the joint domestic-measure simulator and martingale tests.
+\item
+  Add one-date exercise and an independent European benchmark.
+\item
+  Add two-pass Bermudan LSM, exercise diagnostics, and convergence
+  tests.
+\item
+  Add common-random-number bump risks and batch performance work.
+\item
+  Port the validated engine to the C++ integration boundary in the
+  companion guide.
+\end{enumerate}
+
+No phase may start by changing the existing single-currency
+\passthrough{\lstinline!TreeSwaptionEngine!} path.
+
+\section{References}\label{14-references}
+
+\begin{itemize}
+\tightlist
+\item
+  QuantLib official documentation:
+  \url{https://www.quantlib.org/docs.shtml}
+\item
+  QuantLib releases, including 1.43:
+  \url{https://github.com/lballabio/QuantLib/releases}
+\item
+  QuantLib 1.43 \passthrough{\lstinline!TreeSwaptionEngine!}:
+  \url{https://github.com/lballabio/QuantLib/blob/v1.43/ql/pricingengines/swaption/treeswaptionengine.hpp}
+\item
+  QuantLib 1.43 exercise types:
+  \url{https://github.com/lballabio/QuantLib/blob/v1.43/ql/exercise.hpp}
+\item
+  QuantLib 1.43 Longstaff-Schwartz path pricer:
+  \url{https://github.com/lballabio/QuantLib/blob/v1.43/ql/methods/montecarlo/longstaffschwartzpathpricer.hpp}
+\item
+  QuantLib 1.43 Monte Carlo base:
+  \url{https://github.com/lballabio/QuantLib/blob/v1.43/ql/pricingengines/mcsimulation.hpp}
+\item
+  Longstaff, F. A. and Schwartz, E. S. (2001), "Valuing American Options
+  by Simulation: A Simple Least-Squares Approach," Review of Financial
+  Studies 14(1), 113-147.
+\end{itemize}
+
+\section{Rollback}\label{rollback}
+
+This is a specification only. Removing this LaTeX source and its
+generated PDF fully rolls back the document change; application behavior
+and pricing results are unaffected.
+
+\end{document}

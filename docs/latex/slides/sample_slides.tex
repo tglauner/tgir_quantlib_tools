@@ -1,0 +1,105 @@
+\documentclass[aspectratio=169]{beamer}
+\input{shared/tgir-beamer-preamble}
+
+\definecolor{tgirnavy}{HTML}{17324D}
+\definecolor{tgirblue}{HTML}{2D6A9F}
+\definecolor{tgirlight}{HTML}{EAF1F7}
+\setbeamercolor{structure}{fg=tgirblue}
+\setbeamercolor{frametitle}{fg=tgirnavy}
+\setbeamercolor{block title}{bg=tgirnavy,fg=white}
+\setbeamercolor{block body}{bg=tgirlight,fg=black}
+
+\title{A Clear Quantitative Story}
+\subtitle{Sample presentation template}
+\author{TG Investments and Research}
+\date{August 2026}
+
+\begin{document}
+
+% 1. Front page
+\begin{frame}[plain]
+  \titlepage
+\end{frame}
+
+% 2. Agenda
+\begin{frame}{Agenda}
+  \tableofcontents
+\end{frame}
+
+\section{Purpose}
+
+% 3. Content
+\begin{frame}{One Message Per Slide}
+  \begin{columns}[T,onlytextwidth]
+    \column{0.56\textwidth}
+      \begin{itemize}
+        \item Lead with the decision or result.
+        \item Keep assumptions visible and testable.
+        \item Use equations only when they improve understanding.
+      \end{itemize}
+    \column{0.39\textwidth}
+      \begin{block}{Design rule}
+        A reader should understand the slide's point in a few seconds.
+      \end{block}
+  \end{columns}
+\end{frame}
+
+% 4. Section header
+\section{Worked Example}
+\begin{frame}[plain]
+  \begin{center}
+    \vfill
+    {\usebeamerfont{title}\color{tgirnavy}Worked Example\par}
+    \vspace{0.5em}
+    {\large From market inputs to a decision-ready result\par}
+    \vfill
+  \end{center}
+\end{frame}
+
+% 5. Content with formula
+\begin{frame}{Discounting Is the Core Transformation}
+  A deterministic cash flow $C_i$ paid at time $t_i$ has present value
+  \[
+    PV = \sum_{i=1}^{n} C_i P(0,t_i).
+  \]
+  \begin{itemize}
+    \item $P(0,t_i)$ comes from the calibrated discount curve.
+    \item Every input has an as-of time and an explicit unit.
+    \item Validation reprices the instruments used to build the curve.
+  \end{itemize}
+\end{frame}
+
+% 6. Content with comparison
+\begin{frame}{Present Results With Context}
+  \begin{table}
+    \centering
+    \begin{tabular}{lrr}
+      \toprule
+      Scenario & NPV & Change \\
+      \midrule
+      Base market & \$1.24mm & -- \\
+      Rates $+1$ bp & \$1.18mm & $-\$0.06$mm \\
+      Volatility $+1$ vol pt & \$1.31mm & $+\$0.07$mm \\
+      \bottomrule
+    \end{tabular}
+  \end{table}
+  \vspace{0.5em}
+  \begin{block}{Takeaway}
+    Pair every number with a scenario, unit, and interpretation.
+  \end{block}
+\end{frame}
+
+% 7. Ending
+\begin{frame}[plain]
+  \begin{center}
+    \vfill
+    {\usebeamerfont{title}\color{tgirnavy}Thank You\par}
+    \vspace{0.75em}
+    {\large Questions and discussion\par}
+    \vspace{1.5em}
+    {\small TG Investments and Research\par}
+    \vfill
+  \end{center}
+\end{frame}
+
+\end{document}

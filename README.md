@@ -158,11 +158,13 @@ Version 1 deliberately uses one constant Hull–White volatility per currency, d
 
 Detailed documents:
 
-- [Callable-XCCY pricing specification](docs/callable_bermudan_xccy_swap_pricing_spec.md)
-- [Quantitative two-pager](docs/callable_bermudan_xccy_quant_two_pager.md)
-- [Three-page implementation specification](docs/latex/standalone_callable_xccy_pricer_spec.tex)
+- [Callable-XCCY pricing specification](docs/latex/documents/callable_bermudan_xccy_swap_specification_article.tex)
+  ([PDF](docs/callable_bermudan_xccy_swap_specification_article.pdf))
+- [Quantitative two-pager](docs/latex/documents/callable_bermudan_xccy_quant_two_pager_article.tex)
+  ([PDF](docs/callable_bermudan_xccy_quant_two_pager_article.pdf))
+- [Three-page implementation specification](docs/latex/documents/standalone_callable_xccy_pricer_spec_article.tex)
 - [Local command-line guide](docs/local_command_line_testing.md)
-- [Compiled papers](docs/papers/)
+- [Compiled PDFs](docs/)
 - [Lecture sources and PDFs](docs/lectures/)
 
 ### MCP Single-Deal Pricing
@@ -229,7 +231,7 @@ These controls are appropriate for a transparent reference implementation. They 
 
 The audience-specific LaTeX documentation set lives under `docs/latex/`.
 
-For a concise production deploy checklist specific to `quant.tglauner.com`, see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+For a concise production deploy checklist specific to `quant.tglauner.com`, see [DEPLOYMENT.md](DEPLOYMENT.md).
 
 Build all PDFs with:
 
@@ -237,7 +239,7 @@ Build all PDFs with:
 make -C docs/latex
 ```
 
-Final PDFs are collected in `docs/papers/`. LaTeX intermediate files are isolated in the ignored `docs/latex/build/` subdirectory.
+Final PDFs are collected directly in `docs/`. LaTeX intermediate files are isolated in the ignored `docs/latex/build/` subdirectory. Every ordinary document and slide imports the canonical TGIR article or Beamer template; status artifacts remain self-contained under `status/`.
 
 That directory now includes:
 

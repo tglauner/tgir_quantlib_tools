@@ -1,0 +1,132 @@
+% TGIR PERSONAL WORKING-PAPER STYLE BASED ON IEEETRAN
+% ---------------------------------------------------
+% Canonical import file for TGIR article-style documents:
+%   \usepackage{shared/template_tgir_article}
+%
+% This package is not an IEEE publication template and is not endorsed by IEEE.
+% Load it after \documentclass{IEEEtran}. The official IEEEtran class continues
+% to control typography, margins, columns, title treatment, headings, equations,
+% tables, captions, and references.
+%
+% TGIR-only additions are intentionally restrained and reversible:
+%   1. Tim Glauner and TG Investments and Research, LLC metadata.
+%   2. A small TGIR logo in the title block on page one only.
+%   3. Dark-teal hyperlinks and centered page numbers.
+%   4. A visible publication date in Month D, YYYY format via \today.
+%
+% For an actual IEEE submission, load this package with the `submission` option.
+% That option removes the logo, visible date, teal links, and page numbers while
+% leaving manuscript content and IEEEtran layout unchanged. The target venue's
+% downloaded template and author instructions always take precedence.
+%
+% This canonical TGIR import was derived from the archived ieee.sty on
+% 2026-08-30. The archive is retained only as provenance; new sources must use
+% template_tgir_article.sty.
+%
+% Official references used for this IEEE-derived personal style:
+%   https://journals.ieeeauthorcenter.ieee.org/create-your-ieee-journal-article/
+%     authoring-tools-and-templates/tools-for-ieee-authors/
+%     ieee-article-templates/
+%   https://conferences.ieeeauthorcenter.ieee.org/write-your-paper/
+%     authoring-tools-and-templates/
+%   https://conferences.ieeeauthorcenter.ieee.org/wp-content/uploads/sites/8/
+%     IEEE-Math-Typesetting-Guide-for-LaTeX-Users.pdf
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{shared/template_tgir_article}[2026/08/30 TGIR personal style based on IEEEtran]
+
+\newif\ifTGIRArticlePageNumbers
+\newif\ifTGIRArticleHouseStyle
+\TGIRArticlePageNumberstrue
+\TGIRArticleHouseStyletrue
+\DeclareOption{submission}{%
+  \TGIRArticlePageNumbersfalse
+  \TGIRArticleHouseStylefalse
+}
+\DeclareOption{numbered}{\TGIRArticlePageNumberstrue}
+\ProcessOptions\relax
+
+\RequirePackage{hyperref}
+\RequirePackage{xcolor}
+\RequirePackage{etoolbox}
+\RequirePackage{graphicx}
+
+% Deep teal is reserved for navigation and footer details. Body text, section
+% headings, table rules, equations, and references retain IEEEtran typography.
+\definecolor{TGIRArticleTeal}{HTML}{0B6E69}
+\ifTGIRArticleHouseStyle
+  \hypersetup{
+    colorlinks=true,
+    linkcolor=TGIRArticleTeal,
+    citecolor=TGIRArticleTeal,
+    urlcolor=TGIRArticleTeal
+  }
+\else
+  \hypersetup{hidelinks}
+\fi
+
+\hypersetup{
+  pdfauthor={Tim Glauner, TG Investments and Research, LLC},
+  pdfsubject={TGIR research manuscript based on IEEEtran},
+  pdfcreator={LaTeX with IEEEtran and TGIR template-tgir-article.sty}
+}
+
+\newcommand{\TGIRArticleAuthorName}{Tim Glauner}
+\newcommand{\TGIRArticleAuthorAffiliation}{TG Investments and Research, LLC}
+\newcommand{\TGIRArticleAuthorEmail}{glaunertim@gmail.com}
+\newcommand{\TGIRArticlePublicationDate}{\today}
+\newcommand{\TGIRSetArticlePublicationDate}[1]{%
+  \gdef\TGIRArticlePublicationDate{#1}%
+}
+
+% Resolve the shared logo from either a generated project root or this library's
+% documents/ directory. A missing image leaves the title block valid and clean.
+\newcommand{\TGIRArticleLogoFile}{}
+\IfFileExists{shared/TG_logo_screenshot_white_background.png}{%
+  \renewcommand{\TGIRArticleLogoFile}{shared/TG_logo_screenshot_white_background.png}%
+}{%
+  \IfFileExists{../shared/TG_logo_screenshot_white_background.png}{%
+    \renewcommand{\TGIRArticleLogoFile}{../shared/TG_logo_screenshot_white_background.png}%
+  }{}%
+}
+\newcommand{\TGIRArticleFirstPageLogo}{%
+  \ifx\TGIRArticleLogoFile\empty
+  \else
+    \includegraphics[width=1.12in]{\TGIRArticleLogoFile}%
+  \fi
+}
+
+% Use this macro as the complete \author{...} value. Since IEEEtran prints the
+% author block once, the logo appears on page one only without shipout overlays.
+\newcommand{\TGIRArticleAuthorBlock}{%
+  \IEEEauthorblockN{\TGIRArticleAuthorName}%
+  \IEEEauthorblockA{%
+    \TGIRArticleAuthorAffiliation\\
+    \TGIRArticleAuthorEmail%
+    \ifTGIRArticleHouseStyle
+      \\\TGIRArticlePublicationDate\\[0.75ex]
+      \TGIRArticleFirstPageLogo
+    \fi
+  }%
+}
+
+% Personal-house-style departure from IEEE conference output: a quiet page
+% number centered in the bottom margin. The small dark-teal serif numeral
+% preserves the academic tone and does not compete with the two-column content.
+\newcommand{\TGIRArticlePageNumber}{%
+  {\normalfont\scriptsize\color{TGIRArticleTeal}\thepage}%
+}
+
+\ifTGIRArticlePageNumbers
+  \makeatletter
+  \newcommand{\TGIRArticlePageNumberFooter}{\hfil\TGIRArticlePageNumber\hfil}
+  \apptocmd{\ps@headings}{%
+    \def\@oddfoot{\TGIRArticlePageNumberFooter}%
+    \def\@evenfoot{\TGIRArticlePageNumberFooter}%
+  }{}{\PackageWarning{template_tgir_article}{Could not add page numbers to headings style}}
+  \apptocmd{\ps@IEEEtitlepagestyle}{%
+    \def\@oddfoot{\TGIRArticlePageNumberFooter}%
+    \def\@evenfoot{\TGIRArticlePageNumberFooter}%
+  }{}{\PackageWarning{template_tgir_article}{Could not add page number to title-page style}}
+  \AtBeginDocument{\pagestyle{headings}}
+  \makeatother
+\fi

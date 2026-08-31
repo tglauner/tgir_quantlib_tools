@@ -55,6 +55,7 @@ output/
 
 # Docs and notebooks
 docs/_build/
+docs/latex/build/
 .ipynb_checkpoints/
 
 # LaTeX intermediate files

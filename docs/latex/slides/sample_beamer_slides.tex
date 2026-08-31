@@ -1,0 +1,69 @@
+\documentclass[aspectratio=169]{beamer}
+\IfFileExists{shared/template_tgir_beamer.sty}{
+  \usepackage{shared/template_tgir_beamer}
+  \TGIRSetLogo{shared/TG_logo_screenshot_white_background.png}
+}{
+  \usepackage{../shared/template_tgir_beamer}
+  \TGIRSetLogo{../shared/TG_logo_screenshot_white_background.png}
+}
+
+\title[TGIR sample]{Sample TGIR Beamer Deck}
+\subtitle{A consistent, restrained slide starting point}
+\author{Tim Glauner\\TG Investments and Research, LLC}
+\date{August 29, 2026}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+\end{frame}
+
+\section{Operating Model}
+
+\subsection{Decision Summary}
+
+\begin{frame}{Decision Summary}
+  \begin{itemize}[<1->]
+    \item Shared styling lives with the Architecture Library, not an external sibling project.
+    \item Each deck explicitly opts into the TGIR template and local logo asset.
+    \item Content remains ordinary Beamer source, so it stays simple to maintain.
+  \end{itemize}
+\end{frame}
+
+\subsection{Operating Indicators}
+
+\begin{frame}{Example Operating View}
+  \centering
+  \begin{tabular}{lll}
+    \toprule
+    Focus & Evidence & Next move \\
+    \midrule
+    Consistency & One shared style & Use it for each new deck \\
+    Readability & 16:9 layout & Split crowded content \\
+    Portability & Local asset path & Copy \texttt{shared/} with the starter \\
+    \bottomrule
+  \end{tabular}
+\end{frame}
+
+\section{Execution}
+
+\subsection{Release Controls}
+
+\begin{frame}{Release Controls}
+  \begin{itemize}[<1->]
+    \item Compile the PDF from the shared template and inspect the rendered pages.
+    \item Keep ordinary PDFs in \texttt{docs/}; status artifacts remain entirely in \texttt{status/}.
+    \item Update the source and issue a newly dated PDF when supporting evidence changes.
+  \end{itemize}
+\end{frame}
+
+\subsection{Next Review}
+
+\begin{frame}{Next Review}
+  \begin{itemize}[<1->]
+    \item Confirm that the branding, title hierarchy, logo, and footer remain template-driven.
+    \item Check that each slide has one decision, one supporting point, and enough whitespace to be read at normal presentation distance.
+  \end{itemize}
+\end{frame}
+
+\end{document}

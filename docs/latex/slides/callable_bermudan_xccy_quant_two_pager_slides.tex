@@ -1,0 +1,343 @@
+\documentclass[aspectratio=169]{beamer}
+\input{shared/tgir-beamer-preamble}
+
+\usepackage{amsmath,amssymb,mathtools}
+
+\definecolor{tgirnavy}{HTML}{17324D}
+\definecolor{tgirblue}{HTML}{2D6A9F}
+\definecolor{tgirlight}{HTML}{EAF1F7}
+\definecolor{tgirgreen}{HTML}{1F7A5A}
+\setbeamercolor{structure}{fg=tgirblue}
+\setbeamercolor{frametitle}{fg=tgirnavy}
+\setbeamercolor{block title}{bg=tgirnavy,fg=white}
+\setbeamercolor{block body}{bg=tgirlight,fg=black}
+\setbeamercolor{alerted text}{fg=tgirgreen}
+
+\newcommand{\Qd}{\mathbb{Q}^{d}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\F}{\mathcal{F}}
+\newcommand{\dd}{\,\mathrm{d}}
+\newcommand{\DOM}{\ensuremath{\mathrm{DOM}}}
+\newcommand{\FOR}{\ensuremath{\mathrm{FOR}}}
+
+\title[Callable Bermudan XCCY]{Callable Bermudan Cross-Currency Swap}
+\subtitle{Quantitative model, simulation, exercise, and validation}
+\author{Tim Glauner\\TG Investments and Research, LLC}
+\date{August 30, 2026}
+
+\begin{document}
+
+\begin{frame}[plain]
+  \titlepage
+\end{frame}
+
+\begin{frame}{Executive Summary}
+  \begin{columns}[T,onlytextwidth]
+    \column{0.55\textwidth}
+      \begin{block}{Base model}
+        Two Hull-White rate factors, lognormal FX, and Bermudan exercise by
+        least-squares Monte Carlo (LSM).
+      \end{block}
+      \begin{itemize}
+        \item Domestic money-market account is the numeraire.
+        \item Values and exercise comparisons are in domestic currency.
+        \item Deterministic forecast/discount basis is frozen in version 1.
+      \end{itemize}
+    \column{0.40\textwidth}
+      \begin{block}{Core control}
+        An independently calculated non-callable XCCY cash-flow PV is the
+        primary benchmark and control variate.
+      \end{block}
+      \begin{alertblock}{Holder perspective}
+        Positive cash flows are receipts by the exercise holder.
+      \end{alertblock}
+  \end{columns}
+\end{frame}
+
+\section{Product and Exercise}
+
+\begin{frame}{Product Cash-Flow Anatomy}
+  \begin{columns}[T,onlytextwidth]
+    \column{0.47\textwidth}
+      \begin{itemize}
+        \item Domestic and foreign coupon legs.
+        \item Optional initial and final notional exchanges.
+        \item Exercise dates $t_1<\cdots<t_M$ with explicit settlement timing.
+        \item FX quote $S_t$: units of \DOM{} per one unit of \FOR{}.
+      \end{itemize}
+      \begin{block}{FX conversion at payment}
+        \[
+          CF_f(T)\longmapsto S_TCF_f(T).
+        \]
+      \end{block}
+    \column{0.48\textwidth}
+      \begin{tikzpicture}[
+        node distance=5mm,
+        box/.style={draw=tgirnavy,rounded corners,fill=tgirlight,
+          align=center,text width=2.7cm,minimum height=8mm},
+        flow/.style={-{Latex[length=2mm]},thick,draw=tgirblue}
+      ]
+        \node[box] (common) {Common cash flows\\$A_i$};
+        \node[box,below=of common] (exercise) {Exercise settlement\\$J_i$};
+        \node[box,below=of exercise] (tail) {Cancellable continuation\\$Y_i$};
+        \node[box,right=5mm of exercise] (value) {Decision-date value\\$V_i$};
+        \draw[flow] (common.east) -- (value.west);
+        \draw[flow] (exercise.east) -- (value.west);
+        \draw[flow] (tail.east) -- (value.west);
+      \end{tikzpicture}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Exercise Decision: Compare Like With Like}
+  \begin{block}{Continuation estimate}
+    \[
+      C_i=\E^{\Qd}\!\left[Y_i\mid\F_{t_i}\right],
+      \qquad
+      V_i=A_i+\max(J_i,C_i).
+    \]
+  \end{block}
+  \begin{columns}[T,onlytextwidth]
+    \column{0.48\textwidth}
+      \begin{itemize}
+        \item Exercise when $J_i>C_i+\varepsilon_{\mathrm{ex}}$.
+        \item Exclude common $A_i$ flows from both alternatives.
+        \item Add $A_i$ outside the comparison.
+      \end{itemize}
+    \column{0.47\textwidth}
+      \begin{itemize}
+        \item Zero-fee cancellation: $J_i=0$.
+        \item Cancel when continuation is negative.
+        \item Entry option: $J_i$ is the value of entering the swap plus settlement.
+      \end{itemize}
+  \end{columns}
+  \begin{alertblock}{Implementation consequence}
+    The first exercise removes only the cancellable tail; paid, common, and
+    delayed cash flows remain.
+  \end{alertblock}
+\end{frame}
+
+\section{Joint Market Model}
+
+\begin{frame}{Three-Factor Dynamics Under the Domestic Measure}
+  \small
+  \begin{align*}
+    \dd r_d(t) &= [\theta_d(t)-a_dr_d(t)]\dd t+\sigma_d(t)\dd W_d(t),\\
+    \dd r_f(t) &= [\theta_f(t)-a_fr_f(t)-\rho_{fS}\sigma_f(t)\sigma_S(t)]\dd t
+                  +\sigma_f(t)\dd W_f(t),\\
+    \frac{\dd S_t}{S_t} &= [r_d(t)-r_f(t)]\dd t+\sigma_S(t)\dd W_S(t).
+  \end{align*}
+  \begin{columns}[T,onlytextwidth]
+    \column{0.49\textwidth}
+      \begin{block}{Quanto adjustment}
+        The negative foreign-rate drift adjustment follows from the change to
+        the domestic pricing measure for the stated FX quotation.
+      \end{block}
+    \column{0.46\textwidth}
+      \begin{block}{No-arbitrage check}
+        \[
+          S_0P_f^{*}(0,T)=\E^{\Qd}[D_d(0,T)S_T].
+        \]
+      \end{block}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Curves, Basis, and Correlation}
+  \begin{columns}[T,onlytextwidth]
+    \column{0.51\textwidth}
+      \begin{block}{Deterministic multi-curve mapping}
+        For currency $c$, freeze
+        \begin{align*}
+          B_c(0,T)&=\frac{P_c^F(0,T)}{P_c^D(0,T)},\\
+          P_c^F(t,T)&=P_c^D(t,T)\frac{B_c(0,T)}{B_c(0,t)}.
+        \end{align*}
+      \end{block}
+      \begin{itemize}
+        \item One stochastic rate factor per currency.
+        \item Stochastic tenor or cross-currency basis is out of scope.
+      \end{itemize}
+    \column{0.44\textwidth}
+      \begin{block}{Instantaneous correlation}
+        \[
+        R=\begin{pmatrix}
+          1&\rho_{df}&\rho_{dS}\\
+          \rho_{df}&1&\rho_{fS}\\
+          \rho_{dS}&\rho_{fS}&1
+        \end{pmatrix}
+        \]
+        \[
+          R=R^{\mathsf T},\qquad R\succeq0.
+        \]
+      \end{block}
+      Govern estimates, validate positive semidefiniteness, and stress all
+      three correlations independently.
+  \end{columns}
+\end{frame}
+
+\section{Calibration and Simulation}
+
+\begin{frame}{Calibration Stack}
+  \begin{columns}[T,onlytextwidth]
+    \column{0.49\textwidth}
+      \begin{enumerate}
+        \item \textbf{Curves:} bootstrap domestic collateral and foreign
+          effective curves; reprice helpers and enforce FX-forward parity.
+        \item \textbf{Domestic HW:} calibrate to normal-vol swaptions on the
+          exercise diagonal; constrain $a_d$ and regularize $\sigma_d(t)$.
+        \item \textbf{Foreign HW:} apply analogous identification controls.
+      \end{enumerate}
+    \column{0.46\textwidth}
+      \begin{enumerate}
+        \setcounter{enumi}{3}
+        \item \textbf{FX diffusion:} fit $\sigma_S(t)$ to selected vanillas in
+          the full hybrid model.
+        \item \textbf{Correlation:} combine governed historical/implied
+          estimates with PSD checks and stresses.
+      \end{enumerate}
+      \begin{block}{Persist the evidence}
+        Parameters, helper prices, relative errors, optimizer status, and
+        curve/vol/correlation snapshot IDs.
+      \end{block}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Monte Carlo Event Grid and Path Evolution}
+  \begin{columns}[T,onlytextwidth]
+    \column{0.49\textwidth}
+      \begin{block}{Event grid contains every}
+        Fixing, accrual, payment, notional exchange, decision, effective, and
+        settlement date, plus capped intermediate steps.
+      \end{block}
+      \begin{itemize}
+        \item Generate correlated normals from a factorization of $R$.
+        \item Use exact conditional Gaussian Hull-White transitions when available.
+        \item Integrate domestic short rates consistently for discounting.
+      \end{itemize}
+    \column{0.46\textwidth}
+      \begin{block}{Log-FX evolution}
+        \[
+          \begin{aligned}
+          \dd\log S_t
+            &=\left[r_d(t)-r_f(t)-\tfrac12\sigma_S^2(t)\right]\dd t\\
+            &\quad+\sigma_S(t)\dd W_S(t).
+          \end{aligned}
+        \]
+      \end{block}
+      \begin{itemize}
+        \item Apply analytic conditional bond values where possible.
+        \item Start with antithetics; validate low-discrepancy variants separately.
+      \end{itemize}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Two-Pass Least-Squares Monte Carlo}
+  \begin{tikzpicture}[
+    node distance=7mm and 8mm,
+    box/.style={draw=tgirnavy,rounded corners,fill=tgirlight,
+      align=center,text width=3.6cm,minimum height=11mm},
+    flow/.style={-{Latex[length=2mm]},thick,draw=tgirblue}
+  ]
+    \node[box] (train) {\textbf{Training paths}\\work backward from $t_M$};
+    \node[box,right=of train] (regress) {Regress continuation\\on standardized state basis};
+    \node[box,right=of regress] (freeze) {Freeze preprocessing,\\basis, and coefficients};
+    \node[box,below=of freeze] (price) {\textbf{Independent pricing paths}\\apply policy forward};
+    \node[box,left=of price] (cash) {Stop cancellable tail;\\retain common flows};
+    \node[box,left=of cash] (npv) {Discount realized flows;\\average NPV and diagnostics};
+    \draw[flow] (train) -- (regress);
+    \draw[flow] (regress) -- (freeze);
+    \draw[flow] (freeze) -- (price);
+    \draw[flow] (price) -- (cash);
+    \draw[flow] (cash) -- (npv);
+  \end{tikzpicture}
+  \vspace{0.6em}
+  \begin{block}{Regression evidence}
+    Record rank, condition number, coefficients, path count, and residual
+    diagnostics. Re-train across seeds and compare policies on one common
+    pricing sample.
+  \end{block}
+\end{frame}
+
+\section{Outputs, Risk, and Validation}
+
+\begin{frame}{Decision-Ready Outputs and Risk}
+  \begin{columns}[T,onlytextwidth]
+    \column{0.49\textwidth}
+      \begin{block}{Report}
+        Callable and non-callable NPV, embedded option value, Monte Carlo
+        confidence interval, exercise probabilities, expected exercise time,
+        per-leg PV, and calibration/regression diagnostics.
+      \end{block}
+      \[
+        V_{\mathrm{option}}=V_{\mathrm{callable}}-V_{\mathrm{noncallable}}\ge0
+      \]
+    \column{0.46\textwidth}
+      \begin{block}{Bump-and-revalue with common random numbers}
+        \begin{itemize}
+          \item Domestic and foreign curve DV01.
+          \item Forecast- and cross-currency-basis risk.
+          \item Rate vegas and FX delta/gamma/vega.
+          \item Three correlations and Hull-White parameter stresses.
+        \end{itemize}
+      \end{block}
+      State whether every bump recalibrates the model and retrains the policy.
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Minimum Validation Ladder}
+  \small
+  \begin{enumerate}
+    \item No exercise dates reproduce the non-callable XCCY PV.
+    \item Zero-volatility and identical-currency limits reproduce deterministic
+      and single-currency results.
+    \item One exercise date matches an independent European or nested-MC benchmark.
+    \item Domestic-discounted domestic assets and FX-converted foreign assets
+      are martingales under $\Qd$.
+    \item Prices converge across paths, time grids, regression bases, and seeds.
+    \item Multi-exercise cases bracket the LSM lower bound with a dual upper
+      bound or a trusted nested-MC benchmark.
+    \item Differences use paired pathwise or covariance-aware errors under
+      common random numbers.
+  \end{enumerate}
+  \begin{alertblock}{Acceptance principle}
+    Model fit alone is insufficient: exercise logic, event ordering, policy
+    stability, numerical convergence, and limiting cases must all pass.
+  \end{alertblock}
+\end{frame}
+
+\begin{frame}{Implementation Boundary and References}
+  \begin{columns}[T,onlytextwidth]
+    \column{0.52\textwidth}
+      \begin{block}{Version 1 delivers}
+        A transparent three-factor hybrid reference model with controlled
+        calibration, independent LSM policy evaluation, and auditable outputs.
+      \end{block}
+      \begin{block}{Requires a new model version}
+        Stochastic basis, smile dynamics beyond benchmark fitting, additional
+        rate factors, collateral switching, or richer exercise rights.
+      \end{block}
+    \column{0.43\textwidth}
+      \textbf{Primary references}
+      \begin{itemize}
+        \item Longstaff and Schwartz (2001), ``Valuing American Options by Simulation.''
+        \item QuantLib documentation: \url{https://www.quantlib.org/docs.shtml}.
+      \end{itemize}
+      \vspace{0.5em}
+      \textbf{Source note}
+
+      This deck summarizes the TGIR callable Bermudan XCCY quantitative model
+      article dated August 30, 2026.
+  \end{columns}
+\end{frame}
+
+\begin{frame}[plain]
+  \begin{center}
+    \vfill
+    {\usebeamerfont{title}\color{tgirnavy}Callable Bermudan XCCY Model\par}
+    \vspace{0.75em}
+    {\large Questions and discussion\par}
+    \vspace{1.5em}
+    {\small TG Investments and Research, LLC\par}
+    \vfill
+  \end{center}
+\end{frame}
+
+\end{document}

@@ -25,7 +25,7 @@
 {Market layer: curves, volatilities, FX spot/forwards, correlations, fixings, and quote conventions.}
 {Model and numerical layers: dynamics, calibration, solver, grid, simulation, regression, and tolerances.}
 {Most serious pricing defects come from mixing these layers or leaving a convention implicit.}
-{docs/ARCHITECTURE.md; docs/callable\_bermudan\_xccy\_swap\_pricing\_spec.md.}
+{ARCHITECTURE.md; docs/latex/documents/callable\_bermudan\_xccy\_swap\_specification\_article.tex.}
 
 \lesson{Discount factors are the common language}
 {A discount factor $P(0,T)$ is today's value of one currency unit paid with certainty at $T$.}
@@ -126,7 +126,7 @@
 {Changing numeraire changes drifts while leaving correctly priced tradable values invariant.}
 {In cross-currency models, the foreign rate drift acquires a quanto correction under the domestic measure.}
 {Writing dynamics without the FX quotation and measure is incomplete.}
-{docs/callable\_bermudan\_xccy\_quant\_two\_pager.md.}
+{docs/latex/documents/callable\_bermudan\_xccy\_quant\_two\_pager\_article.tex.}
 
 \lesson{Trees discretize state; Monte Carlo discretizes paths}
 {A tree recombines future states and performs backward induction directly at nodes.}
@@ -154,4 +154,4 @@
 {Calibration tests confirm quoted instruments reprice within declared tolerances.}
 {Martingale, limiting-case, convergence, and independent-benchmark tests interrogate the model.}
 {A successful test suite is evidence, not proof that a model is fit for every trading use.}
-{tests/; docs/latex/xccy\_callable\_validation\_report.tex.}
+{tests/; docs/latex/documents/xccy\_callable\_validation\_report\_article.tex.}

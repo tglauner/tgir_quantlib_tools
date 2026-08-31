@@ -15,7 +15,7 @@
 ```
 
 - Repo deployment assets now include a dedicated deploy note:
-  - `docs/DEPLOYMENT.md`
+  - `DEPLOYMENT.md`
 - Apache template was updated to the real hostname:
   - `deploy/apache/tgir-quantlib-tools.conf.template`
 - README now links to the deploy note:
@@ -62,7 +62,7 @@ So the deployment doc is based on repo assets plus the known droplet IP, not on 
 
 ## Important files for the next session
 
-- `docs/DEPLOYMENT.md`
+- `DEPLOYMENT.md`
 - `deploy/apache/tgir-quantlib-tools.conf.template`
 - `deploy/systemd/tgir-quantlib-tools.service.template`
 - `.github/workflows/deploy_digitalocean.yml`
@@ -111,7 +111,7 @@ That means a new session should inspect `dashboard.py` and `trade_form.html` tog
 
 ```bash
 sed -n '1,80p' .codex/config.toml
-sed -n '1,220p' docs/DEPLOYMENT.md
+sed -n '1,220p' DEPLOYMENT.md
 ssh -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=8 root@45.55.196.120 'hostname && whoami'
 ssh -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=8 root@45.55.196.120 'apachectl -S && systemctl status tgir-quantlib-tools --no-pager --full | head -n 40'
 ```

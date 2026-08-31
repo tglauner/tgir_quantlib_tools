@@ -1,0 +1,77 @@
+\documentclass[aspectratio=169]{beamer}
+\input{shared/tgir-beamer-preamble}
+
+\definecolor{tgirnavy}{HTML}{17324D}
+\definecolor{tgirblue}{HTML}{2D6A9F}
+\definecolor{tgirlight}{HTML}{EAF1F7}
+\definecolor{tgirgreen}{HTML}{1F7A5A}
+\definecolor{tgirwarm}{HTML}{C9782B}
+
+\setbeamercolor{structure}{fg=tgirblue}
+\setbeamercolor{frametitle}{fg=tgirnavy}
+\setbeamercolor{block title}{bg=tgirnavy,fg=white}
+\setbeamercolor{block body}{bg=tgirlight,fg=black}
+
+\title[Quant Finance Courses]{Quant Finance Courses}
+\author{Tim Glauner\\TG Investments and Research, LLC}
+\date{August 30, 2026}
+
+\newcommand{\stage}[1]{\textbf{\textcolor{tgirnavy}{#1}}}
+\newcommand{\courseurl}[2]{\href{#1}{\textcolor{tgirblue}{\texttt{#2}}}}
+
+\begin{document}
+
+\begin{frame}{Learn the finance behind a working quant lab}
+  \vspace{-0.45em}
+  {\small\color{tgirnavy}
+    One inspectable project connects products, models, controls, and validation.\par}
+
+  \vspace{0.55em}
+  \begin{beamercolorbox}[rounded=true,sep=0.65ex,wd=\textwidth]{block body}
+    \centering
+    \stage{Python + QuantLib} $\rightarrow$ \stage{SOFR curves + swaps}
+    $\rightarrow$ \stage{Bermudan swaptions}\\[0.2em]
+    \stage{Equity cliquet} $\rightarrow$ \stage{QuantLib three-factor gap}
+    $\rightarrow$ \stage{Callable XCCY + independent validation}
+  \end{beamercolorbox}
+
+  \vspace{0.45em}
+  {\footnotesize\centering
+    \textbf{Tim:} decisions
+    \quad\textcolor{tgirwarm}{\textbullet}\quad
+    \textbf{QuantLib:} open source
+    \quad\textcolor{tgirwarm}{\textbullet}\quad
+    \textbf{Codex:} code + tests
+    \quad\textcolor{tgirwarm}{\textbullet}\quad
+    \textbf{Claude:} validation\par}
+
+  \vspace{0.65em}
+  {\large\bfseries\color{tgirnavy}Choose the expertise you want to build\par}
+  \vspace{0.35em}
+  \begin{columns}[T,onlytextwidth]
+    \column{0.48\textwidth}
+      {\small
+      \textbf{Mastering Interest Rate Derivatives}\\[0.15em]
+      Connect curves, swaps, caps/floors, swaptions, calibration, and risk to real desk workflows.\\[0.3em]
+      \courseurl{https://tglauner.com/mastering_interest_rate_derivatives/?utm_source=linkedin\&utm_medium=organic\&utm_campaign=quantlib_v2}{Explore IRD on Udemy}
+      }
+
+    \column{0.48\textwidth}
+      {\small
+      \textbf{Mastering MBS and ABS}\\[0.15em]
+      Connect securitization, prepayments, waterfalls, convexity, and OAS to structured-product decisions.\\[0.3em]
+      \courseurl{https://tglauner.com/mastering_mbs_and_abs/?utm_source=linkedin\&utm_medium=organic\&utm_campaign=quantlib_v2}{Explore MBS/ABS on Udemy}
+      }
+  \end{columns}
+
+  \vfill
+  \begin{beamercolorbox}[rounded=true,sep=0.65ex,wd=\textwidth]{block title}
+    \centering\footnotesize
+    Live: \href{https://quant.tglauner.com/}{\textcolor{white}{\texttt{quant.tglauner.com}}}
+    \enspace \texttt{demo / demo}
+    \quad\textcolor{tgirwarm}{\textbullet}\quad
+    DM \textbf{MODEL} for the model documents
+  \end{beamercolorbox}
+\end{frame}
+
+\end{document}

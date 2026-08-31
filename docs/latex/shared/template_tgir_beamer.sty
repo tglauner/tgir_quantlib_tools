@@ -1,0 +1,146 @@
+% mastering_ir_derivatives_beamer.sty
+
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{shared/template_tgir_beamer}[2026/08/29 TGIR Beamer template]
+
+% Set 3:2 aspect ratio to match perfectly my 3000x2000 surface aspect ratio
+%\usepackage[width=180mm, height=120mm]{geometry}
+%\setbeamersize{text width=160mm, text height=100mm}
+
+% Pages used
+\usepackage{fancyhdr}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\makeatletter
+\beamer@autopdfinfofalse
+\makeatother
+\hypersetup{pdfauthor={Tim Glauner, TG Investments and Research, LLC}}
+\usepackage{animate}
+\usepackage[english]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage{textpos}
+\usepackage{booktabs}
+% Use for currency signs such as EURO
+\usepackage{eurosym}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18} % do not know why needed
+\usepackage{pgfpages}
+\usepackage{amsthm}
+% Use adjustbox to resize graphs, tables, figures, etc
+\usepackage{adjustbox}
+% Format number amount such as $25,000
+\usepackage{siunitx}
+% Enhanced graphics package. Not sure how to use or if it's used
+\usepackage{graphicx}
+% To animate graphs where things cancel out
+\usepackage{cancel}
+
+%\usepackage{etoolbox}
+
+% Reduce the size of all captions
+\usepackage{caption}
+\captionsetup{font=scriptsize}
+
+% Specifics for tikz
+\usepackage{tikz}
+\usetikzlibrary{positioning,calc,arrows.meta,shapes,shapes.geometric}
+
+% Set themes
+% Very sober theme with logo
+\usetheme{default}
+\useinnertheme{rounded} % This is my preferred theme after testing all
+\setbeamertemplate{headline}{} % Keep the canvas clear apart from the logo overlay
+\setbeamertemplate{navigation symbols}{} % Remove the navigation symbols
+\setbeamercovered{invisible}
+\beamerdefaultoverlayspecification{} % Keep template branding stable on every rendered page
+
+% Bring structure due to section outline every time
+\AtBeginSection[]{
+  \setbeamercovered{transparent}
+  %\begin{frame}<beamer>{Outline} % Not used as it does not show in handout mode and creates missing slides
+  \begin{frame}{Outline}
+    \tableofcontents[currentsection]
+  \end{frame}
+  \setbeamercovered{invisible}
+}
+
+% Popup table of contents to pop up at the beginning of each subsection
+\AtBeginSubsection[]
+{
+  \setbeamercovered{transparent}
+  %\begin{frame}<beamer>{Outline} % Not used as it does not show in handout mode and creates missing slides
+  \begin{frame}{Outline}
+    \tgirlogo
+    \tableofcontents[currentsection,currentsubsection]
+  \end{frame}
+  \setbeamercovered{invisible}
+}
+
+%From gpt-3.5
+\newcommand{\tgirfooterdate}{}
+\AtBeginDocument{%
+  \hypersetup{pdfauthor={Tim Glauner, TG Investments and Research, LLC}}%
+  \global\let\tgirfooterdate\insertshortdate
+}
+\AddToHook{begindocument/end}{\hypersetup{pdfauthor={Tim Glauner, TG Investments and Research, LLC}}}
+\defbeamertemplate*{footline}{my metropolis theme}{
+    \begin{beamercolorbox}[wd=\paperwidth,ht=3ex,dp=1ex,leftskip=0.4cm,rightskip=0.4cm]{author in head/foot}
+      \scriptsize\tgirfooterdate \hfill \insertshorttitle \hfill \texttt{glaunertim@gmail.com} \hfill \insertsection \hfill \insertframenumber
+    \end{beamercolorbox}
+}
+\setbeamertemplate{footline}[my metropolis theme]
+
+%Global variables specific to course
+\title{Mastering Interest Rate Derivatives}
+\author{Tim Glauner\\TG Investments and Research, LLC}
+\date{\today}
+
+% New frame that shows a blank screen as first item so students look at title
+% Define a custom frame environment
+\newenvironment{pause_frame}[1]
+{
+    \begin{frame}{#1}
+    \pause % Ensure the first item doesn't show up immediately
+}
+{
+    \end{frame}
+}
+
+%%Same functionality as above with blank screen but automatically with \begin{frame}
+% toggle
+% \newif\ifautopause
+% \autopausetrue      % <-- turn ON
+% % \autopausefalse   % <-- turn OFF
+
+% \AtBeginEnvironment{frame}{\ifautopause\pause\fi}
+
+% \end{frame}
+
+%% Add the logo to the title page template and frames
+\newcommand{\tgirlogopath}{}
+\newif\iftgirlogo
+\tgirlogofalse
+\newcommand{\TGIRSetLogo}[1]{\gdef\tgirlogopath{#1}\tgirlogotrue}
+\newcommand{\tgirlogo}{%
+  \iftgirlogo
+    \begin{tikzpicture}[remember picture,overlay]
+      \node[anchor=north east,xshift=-0.2cm,yshift=-0.15cm] at (current page.north east)
+        {\includegraphics[height=0.75cm]{\tgirlogopath}};
+    \end{tikzpicture}%
+  \fi
+}
+\setbeamertemplate{title page}{%
+  \vfill
+  \centering
+  \usebeamercolor[fg]{titlegraphic}\inserttitlegraphic\par
+  \usebeamertemplate*{title}\par
+  \vskip0.25em%
+  \usebeamertemplate*{subtitle}\par
+  \vskip1em\par
+  \usebeamertemplate*{author}\par
+  \usebeamertemplate*{date}\par
+  \usebeamertemplate*{institute}\par
+}
+
+% Render the logo after every frame, including section and subsection outlines.
+\addtobeamertemplate{footline}{}{\tgirlogo}

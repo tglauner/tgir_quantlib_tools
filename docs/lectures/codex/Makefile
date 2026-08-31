@@ -3,7 +3,9 @@ LATEXFLAGS := -pdf -interaction=nonstopmode -halt-on-error
 BUILD_DIR := build
 SHARED_DIR := ../../latex/shared
 SHARED_FILES := $(wildcard $(SHARED_DIR)/*)
-TEXINPUTS := $(SHARED_DIR)//:
+# Preambles import styles as shared/<file>; expose the LaTeX root, not only
+# the shared subdirectory, so the lecture builds from this directory too.
+TEXINPUTS := ../../latex//:
 
 .PHONY: all summary clean count
 

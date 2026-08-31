@@ -1,0 +1,52 @@
+\documentclass[conference]{IEEEtran}
+\input{shared/tgir-article-preamble}
+
+\title{TGIR QuantLib Tools Test Catalog}
+\author{\TGIRArticleAuthorBlock}
+\TGIRSetArticlePublicationDate{May 1, 2026}
+
+\begin{document}
+\maketitle
+
+\section{Deployment Test Inventory}
+This catalog records the automated tests and smoke checks used before and after deployment. It is derived from the repository workflows, deployment notes, and unittest files.
+
+\subsection{Release-gate tests}
+\begin{itemize}
+  \item \texttt{tests.test\_cliquet}: cliquet pricing identity tests.
+  \item \texttt{tests.test\_sofr\_curve}: SOFR curve, calibration, Bermudan schedule, and sensitivity tests.
+  \item \texttt{tests.test\_smoke}: portfolio pricing, login/session behavior, routes, editors, APIs, and CSV-download tests.
+\end{itemize}
+
+\subsection{CI checks}
+\begin{lstlisting}
+./.venv/bin/python -m py_compile app.py wsgi.py portfolio.py tgir_quantlib_tools/*.py
+./.venv/bin/python -m unittest tests.test_cliquet
+./.venv/bin/python -m unittest tests.test_sofr_curve
+./.venv/bin/python -m unittest tests.test_smoke
+make -C docs/latex
+\end{lstlisting}
+
+\subsection{Local and post-deploy smoke gates}
+\begin{lstlisting}
+./.venv/bin/python -m unittest discover -s tests
+./.venv/bin/python build_SOFR_curve.py
+./.venv/bin/python -c "from app import app; print(app.test_client().get('/').status_code)"
+curl -fsS http://127.0.0.1:8008/health
+curl -fsS "$DO_HEALTHCHECK_URL"
+\end{lstlisting}
+
+\section{Individual unittest coverage}
+\subsection{Cliquet identities}
+\path{CliquetIdentityTests.test_cliquet_identity_portfolio} runs ten subcases showing that QuantLib cliquet pricing reduces to vanilla, forward-start strip, repeated-quarter, and deterministic zero-volatility limits.
+
+\subsection{SOFR curve and Bermudan tests}
+\texttt{SofrCurveTests} reprices quoted OIS swaps, checks zero-rate and daily-forward rows, validates the workbook ATM-vol surface, verifies swap point sensitivities, tests European swaption vega isolation, and confirms Bermudan calibration strips, fixed-final-maturity schedules, workbook-mark tracking, and G2++ parameters.
+
+\subsection{Application smoke tests}
+\texttt{PortfolioSmokeTests} verifies default portfolio pricing; login, dashboard, market-update, realtime-tick, and trade-editor flows; rates and cliquet analytics; risk APIs; template fallbacks; public health; the QuantLib data-model page; IBKR comparison; and curve-debug CSV download.
+
+\section{Coverage summary}
+Together these checks cover SOFR curve calibration, Bermudan model calibration and schedules, cliquet identities, portfolio pricing, Flask authentication and protected routes, trade editors, realtime and risk APIs, debug CSV export, Python compilation, documentation builds, and production health endpoints.
+
+\end{document}

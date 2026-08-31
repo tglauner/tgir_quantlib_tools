@@ -27,7 +27,7 @@
 {There is no separate React build, API gateway, or database.}
 {The architecture favors a single host and minimal infrastructure.}
 {This is a conscious deviation, not an unfinished split frontend.}
-{AGENTS.md; docs/ARCHITECTURE.md.}
+{AGENTS.md; ARCHITECTURE.md.}
 
 \lesson{Session state supports a demonstration workflow}
 {User-edited market and trade inputs live in the Flask session.}
@@ -41,7 +41,7 @@
 {Local timestamps show the long-lived pricing module continuing to evolve after this commit.}
 {Operational documentation becomes part of the delivered system.}
 {A model is usable only when users can install, run, diagnose, and recover it.}
-{Commit 65a2acb; docs/DEPLOYMENT.md; SESSION\_HANDOFF.md.}
+{Commit 65a2acb; DEPLOYMENT.md; SESSION\_HANDOFF.md.}
 
 \lesson{CI encodes repeatable confidence}
 {GitHub Actions creates Python 3.13, installs requirements, and runs selected test modules.}
@@ -55,7 +55,7 @@
 {Gunicorn binds the Flask app only on \texttt{127.0.0.1:8008}.}
 {systemd owns process startup and restart under \texttt{www-data}; the application root is \texttt{/var/www/html/tgir\_quantlib\_tools}.}
 {One approximately USD 7-per-month Ubuntu droplet keeps the hobby affordable while preserving explicit process boundaries.}
-{docs/DEPLOYMENT.md; deploy templates.}
+{DEPLOYMENT.md; deploy templates.}
 
 \begin{frame}{Production request path}
   \centering
@@ -74,7 +74,7 @@
     \item Health checks test \texttt{127.0.0.1:8008/health} and \texttt{https://quant.tglauner.com/health}.
   \end{itemize}
   \takeaway{About USD 7 per month is enough to keep a serious quantitative hobby continuously reachable behind production-style controls.}
-  \src{deploy/apache and deploy/systemd templates; docs/DEPLOYMENT.md.}
+  \src{deploy/apache and deploy/systemd templates; DEPLOYMENT.md.}
 \end{frame}
 
 \lesson{Deployment failures expose architecture assumptions}
@@ -89,7 +89,7 @@
 {A failed service health check restores the prior directory and restarts systemd.}
 {The successful August deployment retained a timestamped rollback copy.}
 {Recoverability matters more than pretending a release cannot fail.}
-{docs/DEPLOYMENT.md; August 2026 deployment verification.}
+{DEPLOYMENT.md; August 2026 deployment verification.}
 
 \chronology{13 Apr 2026}{An IBKR comparison dashboard is added}
 {Commit \texttt{711ce0d} adds more than one thousand lines centered on a second dashboard.}
@@ -138,7 +138,7 @@
 {JSON snapshots, CSV exports, HTML diagnostics, CLI scripts, and tests expose intermediate states to Tim, Codex, and Claude alike.}
 {The cost is limited concurrency and no database-backed audit store.}
 {For a research workbench, this tradeoff enables two agents to build, review, extend validation, and reproduce each other's evidence.}
-{AGENTS.md; docs/ARCHITECTURE.md.}
+{AGENTS.md; ARCHITECTURE.md.}
 
 \lesson{By mid-April, the platform is ready for a cross-asset challenge}
 {Curves, rates options, equity options, calibrated trees, risk, tests, authentication, and deployment all exist.}

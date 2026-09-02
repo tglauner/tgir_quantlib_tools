@@ -23,7 +23,7 @@ def create_app(test_config=None) -> Flask:
             {
                 key: value
                 for key, value in test_config.items()
-                if key not in flask_config
+                if key not in {"FLASK_DEBUG", "TESTING", "ANALYTICS_ENABLED"}
             }
         )
 

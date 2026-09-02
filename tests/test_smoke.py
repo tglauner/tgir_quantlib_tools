@@ -106,6 +106,20 @@ class PortfolioSmokeTests(unittest.TestCase):
         self.assertFalse(app.config["ANALYTICS_ENABLED"])
         self.assertEqual(app.config["ANALYTICS_COLLECTOR_URL"], "https://tglauner.com/collect")
 
+    def test_missing_debug_setting_defaults_to_production_analytics(self):
+        app = create_app(
+            {
+                "TESTING": True,
+                "SECRET_KEY": "test-secret",
+                "AUTH_USERNAME": "tester",
+                "AUTH_PASSWORD": "secret-pass",
+                "AUTH_PASSWORD_HASH": None,
+            }
+        )
+
+        self.assertFalse(app.config["FLASK_DEBUG"])
+        self.assertEqual(app.config["ANALYTICS_COLLECTOR_URL"], "https://tglauner.com/collect")
+
     def test_dashboard_requires_login(self):
         response = self.client.get("/dashboard")
 

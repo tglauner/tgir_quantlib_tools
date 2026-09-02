@@ -77,7 +77,7 @@ class AppConfig:
         load_local_env()
         overrides = overrides or {}
 
-        debug_enabled = _override_or_env_flag(overrides, "FLASK_DEBUG", default=True)
+        debug_enabled = _override_or_env_flag(overrides, "FLASK_DEBUG", default=False)
         testing_enabled = _override_or_env_flag(overrides, "TESTING", default=False)
         strict_mode = not debug_enabled and not testing_enabled
         analytics_enabled = _override_or_env_flag(

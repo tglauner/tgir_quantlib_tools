@@ -97,6 +97,11 @@ The app defaults to port `5050` because port `5000` is often occupied by macOS s
 
 When `FLASK_DEBUG=1`, the app falls back to a local development password if you have not configured one yet. Keep that mode local only and set explicit credentials in `.env` before using the app anywhere else.
 
+The shared visitor tracker is enabled by default. Local debug sessions send events to
+`http://127.0.0.1:9000/collect`; production mode sends them to
+`https://tglauner.com/collect`. See `docs/local_command_line_testing.md` for the isolated local
+collector test, or set `ANALYTICS_ENABLED=0` to disable tracking.
+
 ### Stand-alone Scripts
 
 - **Build SOFR Curve**

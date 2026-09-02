@@ -154,6 +154,33 @@ test -f .env || cp .env.example .env
 
 The `.env` file is gitignored and must not be committed. Stop the server with `Ctrl-C`.
 
+### Test visitor analytics locally
+
+Local debug mode renders the shared tracker with `appId` set to `quant` and sends events to the
+local collector at `http://127.0.0.1:9000/collect`. It does not write test visits to production.
+The tracker JavaScript is loaded from the shared HTTPS asset so the browser exercises the same
+tracker version used after deployment.
+
+Start the collector in a second terminal:
+
+```bash
+cd "../www.tglauner.com/visitor_analytics"
+DATABASE_URL=sqlite:///local-analytics.sqlite3 make dev
+```
+
+Then open `http://127.0.0.1:5050/` in a browser. After five seconds, confirm the local event was
+stored:
+
+```bash
+cd "../www.tglauner.com/visitor_analytics"
+sqlite3 local-analytics.sqlite3 \
+  "SELECT event_name, json_extract(props_json, '$.app_id'), json_extract(props_json, '$.page_url') FROM events_raw ORDER BY id DESC LIMIT 5;"
+```
+
+Local page URLs use the `127.0.0.1` host, so this verifies collection without increasing the
+production Quant widget. Set `ANALYTICS_ENABLED=0` to disable tracking, or override
+`ANALYTICS_COLLECTOR_URL` when testing another collector.
+
 ## 7. Check the running server from a second terminal
 
 ```bash

@@ -16,9 +16,16 @@ def create_app(test_config=None) -> Flask:
         __name__,
         template_folder=str(Path(__file__).resolve().parents[1] / "templates"),
     )
-    app.config.update(config.to_flask_config())
+    flask_config = config.to_flask_config()
+    app.config.update(flask_config)
     if test_config:
-        app.config.update(test_config)
+        app.config.update(
+            {
+                key: value
+                for key, value in test_config.items()
+                if key not in flask_config
+            }
+        )
 
     register_template_filters(app)
     register_auth(app)

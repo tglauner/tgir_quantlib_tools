@@ -33,6 +33,10 @@ class PortfolioSmokeTests(unittest.TestCase):
                 "AUTH_PASSWORD_HASH": None,
                 "SESSION_COOKIE_SECURE": False,
                 "CURVE_DEBUG_CSV_PATH": self.curve_debug_csv_path,
+                "ANALYTICS_ENABLED": True,
+                "ANALYTICS_COLLECTOR_URL": "http://127.0.0.1:9000/collect",
+                "ANALYTICS_SCRIPT_URL": "https://tglauner.com/visitor_analytics/tracking/tracking.js",
+                "ANALYTICS_APP_ID": "quant",
             }
         )
         self.client = self.app.test_client()
@@ -62,6 +66,45 @@ class PortfolioSmokeTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Sign in to the rates workstation.", response.data)
         self.assertIn(b"Open workstation", response.data)
+
+    def test_login_page_includes_configured_analytics_tracker(self):
+        response = self.client.get("/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"window.tgAnalyticsConfig", response.data)
+        self.assertIn(b'collector: "http://127.0.0.1:9000/collect"', response.data)
+        self.assertIn(b'appId: "quant"', response.data)
+        self.assertIn(
+            b'src="https://tglauner.com/visitor_analytics/tracking/tracking.js"',
+            response.data,
+        )
+
+    def test_analytics_tracker_can_be_disabled(self):
+        self.app.config["ANALYTICS_ENABLED"] = False
+
+        response = self.client.get("/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn(b"window.tgAnalyticsConfig", response.data)
+        self.assertNotIn(b"tracking/tracking.js", response.data)
+
+    def test_string_boolean_overrides_select_production_analytics_defaults(self):
+        app = create_app(
+            {
+                "TESTING": "1",
+                "FLASK_DEBUG": "0",
+                "SECRET_KEY": "test-secret",
+                "AUTH_USERNAME": "tester",
+                "AUTH_PASSWORD": "secret-pass",
+                "AUTH_PASSWORD_HASH": None,
+                "ANALYTICS_ENABLED": "0",
+            }
+        )
+
+        self.assertTrue(app.testing)
+        self.assertFalse(app.config["FLASK_DEBUG"])
+        self.assertFalse(app.config["ANALYTICS_ENABLED"])
+        self.assertEqual(app.config["ANALYTICS_COLLECTOR_URL"], "https://tglauner.com/collect")
 
     def test_dashboard_requires_login(self):
         response = self.client.get("/dashboard")

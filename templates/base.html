@@ -1089,5 +1089,14 @@
 
     {% block content %}{% endblock %}
   </main>
+  {% if config["ANALYTICS_ENABLED"] %}
+    <script>
+      window.tgAnalyticsConfig = {
+        collector: {{ config["ANALYTICS_COLLECTOR_URL"] | tojson }},
+        appId: {{ config["ANALYTICS_APP_ID"] | tojson }}
+      };
+    </script>
+    <script src="{{ config['ANALYTICS_SCRIPT_URL'] }}" defer></script>
+  {% endif %}
 </body>
 </html>

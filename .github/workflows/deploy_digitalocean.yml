@@ -84,6 +84,11 @@ jobs:
               ! -name 'debug' \
               -exec rm -rf {} +
             sudo tar -xzf /tmp/tgir_quantlib_tools-release.tgz -C \"\$APP_ROOT\"
+            if sudo grep -q '^FLASK_DEBUG=' \"\$APP_ROOT/.env\"; then
+              sudo sed -i 's/^FLASK_DEBUG=.*/FLASK_DEBUG=0/' \"\$APP_ROOT/.env\"
+            else
+              printf '\nFLASK_DEBUG=0\n' | sudo tee -a \"\$APP_ROOT/.env\" >/dev/null
+            fi
             sudo python3 -m venv \"\$APP_ROOT/.venv\"
             sudo \"\$APP_ROOT/.venv/bin/python\" -m pip install --upgrade pip
             sudo \"\$APP_ROOT/.venv/bin/python\" -m pip install -r \"\$APP_ROOT/requirements-production.txt\"

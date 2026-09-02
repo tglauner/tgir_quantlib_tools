@@ -101,6 +101,7 @@ The shared visitor tracker is enabled by default. Local debug sessions send even
 `http://127.0.0.1:9000/collect`; production mode sends them to
 `https://tglauner.com/collect`. See `docs/local_command_line_testing.md` for the isolated local
 collector test, or set `ANALYTICS_ENABLED=0` to disable tracking.
+The production deployment workflow preserves `.env` secrets while enforcing `FLASK_DEBUG=0`.
 
 ### Stand-alone Scripts
 

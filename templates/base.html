@@ -1093,7 +1093,8 @@
     <script>
       window.tgAnalyticsConfig = {
         collector: {{ config["ANALYTICS_COLLECTOR_URL"] | tojson }},
-        appId: {{ config["ANALYTICS_APP_ID"] | tojson }}
+        appId: {{ config["ANALYTICS_APP_ID"] | tojson }},
+        authState: {{ ("authenticated" if auth_state.is_authenticated else "anonymous") | tojson }}
       };
     </script>
     <script src="{{ config['ANALYTICS_SCRIPT_URL'] }}" defer></script>

@@ -102,6 +102,8 @@ The shared visitor tracker is enabled by default. Local debug sessions send even
 `https://tglauner.com/collect`. See `docs/local_command_line_testing.md` for the isolated local
 collector test, or set `ANALYTICS_ENABLED=0` to disable tracking.
 The production deployment workflow preserves `.env` secrets while enforcing `FLASK_DEBUG=0`.
+Quant pages also send the privacy-safe login state `anonymous` or `authenticated`; usernames and
+credentials are never included in analytics events.
 
 ### Stand-alone Scripts
 

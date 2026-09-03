@@ -74,10 +74,20 @@ class PortfolioSmokeTests(unittest.TestCase):
         self.assertIn(b"window.tgAnalyticsConfig", response.data)
         self.assertIn(b'collector: "http://127.0.0.1:9000/collect"', response.data)
         self.assertIn(b'appId: "quant"', response.data)
+        self.assertIn(b'authState: "anonymous"', response.data)
         self.assertIn(
             b'src="https://tglauner.com/visitor_analytics/tracking/tracking.js"',
             response.data,
         )
+
+    def test_authenticated_page_marks_analytics_without_exposing_username(self):
+        response = self.login()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'authState: "authenticated"', response.data)
+        analytics_start = response.data.index(b"window.tgAnalyticsConfig")
+        analytics_end = response.data.index(b"</script>", analytics_start)
+        self.assertNotIn(b"tester", response.data[analytics_start:analytics_end])
 
     def test_analytics_tracker_can_be_disabled(self):
         self.app.config["ANALYTICS_ENABLED"] = False

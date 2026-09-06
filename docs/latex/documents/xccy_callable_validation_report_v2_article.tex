@@ -1,0 +1,381 @@
+\documentclass[conference]{IEEEtran}
+\input{shared/tgir-article-preamble}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{float}
+\usepackage{microtype}
+\hypersetup{
+  pdftitle={Callable EUR-USD Cross-Currency Swap Pricer: Validation Report V2},
+  pdfauthor={Tim Glauner, TG Investments and Research, LLC}}
+
+\definecolor{pass}{RGB}{0,112,64}
+\definecolor{conditional}{RGB}{154,92,0}
+\definecolor{attention}{RGB}{178,34,34}
+\newcommand{\Qd}{\mathbb{Q}^{\mathrm{USD}}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\dd}{\,\mathrm{d}}
+
+\title{Callable EUR/USD Cross-Currency Swap Pricer\\Validation Report V2}
+\TGIRSetArticlePublicationDate{September 3, 2026}
+\author{\TGIRArticleAuthorBlock}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This report records a validation assessment of version 1 of the standalone callable EUR/USD cross-currency swap reference pricer. It covers the model specification, input controls, calibration, numerical implementation, regression controls, and use limitations for the supplied 10-year non-call two-year (10Y NC2) EUR \texteuro STR versus USD fixed benchmark. The assessment is evidence-based: a control is recorded as passed only where it is covered by the repository test suite executed on September 2, 2026. This is a technical validation report for review; it is not a model-risk approval or an authorization for production trading.
+\end{abstract}
+
+\section{Document Control and Validation Disposition}
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{\columnwidth}{>{\raggedright\arraybackslash}p{0.33\columnwidth}>{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Item} & \textbf{Record} \\
+\midrule
+Report status & Draft V2 for senior review \\
+Model identifier & \texttt{HW1F\_USD\_HW1F\_EUR\_BSFX\_LSM\_V1} \\
+Model owner & TG Investments and Research, LLC \\
+Scope & Callable EUR/USD XCCY reference implementation; USD collateral and reporting \\
+Benchmark & EURUSD-10Y-NC2-ESTR-VS-USD4 \\
+Market snapshot & 2026-08-14; explicitly illustrative \\
+Automated test evidence & 2026-09-02; 12 focused callable-XCCY controls passed \\
+Extended quantitative evidence & 2026-09-03; path convergence to 1,000,000 paths, LSM training-path sensitivity, recomputed structural/martingale/exercise checks, and multi-bump DV01/Vega stability testing \\
+Validation disposition & \textcolor{conditional}{CONDITIONALLY ACCEPTABLE FOR RESEARCH / INDICATIVE ANALYSIS ONLY} \\
+Production disposition & Not approved \\
+\bottomrule
+\end{tabularx}
+\caption{Document-control record}
+\end{table}
+
+The implementation demonstrates internally consistent behavior for its stated reference scope. This is confirmed by a broader evidence base than V1: recomputed structural, martingale, monotonicity, and exercise-distribution checks (Section~\ref{sec:functional-validation}), a path-count convergence study extending to 1,000,000 paths together with a training-path sensitivity study (Section~\ref{sec:convergence}), and a multi-bump-size stability study of DV01 and Vega (Section~\ref{sec:greek-stability}) that identifies a specific, unresolved Vega-methodology gap. The evidence remains insufficient for a production model approval because it does not include independent benchmark pricing, production market-data lineage, historical back-testing, full model-risk governance, or a validated operational deployment. Any use outside research, education, or clearly labelled indicative analysis requires closure of the conditions in Section~\ref{sec:conditions}, the roadmap in Section~\ref{sec:roadmap}, and independent approval by the relevant model-risk and business governance functions.
+
+\section{Purpose, Scope, and Product Definition}
+
+The assessed program is \texttt{standalone\_xccy\_pricer.py}, supported by structured market and deal contracts, diagnostics, and a read-only MCP interface. It prices a constant-notional EUR/USD callable cross-currency swap under USD collateral. The benchmark trade receives quarterly compounded EUR \texteuro STR and pays 4.00\% USD fixed semiannually. It has USD 100 million notional, EUR 90,909,090.91 notional, initial and final exchanges, annual zero-fee cancellation opportunities from year 2 through year 9, and payment-before-cancellation event ordering.
+
+The report does not validate the Flask demonstration portfolio, the SOFR dashboard, equity cliquet analytics, or the Bermudan interest-rate swaption tools. It also does not assert market-price accuracy: the checked market input explicitly identifies itself as illustrative and requiring replacement by an approved market snapshot.
+
+\section{Independent Challenge Framework}
+
+The validation approach separates the following questions:
+\begin{enumerate}
+  \item \textbf{Specification correctness:} whether trade economics, measure, curve use, and exercise convention are explicit and internally coherent.
+  \item \textbf{Implementation correctness:} whether contracts reject unsafe input and core mathematical limits reproduce known results.
+  \item \textbf{Calibration and numerical soundness:} whether market helpers reprice within declared tolerances, simulated quantities satisfy measure-consistent diagnostics, and numerical estimates are stable at tested path counts.
+  \item \textbf{Operational readiness:} whether reproducibility, audit content, access boundaries, and change controls are sufficient for the declared use.
+\end{enumerate}
+
+This review is a code-and-test assessment, not an independent source-code reimplementation. Therefore it assigns conditional research status rather than an unqualified approval.
+
+\section{Model Specification}
+
+Under the USD money-market measure $\Qd$, USD and EUR short rates follow one-factor Hull--White processes. EUR/USD is quoted in USD per EUR, and its logarithm follows a lognormal FX process. With $r_c=\phi_c+x_c$, the implemented dynamics are
+\begin{align}
+ \dd x_d &= -a_dx_d\dd t + \sigma_d\dd W_d,\\
+ \dd x_f &= \left(-a_fx_f-\rho_{fS}\sigma_f\sigma_S\right)\dd t
+             +\sigma_f\dd W_f,\\
+ \dd\log S &= \left(r_d-r_f-\tfrac12\sigma_S^2\right)\dd t
+             +\sigma_S\dd W_S.
+\end{align}
+The foreign-rate quanto adjustment is consistent with the stated FX quote and USD numeraire. USD SOFR and EUR \texteuro STR OIS curves are bootstrapped from OIS helpers. The effective EUR USD-collateral discount curve is inferred from EUR/USD forwards. Rate-model parameters are calibrated to co-terminal normal-volatility swaption strips; piecewise-constant ATM Black FX volatility is calibrated to FX-option pillars.
+
+The three-factor state is advanced with exact affine Gaussian transitions, including joint covariance integration, rather than an Euler discretization. The callable feature is valued using two-pass Longstaff--Schwartz: a training sample determines the regression policy and an independently seeded pricing sample evaluates that frozen policy. The resulting exercise value is a lower-bound estimator.
+
+\section{Input, Data, and Operational Controls}
+
+Versioned JSON schemas define the market and deal contracts. Runtime semantic validation rejects unsupported fields, invalid schedule conditions, inconsistent FX orientation, non-positive notionals, missing historical prerequisites, and correlation matrices that are not positive semidefinite. The output records normalized input hashes, software versions, numerical settings, calibration rows, regression diagnostics, valuations, standard errors, confidence intervals, warnings, and exercise statistics. These controls support reproducibility of a supplied run, but they do not establish independent market-data provenance or a formal end-of-day valuation-control process.
+
+The MCP service exposes only two read-only tools: \texttt{xccy\_validate\_deal} and \texttt{xccy\_price\_deal}. The Streamable HTTP mode deliberately binds only to loopback because the reference server does not implement authentication. This is an appropriate local safety boundary, not an enterprise service-control framework.
+
+\section{Validation Evidence}
+
+\subsection{Executed Test Population}
+
+On September 2, 2026, the command below completed with 12 tests passed and no failures:
+\begin{lstlisting}
+./.venv/bin/python -m unittest \
+  tests.test_xccy_callable_pricer tests.test_xccy_pricer_mcp -v
+\end{lstlisting}
+
+\begin{table*}[!t]
+\centering
+\begin{tabularx}{\textwidth}{>{\raggedright\arraybackslash}p{0.23\textwidth}>{\raggedright\arraybackslash}p{0.47\textwidth}c>{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Control domain} & \textbf{Verified assertion} & \textbf{Tests} & \textbf{Result} \\
+\midrule
+Contract and schedule & Example schemas validate; NC2 call schedule contains eight annual dates; invalid correlations and unknown fields fail explicitly. & 2 & \textcolor{pass}{PASS} \\
+Analytic limit & Integrated FX variance reduces exactly to $\sigma^2T$ when rate volatilities are zero. & 1 & \textcolor{pass}{PASS} \\
+Calibration & OIS repricing error is below 0.01bp; weighted rate-vol RMS relative errors are below 5\%; maximum FX-vol error is below 0.25 vol points. & 1 & \textcolor{pass}{PASS} \\
+Deterministic limit & Zero-volatility simulated non-callable value matches static curve cashflows within USD 0.01. & 1 & \textcolor{pass}{PASS} \\
+Simulation and measure & Same seed produces identical paths; domestic discount, discounted FX, and foreign-bank-account diagnostics meet four-standard-error plus tolerance limits. & 1 & \textcolor{pass}{PASS} \\
+LSM policy & Policy rows match call dates; regression rank equals basis size; probability mass is one; callable/non-callable/option identity holds. & 1 & \textcolor{pass}{PASS} \\
+MCP controls & Required-input questions, semantic rejection, tool discovery, read-only annotations, and a complete controlled valuation behave as specified. & 3 & \textcolor{pass}{PASS} \\
+Risk and convergence & Common-random-number FX delta and USD/EUR DV01 half-bump stability are within 20\%; independent low/high path valuations agree within four combined standard errors. & 2 & \textcolor{pass}{PASS} \\
+\bottomrule
+\end{tabularx}
+\caption{Focused validation evidence executed for this report}
+\end{table*}
+
+\subsection{Acceptance Criteria and Interpretation}
+
+The numerical controls are acceptance tests, not proof of universal accuracy. Curve and volatility calibration limits are configured in the market contract. The martingale check allows Monte Carlo sampling error explicitly; it is designed to detect measure, drift, discounting, or covariance defects material enough to violate the stated tolerance. Independent path-count convergence tests compare low- and high-path estimates using a four-combined-standard-error criterion. The Greek diagnostic uses common random numbers and compares full- and half-bump estimates, with a maximum permitted relative difference of 20\%.
+
+No test failure was observed in the executed population. The test evidence supports the implementation claims listed above only for the supplied benchmark conventions, input shapes, and selected numerical configurations.
+
+\subsection{Reference Valuation Configuration}
+\label{sec:functional-validation}
+
+The structural, martingale, monotonicity, and exercise-distribution figures in this section use a higher-precision configuration (\texttt{training\_paths}=50{,}000; \texttt{pricing\_paths}=200{,}000; seed 1729) rather than the repository's lighter default CLI configuration (10{,}000/30{,}000), to reduce Monte Carlo noise in the reported point estimates. This is a reporting choice, not a change to any repository default. All figures in this subsection and Sections~\ref{sec:convergence}--\ref{sec:greek-stability} were regenerated on 2026-09-03 using the checked-in market and deal fixtures (\texttt{data/xccy\_market\_eurusd.json}, \texttt{data/xccy\_deal\_10y\_nc2.json}) via a supplementary, non-production evidence script (\texttt{tmp/validation\_v2\_evidence.py}). That script is a reproducibility aid for this report; it is not part of the committed automated test suite in Table~1.
+
+\subsection{Structural Bounds}
+
+The callable swap satisfies the fundamental arbitrage bound $V_{callable}=V_{non\text{-}callable}+V_{option}\geq V_{non\text{-}callable}$.
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{\columnwidth}{>{\raggedright\arraybackslash}p{0.5\columnwidth}>{\raggedright\arraybackslash}X}
+\toprule
+\textbf{Quantity} & \textbf{Value} \\
+\midrule
+Non-callable NPV & \$658,085 $\pm$ \$65,806 (95\% CI) \\
+Embedded option value & \$7,634,825 $\pm$ \$31,083 (95\% CI) \\
+Callable NPV & \$8,292,910 $\pm$ \$48,997 (95\% CI) \\
+Callable $=$ non-callable $+$ option & \textcolor{pass}{Exact to the cent} \\
+Option / notional ratio & 7.63\% \\
+Deterministic static-curve benchmark & \$679,480 \\
+$|$Non-callable simulated $-$ static benchmark$|$ & \$21,395 ($<1$ SE) \\
+\bottomrule
+\end{tabularx}
+\caption{Structural bounds and deterministic cross-check (training=50,000; pricing=200,000)}
+\end{table}
+
+The deterministic static-curve benchmark discounts the same cashflows with no optionality and zero rate/FX volatility; the simulated non-callable NPV agrees with it within one pricing-sample standard error, which is the expected behavior of an unbiased Monte Carlo estimator around its deterministic limit.
+
+\subsection{Martingale Diagnostics (Recomputed)}
+
+Under the USD money-market measure, sampled quantities must equal their curve-implied targets up to Monte Carlo error. At maturity $T\approx10.02$ years (business-day-adjusted):
+
+\begin{table}[H]
+\centering
+\begin{tabular}{lccc}
+\toprule
+\textbf{Condition} & \textbf{Sample} & \textbf{Target} & \textbf{$z$} \\
+\midrule
+$\E[D(0,T)]$ & 0.680241 & 0.680234 & 0.03 \\
+$\E[D(0,T)X_T]$ & 0.868116 & 0.868457 & $-$0.48 \\
+$\E[D(0,T)X_T B_T^{EUR}]$ & 1.099863 & 1.100000 & $-$0.18 \\
+\bottomrule
+\end{tabular}
+\caption{Martingale diagnostics at the reference configuration; all $|z|<0.5$}
+\end{table}
+
+\subsection{Monotonicity and Sensitivity}
+
+\begin{table*}[!t]
+\centering
+\begin{tabular}{llrrrl}
+\toprule
+\textbf{Perturbation} & \textbf{Measured quantity} & \textbf{Base} & \textbf{Perturbed} & \textbf{$\Delta$} & \textbf{Direction} \\
+\midrule
+Swaption vol $\times1.20$ (USD\&EUR) & Option value & \$7,634,825 & \$7,767,141 & +\$132,316 (+1.73\%) & \textcolor{pass}{Up, as expected} \\
+Non-call 2Y $\to$ 1Y & Option value & \$7,634,825 & \$7,698,705 & +\$63,880 (+0.84\%) & \textcolor{pass}{Up, as expected} \\
+FX spot +5\% & EUR leg PV (USD) & \$1,725,436 & \$1,811,708 & +\$86,272 (+5.00\%) & \textcolor{pass}{Up, near-exact linear} \\
+USD curve +25bp (isolated) & Callable NPV & \$8,292,910 & \$7,982,950 & $-$\$309,960 ($-$3.74\%) & \textcolor{pass}{Down, as expected} \\
+\bottomrule
+\end{tabular}
+\caption{Recomputed monotonicity and sensitivity checks (training=50,000; pricing=200,000)}
+\end{table*}
+
+The implied USD-curve sensitivity of $-\$12{,}398$ per basis point from the isolated +25bp shift is consistent in sign and order of magnitude with the USD parallel DV01 Greek reported independently in Table~\ref{tab:greek-summary}, providing a cross-check between the finite-move monotonicity test and the bump-based Greek.
+
+\subsection{Exercise Probability Distribution}
+
+\begin{table*}[!t]
+\centering
+\begin{tabular}{lrrrr}
+\toprule
+\textbf{Call date} & \textbf{Alive} & \textbf{Exercised} & \textbf{Conditional \%} & \textbf{Unconditional \%} \\
+\midrule
+2028-08-18 (Y2) & 200,000 & 31,502 & 15.751\% & 15.751\% \\
+2029-08-20 (Y3) & 168,498 & 17,024 & 10.103\% & 8.512\% \\
+2030-08-19 (Y4) & 151,474 & 11,738 & 7.749\% & 5.869\% \\
+2031-08-18 (Y5) & 139,736 & 9,477 & 6.782\% & 4.739\% \\
+2032-08-18 (Y6) & 130,259 & 6,503 & 4.992\% & 3.252\% \\
+2033-08-18 (Y7) & 123,756 & 5,864 & 4.738\% & 2.932\% \\
+2034-08-18 (Y8) & 117,892 & 3,123 & 2.649\% & 1.562\% \\
+2035-08-20 (Y9) & 114,769 & 12,914 & 11.252\% & 6.457\% \\
+No exercise & 101,855 & -- & -- & 50.928\% \\
+\bottomrule
+\end{tabular}
+\caption{Exercise probability distribution at 200,000 pricing paths; unconditional probabilities sum to 100.000\%}
+\end{table*}
+
+\section{Extensive Monte Carlo Convergence Analysis}
+\label{sec:convergence}
+
+V1 reported Monte Carlo standard-error convergence over a single order-of-magnitude range (10,000 to 100,000 pricing paths). This section extends that study to 1,000,000 paths and adds a companion study of LSM training-path sensitivity, which V1 did not test.
+
+\subsection{Pricing-Path Convergence}
+
+Holding \texttt{training\_paths} fixed at 50,000, \texttt{pricing\_paths} was swept from 1,000 to 1,000,000:
+
+\begin{table*}[!t]
+\centering
+\begin{tabular}{rrrrr}
+\toprule
+\textbf{Pricing paths} & \textbf{Callable NPV (\$)} & \textbf{SE (\$)} & \textbf{SE ratio vs.\ previous} & \textbf{Runtime (s)} \\
+\midrule
+1,000 & 8,705,088 & 706,324 & -- & 1.27 \\
+3,000 & 8,695,045 & 408,294 & 1.73 & 1.16 \\
+10,000 & 8,371,846 & 223,712 & 1.83 & 1.07 \\
+30,000 & 8,193,208 & 126,413 & 1.77 & 1.19 \\
+100,000 & 8,306,791 & 69,273 & 1.82 & 1.77 \\
+300,000 & 8,279,354 & 39,955 & 1.73 & 3.46 \\
+1,000,000 & 8,321,516 & 21,933 & 1.82 & 9.30 \\
+\bottomrule
+\end{tabular}
+\caption{Callable NPV and standard error across a 1,000x path-count range (training=50,000, seed 1729)}
+\end{table*}
+
+Every observed ratio matches the theoretical $\sqrt{N_2/N_1}$ scaling ($\sqrt{3}=1.73$, $\sqrt{10/3}=1.83$) within about 2\%, confirming $O(N^{-1/2})$ convergence across three full orders of magnitude rather than the single order tested in V1. The 1,000,000-path run completed in 9.3 seconds, confirming that high-precision runs are operationally inexpensive for this reference implementation.
+
+\subsection{Training-Path (LSM Policy) Convergence}
+
+Holding \texttt{pricing\_paths} fixed at 200,000 with an identical pricing sample and seed, \texttt{training\_paths} was swept from 1,000 to 1,000,000 to isolate the effect of regression-policy quality on the frozen-policy valuation:
+
+\begin{table*}[!t]
+\centering
+\begin{tabular}{rrrr}
+\toprule
+\textbf{Training paths} & \textbf{Callable NPV (\$)} & \textbf{SE (\$)} & \textbf{Runtime (s)} \\
+\midrule
+1,000 & 8,288,465 & 49,038 & 2.19 \\
+3,000 & 8,249,098 & 49,102 & 2.17 \\
+10,000 & 8,277,566 & 49,063 & 2.20 \\
+30,000 & 8,292,450 & 49,014 & 2.39 \\
+100,000 & 8,289,518 & 48,998 & 3.02 \\
+300,000 & 8,294,437 & 49,006 & 4.89 \\
+1,000,000 & 8,294,130 & 49,005 & 11.75 \\
+\bottomrule
+\end{tabular}
+\caption{Callable NPV against training-path count at a fixed 200,000-path pricing sample}
+\end{table*}
+
+The full range spans \$45,339, under one pricing-sample standard error (\$49,000). The LSM regression policy is materially affected by training-path count only below roughly 3,000--10,000 paths for this benchmark trade and basis; beyond that, remaining variation is attributable to the shared pricing sample's own Monte Carlo noise rather than to policy quality. The repository default of 10,000 training paths sits at the edge of this stable region; production use should default to at least 30,000--50,000 training paths given this evidence.
+
+\section{Greek Stability: Multi-Perturbation DV01 and Vega Testing}
+\label{sec:greek-stability}
+
+V1 and the automated test suite check only full-bump versus half-bump stability for FX delta and curve DV01. This section tests stability across four bump sizes per Greek, using common random numbers and full model recalibration at each bump, and adds Vega (rate and FX), which had no prior coverage.
+
+\subsection{Method}
+
+For each Greek, central-difference estimates were computed at four bump sizes with a shared seed (1729) so that Monte Carlo noise is maximally correlated between the up and down repricings. Stability is reported as the maximum relative difference between any bump size and the finest bump tested.
+
+\subsection{Results}
+
+\begin{table*}[!t]
+\centering
+\begin{tabular}{lllrl}
+\toprule
+\textbf{Greek} & \textbf{Units} & \textbf{Bump sizes tested} & \textbf{Max rel.\ drift} & \textbf{Status} \\
+\midrule
+FX delta (N=8,192/16,384) & USD / 1\% spot & 0.25\%, 0.5\%, 1\%, 2\% & 4.07\% & \textcolor{pass}{STABLE} \\
+USD parallel DV01 (N=8,192/16,384) & USD / 1bp & 1, 5, 10, 25bp & 2.83\% & \textcolor{pass}{STABLE} \\
+EUR parallel DV01 (N=8,192/16,384) & USD / 1bp & 1, 5, 10, 25bp & 3.17\% & \textcolor{pass}{STABLE} \\
+FX vega (N=8,192/16,384) & USD / 1 vol pt & 25, 50, 100, 200bp vol & 2.52\% & \textcolor{pass}{STABLE} \\
+USD+EUR rate vega (N=8,192/16,384) & USD / 1bp vol & 1, 5, 10, 25bp & 76.24\% & \textcolor{attention}{NOT STABLE} \\
+USD+EUR rate vega (N=50,000/200,000) & USD / 1bp vol & 1, 5, 10, 25bp & 12.37\% & \textcolor{conditional}{WATCH} \\
+\bottomrule
+\end{tabular}
+\caption{Multi-bump Greek stability summary\label{tab:greek-summary}}
+\end{table*}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{rrr}
+\toprule
+\textbf{Bump (bp)} & \textbf{Vega, N=8,192/16,384} & \textbf{Vega, N=50,000/200,000} \\
+\midrule
+1 & \$1,919 & \$5,350 \\
+5 & \$4,256 & \$5,387 \\
+10 & \$5,642 & \$5,372 \\
+25 & \$8,078 & \$6,105 \\
+\bottomrule
+\end{tabular}
+\caption{Rate-vega bump detail at two path-count configurations}
+\end{table}
+
+\subsection{Findings and Interpretation}
+
+FX delta, both curve DV01s, and FX vega are stable to within about 4\% across a full order of magnitude in bump size, even at moderate path counts, because a parallel curve or spot shift changes the simulated paths in a way that cancels strongly under common random numbers. Rate vega does not share this property: bumping the swaption-volatility pillars triggers a full nonlinear Hull--White recalibration, which does not cancel Monte Carlo noise as effectively. At the path count used for the automated half-bump test (8,192/16,384), the rate-vega central-difference estimate varies by up to 76\% across bump sizes and is not usable as a stable risk number. Raising the path count to 50,000/200,000 reduces the drift to 12\%, confirming this is substantially a path-count and recalibration-noise effect rather than a coding defect; the residual drift at the largest (25bp) bump may reflect genuine volga (vega convexity) rather than noise. This is recorded as an open item in Section~\ref{sec:roadmap} rather than treated as resolved.
+
+\section{Current Model Limitations}
+\label{sec:limitations}
+
+\textbf{Current model limitations:} Version 1 uses a single constant Hull--White volatility for each currency, deterministic forecast/discount and cross-currency basis, ATM-only lognormal FX volatility, and a continuous-time bank-account approximation for compounded \texteuro STR with zero lookback and lockout. The callable estimate is an LSM lower bound, not a dual-bounded price, and its accuracy can depend on the selected regression basis, path count, seed, and exercise schedule. Section~\ref{sec:greek-stability} additionally shows that bump-and-recalibrate rate-vega estimates are unstable at moderate path counts and only partially stabilize at higher path counts, so rate vega should not yet be relied upon as a production risk number. The model excludes FX smile/skew, stochastic basis, mark-to-market notionals, collateral-currency switching, XVA, partial cancellation, and product variants requiring discrete daily overnight-fixing conventions. The supplied market data is illustrative rather than an approved vendor or independent-price-verification snapshot. Accordingly, the reported valuations must not be represented as executable, reserve-ready, or independently validated market marks.
+
+\section{Governance Assessment}
+
+\begin{table}[H]
+\centering
+\begin{tabularx}{\columnwidth}{>{\raggedright\arraybackslash}p{0.29\columnwidth}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{0.18\columnwidth}}
+\toprule
+\textbf{Area} & \textbf{Assessment} & \textbf{Status} \\
+\midrule
+Model documentation & Product conventions, dynamics, numerical method, contracts, and limitations are documented in source and specification. & Substantially addressed \\
+Code verification & Deterministic limits, calibration, martingales, LSM identities, diagnostics, and MCP contracts are automated. & Addressed for reference scope \\
+Independent benchmarking & No independent implementation, vendor benchmark, or desk P\&L explain is evidenced. & Open \\
+Market-data governance & Sample snapshot is illustrative; sourcing, timestamp controls, and IPV are not evidenced. & Open \\
+Model performance & No historical back-test, reserve analysis, stress-loss attribution, or threshold breach workflow is evidenced. & Open \\
+Production operations & Local/demo deployment; no enterprise authorization, entitlements, monitoring, release workflow, or incident process is evidenced. & Open \\
+\bottomrule
+\end{tabularx}
+\caption{Governance-readiness assessment\label{tab:governance}}
+\end{table}
+
+\section{Model Enhancement Roadmap}
+\label{sec:roadmap}
+
+The items below are sequenced by dependency rather than calendar date, since committing fixed dates without business sign-off would overstate certainty. Phase 1 items are model-methodology changes; Phase 2 items are risk and validation infrastructure; Phase 3 items are production governance, already summarized in Table~\ref{tab:governance} and Section~\ref{sec:conditions}.
+
+\subsection{Phase 1: Model Methodology}
+\begin{enumerate}
+  \item \textbf{Time-dependent rate volatility.} Replace the one-piece-constant Hull--White volatility per currency with a piecewise-constant term structure calibrated to the full swaption matrix (not only the co-terminal strip), so short- and long-dated optionality are each priced against their own market implied volatility rather than a single blended parameter.
+  \item \textbf{FX volatility smile/skew.} Replace the ATM-only Black FX volatility with a smile-consistent parameterization (e.g.\ a local-volatility overlay or a parametric skew such as SABR) calibrated to available FX-option strikes, so away-from-ATM exercise regions are not priced off a flat volatility.
+  \item \textbf{Rate-vega methodology.} Given the instability documented in Section~\ref{sec:greek-stability}, evaluate a pathwise or likelihood-ratio vega, or a variance-reduction technique specific to recalibration Greeks, before rate vega is used as a risk number; in the interim, raise the default risk-run path count for vol Greeks well above the 8,192/16,384 pair used for the automated half-bump test.
+  \item \textbf{Stochastic basis.} Replace the deterministic forecast/discount and cross-currency-basis mapping with an explicit stochastic or scenario-driven basis factor.
+\end{enumerate}
+
+\subsection{Phase 2: Risk and Validation Infrastructure}
+\begin{enumerate}
+  \item Independent implementation or credible external benchmark, including a dual/upper-bound estimator (e.g.\ Andersen--Broadie) or nested Monte Carlo, to bound the LSM lower-bound bias directly rather than by convergence inference alone.
+  \item Bucketed (tenor-level) DV01 and vega, cross-gamma, and correlation risk, extending the parallel-only Greeks in Section~\ref{sec:greek-stability}.
+  \item Seed-ensemble and regression-basis sensitivity studies for the LSM policy, extending the single-seed training-path study in Section~\ref{sec:convergence}.
+  \item Historical back-testing and a documented scenario/stress-loss attribution framework.
+\end{enumerate}
+
+\subsection{Phase 3: Production Governance}
+Covered in Section~\ref{sec:conditions}: approved and entitled market data with independent price verification, formal code-review and release-approval controls, monitoring and incident management, and business/market-risk/valuation-control/technology-risk/model-validation sign-off.
+
+\section{Required Conditions Before Production Consideration}
+\label{sec:conditions}
+
+Before the model can enter a production-approval process, the following items require documented closure:
+\begin{enumerate}
+  \item Obtain approved, timestamped curve, FX forward, swaption, FX-volatility, and correlation inputs with source, entitlement, and independent-price-verification controls.
+  \item Complete an independent implementation or credible external benchmark comparison over a representative product and market-scenario set, including no-call and deterministic limiting cases.
+  \item Establish LSM model-risk evidence: regression-basis challenge, seed ensemble, path/grid convergence study, exercise-boundary diagnostics, and a dual upper-bound or equivalent independent optionality benchmark where feasible.
+  \item Expand risk coverage to stressed rates, FX, correlations, basis, volatilities, wrong-way scenarios, and a documented sensitivity/reserve framework.
+  \item Define production controls for code review, release approval, immutable run capture, access control, monitoring, incident management, and periodic revalidation.
+  \item Obtain formal business, market-risk, valuation-control, technology-risk, and independent model-validation approval under the receiving institution's policy.
+\end{enumerate}
+
+\section{Conclusion}
+
+For the stated benchmark and research scope, the V1 callable-XCCY pricer has a coherent documented specification and passed all 12 focused automated controls executed for this report, and it is now supported by a substantially wider evidence base than V1's original functional validation. Structural bounds, martingale diagnostics, monotonicity, and the exercise-probability distribution were independently recomputed and are consistent with an arbitrage-free, measure-correct implementation (Section~\ref{sec:functional-validation}). Monte Carlo convergence was verified across a 1,000x path-count range up to 1,000,000 paths, and a companion training-path study shows the LSM regression policy stabilizes well below the repository's default training-path count (Section~\ref{sec:convergence}). A multi-bump Greek-stability study shows FX delta, both curve DV01s, and FX vega are stable to within about 4\% across a full order of magnitude in bump size, while bump-and-recalibrate rate vega is not yet stable at the path counts used by the automated test suite (Section~\ref{sec:greek-stability}); this is recorded as an explicit, unresolved item rather than glossed over.
+
+The appropriate present disposition remains conditional acceptance for transparent research and indicative analysis, subject to the limitations in Section~\ref{sec:limitations} and the phased roadmap in Section~\ref{sec:roadmap}, which explicitly targets time-dependent rate volatility, FX smile/skew calibration, and an improved rate-vega methodology as the next model version's priorities. It is not approved for production pricing, trading, risk, reserves, or financial reporting. V2 should be treated as a review package for the requested senior stakeholder discussion and as a structured gap-closure plan, rather than a substitute for the independent validation and governance process of Nomura, JPMorgan Chase, or any other regulated institution.
+
+\end{document}

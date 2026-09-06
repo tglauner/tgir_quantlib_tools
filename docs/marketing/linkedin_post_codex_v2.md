@@ -1,17 +1,18 @@
 # LinkedIn post v2
 
-I turned a small Python + QuantLib sandbox into a working derivatives and model-validation lab - and you can try it.
+I turned a small Python + QuantLib sandbox into a working derivatives and model-validation lab using Codex and Claude - and you can try it.
 
 The project grew in deliberate steps:
 
 • SOFR curves and interest-rate swaps
-• European and Bermudan swaptions
-• equity cliquets
+• European swaptions
+• Equity cliquets
+• Bermudan swaptions
 • discovery that QuantLib did not provide one native engine for the callable cross-currency problem
 • a custom three-factor rates/FX Monte Carlo model with two-pass Longstaff-Schwartz exercise
 • independent challenge through calibration, martingale, convergence, sensitivity, sanity, and regression tests
 
-The development model was deliberately asymmetric. I supplied the finance judgment, priorities, and decisions. QuantLib supplied mature open-source building blocks. Codex engineered the system and its initial tests. Claude independently reviewed that work and expanded the model-validation framework.
+The development model was deliberately asymmetric. I supplied the finance judgment, priorities, and decisions. QuantLib supplied mature open-source building blocks. Codex engineered the system and its initial tests. Claude independently reviewed that work and expanded the model-validation framework. It was astonishing to watch Claude build a highly scalable trade and market-data simulation framework around the core library.
 
 The result is a transparent learning and research environment rather than a black box.
 

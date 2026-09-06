@@ -4,7 +4,7 @@
 
 This project produced two co-equal achievements. The first is a complex callable EUR/USD cross-currency pricer using two Hull–White rate factors, lognormal FX, calibration, exact-transition Monte Carlo, and two-pass Longstaff–Schwartz exercise. The second is the cohesive development system that made that result possible.
 
-Tim Launer directed the economics, selected priorities, supplied constraints, challenged results, decided what evidence was sufficient for each research milestone, and retained acceptance and release authority. Codex and Claude were active engineering agents rather than advisory chat systems.
+Tim Glauner directed the economics, selected priorities, supplied constraints, challenged results, decided what evidence was sufficient for each research milestone, and retained acceptance and release authority. Codex and Claude were active engineering agents rather than advisory chat systems.
 
 Codex performed most of the foundational construction. It converted Tim's evolving requirements into rigorous quantitative and integration specifications; implemented the Python and QuantLib components; created JSON market and deal contracts; built command-line, web, MCP, and proposed REST boundaries; wrote documentation; and constructed and ran the main unit, integration, numerical, calibration, convergence, Greek, and bump-stability tests.
 

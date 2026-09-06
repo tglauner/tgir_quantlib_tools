@@ -1051,14 +1051,14 @@
         {% if auth_state.is_authenticated %}
           <div class="auth-cluster">
             <div class="header-toolbar">
-              <a class="btn btn-secondary btn-mini {% if request.endpoint == 'workbench.dashboard' %}btn-active{% endif %}" href="{{ url_for('workbench.dashboard') }}">Dashboard</a>
-              <a class="btn btn-secondary btn-mini {% if request.endpoint == 'workbench.dashboard_ibkr' %}btn-active{% endif %}" href="{{ url_for('workbench.dashboard_ibkr') }}">IBKR Compare</a>
+              <a class="btn btn-secondary btn-mini {% if request.endpoint in ['workbench.dashboard', 'workbench.dashboard_ibkr'] %}btn-active{% endif %}" href="{{ url_for('workbench.dashboard') }}">TWS Dashboard</a>
+              <a class="btn btn-secondary btn-mini {% if request.endpoint == 'workbench.dashboard_classic' %}btn-active{% endif %}" href="{{ url_for('workbench.dashboard_classic') }}">Classic view</a>
               <a class="btn btn-secondary btn-mini {% if request.endpoint == 'workbench.xccy_callable' %}btn-active{% endif %}" href="{{ url_for('workbench.xccy_callable') }}">XCCY Callable</a>
               <a class="btn btn-secondary btn-mini {% if request.endpoint == 'workbench.quantlib_data_model' %}btn-active{% endif %}" href="{{ url_for('workbench.quantlib_data_model') }}" target="_blank" rel="noopener noreferrer">QuantLib Model</a>
               <a class="btn btn-secondary btn-mini" href="{{ url_for('workbench.quantlib_data_model') }}#research-library" target="_blank" rel="noopener noreferrer">Research</a>
               <a class="btn btn-secondary btn-mini" href="https://github.com/tglauner/tgir_quantlib_tools" target="_blank" rel="noopener noreferrer">Repo GitHub</a>
               <a class="btn btn-secondary btn-mini" href="https://github.com/lballabio/QuantLib" target="_blank" rel="noopener noreferrer">QuantLib GitHub</a>
-              {% if request.endpoint in ['workbench.dashboard', 'workbench.dashboard_ibkr'] %}
+              {% if request.endpoint in ['workbench.dashboard', 'workbench.dashboard_ibkr', 'workbench.dashboard_classic'] %}
                 <a class="btn btn-secondary btn-mini" href="{{ url_for('workbench.curve_debug_download') }}">Download debug CSV</a>
                 <button class="btn btn-secondary btn-mini" id="realtime-toggle" type="button">Start real-time</button>
                 <form method="post" action="{{ url_for('workbench.reset_portfolio') }}">

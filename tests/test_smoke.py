@@ -66,6 +66,47 @@ class PortfolioSmokeTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Sign in to the rates workstation.", response.data)
         self.assertIn(b"Open workstation", response.data)
+        self.assertIn(b"Sample login:", response.data)
+        self.assertIn(b"3-factor callable cross-currency rates model", response.data)
+
+    def test_login_page_includes_configured_analytics_tracker(self):
+        response = self.client.get("/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"window.tgAnalyticsConfig", response.data)
+        self.assertIn(b'collector: "http://127.0.0.1:9000/collect"', response.data)
+        self.assertIn(b'appId: "quant"', response.data)
+        self.assertIn(
+            b'src="https://tglauner.com/visitor_analytics/tracking/tracking.js"',
+            response.data,
+        )
+
+    def test_analytics_tracker_can_be_disabled(self):
+        self.app.config["ANALYTICS_ENABLED"] = False
+
+        response = self.client.get("/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn(b"window.tgAnalyticsConfig", response.data)
+        self.assertNotIn(b"tracking/tracking.js", response.data)
+
+    def test_string_boolean_overrides_select_production_analytics_defaults(self):
+        app = create_app(
+            {
+                "TESTING": "1",
+                "FLASK_DEBUG": "0",
+                "SECRET_KEY": "test-secret",
+                "AUTH_USERNAME": "tester",
+                "AUTH_PASSWORD": "secret-pass",
+                "AUTH_PASSWORD_HASH": None,
+                "ANALYTICS_ENABLED": "0",
+            }
+        )
+
+        self.assertTrue(app.testing)
+        self.assertFalse(app.config["FLASK_DEBUG"])
+        self.assertFalse(app.config["ANALYTICS_ENABLED"])
+        self.assertEqual(app.config["ANALYTICS_COLLECTOR_URL"], "https://tglauner.com/collect")
 
     def test_login_page_includes_configured_analytics_tracker(self):
         response = self.client.get("/")
@@ -140,17 +181,18 @@ class PortfolioSmokeTests(unittest.TestCase):
         response = self.login()
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b"Review trade marks, update market inputs, and inspect QuantLib diagnostics.", response.data)
-        self.assertIn(b"Start with the blotter", response.data)
+        self.assertIn(b"Same QuantLib stack. Denser TWS-style monitor.", response.data)
+        self.assertIn(b"3-factor callable cross-currency rates model", response.data)
         self.assertIn(DEFAULT_VALUATION_DATE_ISO.encode("utf-8"), response.data)
-        self.assertIn(b"IBKR Compare", response.data)
+        self.assertIn(b"TWS Dashboard", response.data)
+        self.assertIn(b"Classic view", response.data)
         self.assertIn(b"Research", response.data)
         self.assertIn(b"Repo GitHub", response.data)
         self.assertIn(b"QuantLib GitHub", response.data)
         self.assertIn(b"Download debug CSV", response.data)
         self.assertIn(b"SOFR market and zero rates", response.data)
-        self.assertIn(b"Show daily one-day forward SOFR", response.data)
-        self.assertIn(b"Show OIS SOFR repricing", response.data)
+        self.assertIn(b"Open forward strip", response.data)
+        self.assertIn(b"Open OIS repricing", response.data)
         self.assertIn(b"ATM swaption normal-vol matrix", response.data)
         self.assertIn(b"Mean reversion (%)", response.data)
         self.assertIn(b"Market rates", response.data)

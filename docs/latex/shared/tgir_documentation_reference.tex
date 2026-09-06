@@ -1,0 +1,148 @@
+% TGIR Quant Reference. Set \TGIRReferenceImported before inputting this file
+% to define its shared variables without rendering the standalone reference.
+\newif\ifTGIRReferenceStandalone
+\ifdefined\TGIRReferenceImported\TGIRReferenceStandalonefalse\else\TGIRReferenceStandalonetrue\fi
+
+\providecommand{\TGIROrganisationName}{TG Investments and Research, LLC}
+\providecommand{\TGIRAuthorName}{Tim Glauner}
+\providecommand{\TGIRProductName}{TGIR QuantLib Tools}
+\providecommand{\TGIRReferenceTitle}{TGIR Quant Reference}
+\providecommand{\TGIRReferenceVersion}{1.1}
+\providecommand{\TGIRReferenceDate}{September 5, 2026}
+\providecommand{\TGIRDomesticCurrency}{\ensuremath{\mathrm{USD}}}
+\providecommand{\TGIRForeignCurrency}{\ensuremath{\mathrm{EUR}}}
+\providecommand{\TGIRDomesticIndex}{SOFR}
+\providecommand{\TGIRForeignIndex}{€STR}
+\providecommand{\TGIRFXPair}{EURUSD}
+\providecommand{\TGIRFXQuote}{USD per EUR}
+\providecommand{\TGIRDomesticMeasure}{\ensuremath{\mathbb{Q}^{d}}}
+\providecommand{\TGIRFiltration}{\ensuremath{\mathcal{F}}}
+\providecommand{\TGIRDiff}{\ensuremath{\,\mathrm{d}}}
+\providecommand{\TGIRBenchmarkTradeId}{EURUSD-10Y-NC2-ESTR-VS-USD4}
+\providecommand{\TGIRBenchmarkEffectiveDate}{2026-08-18}
+\providecommand{\TGIRBenchmarkMaturity}{10Y}
+\providecommand{\TGIRBenchmarkNonCall}{2Y}
+\providecommand{\TGIRBenchmarkUSDFixedRate}{4.00\%}
+\providecommand{\TGIRBenchmarkUSDNotional}{USD\ 100,000,000}
+\providecommand{\TGIRBenchmarkEURNotional}{EUR\ 90,909,090.91}
+\providecommand{\TGIRBenchmarkEURFrequency}{3M}
+\providecommand{\TGIRBenchmarkUSDFrequency}{6M}
+\providecommand{\TGIRBenchmarkExerciseWindow}{year 2 through year 9}
+\providecommand{\TGIRTrainingPaths}{10,000}
+\providecommand{\TGIRPricingPaths}{30,000}
+\providecommand{\TGIRRandomSeed}{1729}
+\providecommand{\TGIRMaximumStepYears}{1/12}
+\providecommand{\TGIRQuantLibVersion}{1.43}
+\providecommand{\TGIRCalibrationOISLimit}{0.01 bp}
+\providecommand{\TGIRCalibrationSwaptionLimit}{5\% relative RMS error}
+\providecommand{\TGIRCalibrationFXLimit}{0.25 volatility percentage points}
+
+\newcommand{\TGIRReferenceRender}{%
+\maketitle
+\begin{abstract}
+Business and quant reference for the illustrative USD/EUR callable cross-currency
+swap. It defines the economic variables, benchmark terms, and equations used in
+TGIR material. It is a research reference, not a live market-data record or a
+production valuation approval.
+\end{abstract}
+\small
+
+\section{Business context}
+The holder receives EUR €STR and pays USD fixed on a constant-notional, 10-year
+EUR/USD swap. The holder may cancel without a fee annually from year 2 through
+year 9. On a cancellation date, due cash flows are paid before the remaining
+swap is cancelled. Values are in USD.
+
+\textbf{Benchmark:} \texttt{\TGIRBenchmarkTradeId}; pay
+\TGIRBenchmarkUSDNotional{} at \TGIRBenchmarkUSDFixedRate{} every
+\TGIRBenchmarkUSDFrequency, receive \TGIRBenchmarkEURNotional{} at compounded
+€STR every \TGIRBenchmarkEURFrequency. Initial and final notional exchanges
+are included. The benchmark is illustrative, not a live market position.
+
+\section{Variables}
+\begin{description}[style=nextline]
+  \item[$t,T$] Valuation time and future maturity or payment time.
+  \item[$d,f$] Domestic and foreign currencies: USD and EUR, respectively.
+  \item[$S_t^{\mathrm{USD/EUR}}$] EUR/USD spot, quoted as USD per EUR; $S_0=1.10$ in the benchmark. Thereafter $S_t$ uses this same quotation.
+  \item[$r_d(t),r_f(t)$] USD and EUR short rates. USD SOFR and EUR €STR curves set their starting term structures.
+  \item[$x_d(t),x_f(t)$] Stochastic Hull--White rate factors. Deterministic shifts $\phi_d(t),\phi_f(t)$ fit the curves: $r_c(t)=\phi_c(t)+x_c(t)$.
+  \item[$a_d,a_f$] USD and EUR mean-reversion speeds; 3\% and 4\% in the benchmark.
+  \item[$\sigma_d(t),\sigma_f(t),\sigma_S(t)$] USD-rate, EUR-rate, and FX spot volatilities. FX volatility is deterministic and piecewise constant, not stochastic volatility.
+  \item[$W_d,W_f,W_S$] Correlated Brownian shocks for USD rates, EUR rates, and FX spot.
+  \item[$\rho_{df},\rho_{dS},\rho_{fS}$] Shock correlations; benchmark values are 0.25, $-0.15$, and $-0.30$.
+  \item[$P_d(t,T),P_f^*(t,T)$] USD collateral discount bond and EUR effective discount bond under USD collateral.
+  \item[$D_d(0,T)$] Pathwise USD discount factor from time 0 to $T$.
+  \item[$CF_f(T),F_{FX}(0,T)$] EUR cash flow at $T$ and the EUR/USD forward for delivery at $T$.
+  \item[$A_i,Y_i,J_i$] Common cash flows, continuation tail, and exercise-only settlement at call date $t_i$.
+  \item[$C_i,\tau^*,\varepsilon_{\mathrm{ex}}$] Continuation value, optimal cancellation time, and exercise tolerance.
+  \item[$\mathbb{Q}^d,\mathcal{F}_{t_i}$] USD money-market pricing measure and information available at call date $t_i$.
+\end{description}
+
+\section{Equations}
+\textbf{Rate decomposition}
+\[
+  r_d(t)=\phi_d(t)+x_d(t),\qquad r_f(t)=\phi_f(t)+x_f(t).
+\]
+\textbf{Joint USD-measure dynamics}
+\begin{align}
+  \TGIRDiff x_d(t) &= -a_d x_d(t)\TGIRDiff t+\sigma_d(t)\TGIRDiff W_d(t),\\
+  \TGIRDiff x_f(t) &= \left[-a_f x_f(t)-\rho_{fS}\sigma_f(t)\sigma_S(t)\right]\TGIRDiff t
+                    +\sigma_f(t)\TGIRDiff W_f(t),\\
+  \TGIRDiff\log S_t &= \left[r_d(t)-r_f(t)-\tfrac12\sigma_S^2(t)\right]\TGIRDiff t
+                    +\sigma_S(t)\TGIRDiff W_S(t).
+\end{align}
+The negative EUR-rate term is the USD-measure quanto adjustment. The third
+equation is the stochastic FX spot dynamic: FX spot is lognormal with
+stochastic rates and correlated shocks.
+
+\textbf{Correlation, conversion, and forward consistency}
+\[
+  \operatorname{Corr}(\TGIRDiff W_i,\TGIRDiff W_j)=\rho_{ij}\TGIRDiff t,
+  \quad i,j\in\{d,f,S\},
+\]
+\[
+  \text{USD value of EUR cash flow at }T=S_TCF_f(T).
+\]
+\[
+  F_{FX}(0,T)=S_0\frac{P_f^*(0,T)}{P_d(0,T)}.
+\]
+\textbf{Bermudan cancellation rule}
+\[
+  C_i=\mathbb{E}^{\mathbb{Q}^d}\!\left[Y_i\mid\mathcal{F}_{t_i}\right],
+  \qquad \tau^*=t_i\ \text{when}\ J_i>C_i+\varepsilon_{\mathrm{ex}}.
+\]
+For the zero-fee cancellation trade, $J_i=0$: cancellation is optimal when the
+remaining swap has negative continuation value to the holder.
+
+\section{Valuation controls}
+The model is two Hull--White rate factors plus lognormal FX, priced with
+Longstaff--Schwartz Monte Carlo. It uses \TGIRTrainingPaths{} training paths
+to fit the exercise policy and \TGIRPricingPaths{} independently seeded paths
+to value the frozen policy; seed \TGIRRandomSeed{} and maximum step
+\TGIRMaximumStepYears{} year. The callable option value is a lower-bound
+estimate. Calibration requires OIS helper error at most
+\TGIRCalibrationOISLimit, swaption relative RMS error at most
+\TGIRCalibrationSwaptionLimit, and FX re-implied-volatility error at most
+\TGIRCalibrationFXLimit. FX smile, stochastic basis, and stochastic FX
+volatility are outside this version.
+}
+
+\let\TGIRReferenceFinish\relax
+\ifTGIRReferenceStandalone
+  \documentclass[conference]{IEEEtran}
+  \input{shared/tgir-article-preamble}
+  \usepackage{amsmath,amssymb,mathtools}
+  \usepackage{microtype}
+  \hypersetup{
+    pdftitle={TGIR Quant Reference},
+    pdfauthor={Tim Glauner, TG Investments and Research, LLC},
+    pdfsubject={Business variables and equations for the callable EUR/USD model}
+  }
+  \title{\TGIRReferenceTitle}
+  \TGIRSetArticlePublicationDate{\TGIRReferenceDate}
+  \author{\TGIRArticleAuthorBlock}
+  \begin{document}
+  \TGIRReferenceRender
+  \def\TGIRReferenceFinish{\end{document}}
+\fi
+\TGIRReferenceFinish

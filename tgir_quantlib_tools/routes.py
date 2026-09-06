@@ -94,7 +94,7 @@ def health():
 @login_required
 def dashboard():
     state = get_portfolio_state()
-    return render_template("dashboard.html", **build_dashboard_context(state))
+    return render_template("dashboard_ibkr.html", **build_dashboard_context(state))
 
 
 @workbench_bp.get("/dashboard/ibkr")
@@ -102,6 +102,14 @@ def dashboard():
 def dashboard_ibkr():
     state = get_portfolio_state()
     return render_template("dashboard_ibkr.html", **build_dashboard_context(state))
+
+
+@workbench_bp.get("/dashboard/classic")
+@login_required
+def dashboard_classic():
+    """Keep the original light workstation available as an explicit alternate view."""
+    state = get_portfolio_state()
+    return render_template("dashboard.html", **build_dashboard_context(state))
 
 
 @workbench_bp.get("/quantlib-data-model")

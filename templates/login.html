@@ -2,7 +2,130 @@
 
 {% block title %}Sign In{% endblock %}
 
+{% block body_class %}ibkr-theme login-theme{% endblock %}
+
+{% block extra_head %}
+  <style>
+    body.ibkr-theme.login-theme {
+      --bg: #091019;
+      --paper: rgba(19, 29, 41, 0.98);
+      --paper-strong: rgba(29, 42, 57, 0.98);
+      --ink: #e4edf6;
+      --muted: #93a8bd;
+      --line: rgba(143, 165, 186, 0.18);
+      --accent: #ef8b2c;
+      --accent-soft: rgba(239, 139, 44, 0.14);
+      --accent-warm: #d96e1c;
+      --positive: #58d184;
+      --negative: #ff7b74;
+      --shadow: 0 22px 55px rgba(0, 0, 0, 0.36);
+      color-scheme: dark;
+      font-family: "IBM Plex Sans", "SF Pro Text", "Segoe UI", sans-serif;
+      background:
+        linear-gradient(90deg, rgba(239, 139, 44, 0.06) 1px, transparent 1px),
+        linear-gradient(rgba(239, 139, 44, 0.045) 1px, transparent 1px),
+        radial-gradient(circle at 76% 12%, rgba(239, 139, 44, 0.16), transparent 24%),
+        linear-gradient(135deg, #070c12, #111b27 48%, #080e15);
+      background-size: 34px 34px, 34px 34px, auto, auto;
+    }
+
+    body.login-theme .brand-meta,
+    body.login-theme .panel p,
+    body.login-theme .field label,
+    body.login-theme .field-note,
+    body.login-theme .mini-list-item { color: var(--muted); }
+    body.login-theme .panel {
+      border-color: rgba(143, 165, 186, 0.16);
+      background: linear-gradient(180deg, rgba(27, 40, 55, 0.98), rgba(13, 21, 30, 0.98));
+      box-shadow: var(--shadow);
+      backdrop-filter: none;
+    }
+    body.login-theme .panel-inner { padding: 20px; }
+    body.login-theme .login-layout { gap: 10px; }
+    body.login-theme .login-card { gap: 18px; }
+    body.login-theme .section-kicker { color: #ffc680; }
+    body.login-theme .hero h1 { letter-spacing: -0.045em; }
+    body.login-theme .hero p { font-size: 0.82rem; }
+    body.login-theme input {
+      color: var(--ink);
+      background: rgba(7, 13, 20, 0.94);
+      border-color: rgba(143, 165, 186, 0.23);
+    }
+    body.login-theme input:focus {
+      border-color: rgba(239, 139, 44, 0.68);
+      box-shadow: 0 0 0 4px rgba(239, 139, 44, 0.15);
+    }
+    body.login-theme .btn,
+    body.login-theme button.btn {
+      color: #111923;
+      background: linear-gradient(180deg, #f7a24c, #d66d1b);
+      box-shadow: none;
+    }
+    body.login-theme .btn-secondary {
+      color: var(--ink);
+      background: rgba(107, 128, 150, 0.16);
+      border-color: rgba(143, 165, 186, 0.20);
+    }
+    body.login-theme .mini-list-item {
+      background: rgba(6, 12, 19, 0.60);
+      border-color: rgba(143, 165, 186, 0.13);
+    }
+    .login-new-banner {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 10px;
+      padding: 10px 12px;
+      color: #dce8f5;
+      border: 1px solid rgba(239, 139, 44, 0.32);
+      border-radius: 11px;
+      background: linear-gradient(90deg, rgba(239, 139, 44, 0.16), rgba(13, 22, 32, 0.95));
+      box-shadow: var(--shadow);
+    }
+    .login-new-banner strong { display: block; font-size: 0.76rem; }
+    .login-new-banner p { margin: 2px 0 0; color: var(--muted); font-size: 0.7rem; }
+    .login-new-label {
+      padding: 4px 6px;
+      font-family: Menlo, Monaco, monospace;
+      font-size: 0.56rem;
+      letter-spacing: 0.12em;
+      color: #1a2028;
+      background: #f4a14b;
+      border-radius: 3px;
+      font-weight: 800;
+    }
+    .demo-credentials {
+      padding: 10px 11px;
+      border-left: 3px solid #ef8b2c;
+      color: #f7d8af;
+      background: rgba(239, 139, 44, 0.10);
+      border-radius: 0 9px 9px 0;
+      font-size: 0.8rem;
+    }
+    .demo-credentials code {
+      padding: 2px 5px;
+      color: #fff3e4;
+      background: rgba(0, 0, 0, 0.28);
+      border-radius: 3px;
+    }
+    @media (max-width: 720px) {
+      .login-new-banner { grid-template-columns: auto minmax(0, 1fr); }
+      .login-new-banner .btn { grid-column: 1 / -1; }
+    }
+  </style>
+{% endblock %}
+
 {% block content %}
+  <section class="login-new-banner" aria-label="New in the Quant Workbench">
+    <span class="login-new-label">NEW</span>
+    <div>
+      <strong>3-factor callable cross-currency rates model</strong>
+      <p>Curve state, Monte Carlo paths, and Longstaff–Schwartz early exercise in one QuantLib lab.</p>
+    </div>
+    <a class="btn btn-secondary btn-mini" href="{{ url_for('workbench.xccy_callable') }}">Explore model</a>
+  </section>
+
   <div class="login-layout">
     <section class="panel login-panel">
       <div class="panel-inner login-card">
@@ -40,10 +163,10 @@
               required
             >
           </div>
-          <p class="field-note">
-            Use the configured workstation credentials. Local demo defaults can be replaced with
-            `APP_LOGIN_USERNAME` and `APP_LOGIN_PASSWORD` in `.env`.
-          </p>
+          <div class="demo-credentials">
+            <strong>Sample login:</strong> username <code>demo</code> &nbsp; password <code>demo</code>
+          </div>
+          <p class="field-note">Use the configured workstation credentials. Local defaults can be replaced with the app login variables in <code>.env</code>.</p>
           <div class="btn-row">
             <button class="btn btn-warm" type="submit">Open workstation</button>
             <a class="btn btn-secondary" href="{{ url_for('workbench.health') }}">Health check</a>

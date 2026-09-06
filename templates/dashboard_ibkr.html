@@ -155,6 +155,33 @@
       align-items: stretch;
     }
 
+    .tws-new-banner {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      gap: 11px;
+      align-items: center;
+      margin-bottom: 9px;
+      padding: 9px 11px;
+      border: 1px solid rgba(239, 139, 44, 0.32);
+      border-radius: 10px;
+      background: linear-gradient(90deg, rgba(239, 139, 44, 0.15), rgba(17, 27, 38, 0.96));
+      box-shadow: var(--shadow);
+    }
+
+    .tws-new-label {
+      padding: 4px 6px;
+      border-radius: 3px;
+      background: #f1a04a;
+      color: #17202a;
+      font-family: Menlo, Monaco, "SFMono-Regular", monospace;
+      font-size: 0.55rem;
+      font-weight: 800;
+      letter-spacing: 0.12em;
+    }
+
+    .tws-new-copy strong { display: block; font-size: 0.76rem; }
+    .tws-new-copy span { color: var(--muted); font-size: 0.67rem; }
+
     .tws-terminal {
       padding: 12px 14px;
       border-radius: 14px;
@@ -339,11 +366,23 @@
       .tws-summary-strip {
         grid-template-columns: 1fr 1fr;
       }
+
+      .tws-new-banner { grid-template-columns: auto minmax(0, 1fr); }
+      .tws-new-banner .btn { grid-column: 1 / -1; }
     }
   </style>
 {% endblock %}
 
 {% block content %}
+  <section class="tws-new-banner" aria-label="New in the Quant Workbench">
+    <span class="tws-new-label">NEW</span>
+    <div class="tws-new-copy">
+      <strong>3-factor callable cross-currency rates model</strong>
+      <span>Domestic and foreign short-rate dynamics, FX paths, and Longstaff–Schwartz exercise in a dedicated lab.</span>
+    </div>
+    <a class="btn btn-secondary btn-mini" href="{{ url_for('workbench.xccy_callable') }}">Open XCCY lab</a>
+  </section>
+
   <section class="tws-hero">
     <div class="tws-terminal">
       <span class="tws-code">IBKR-style compare view</span>

@@ -107,7 +107,7 @@ class AppConfig:
                     "Set APP_LOGIN_PASSWORD or APP_LOGIN_PASSWORD_HASH in the environment or .env "
                     "before starting the app."
                 )
-            auth_password = "demo-pass-change-me"
+            auth_password = "demo"
 
         return cls(
             secret_key=secret_key,

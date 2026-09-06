@@ -42,6 +42,7 @@ htmlcov/
 # Build and packaging
 build/
 dist/
+tmp/
 .eggs/
 *.egg
 *.egg-info/
@@ -56,6 +57,12 @@ output/
 # Docs and notebooks
 docs/_build/
 docs/latex/build/
+# Final PDFs are generated from docs/latex sources and are distributed locally.
+docs/*.pdf
+# Lecture and course PDFs are also generated from their LaTeX sources.
+docs/lectures/**/*.pdf
+# This marketing slide is generated from its LaTeX source and distributed locally.
+docs/marketing/quant_workbench_ird_mbs_courses_slides.pdf
 .ipynb_checkpoints/
 
 # LaTeX intermediate files

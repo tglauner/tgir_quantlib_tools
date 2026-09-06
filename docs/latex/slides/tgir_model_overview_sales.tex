@@ -1,0 +1,107 @@
+\documentclass[aspectratio=169]{beamer}
+\input{shared/tgir-beamer-preamble}
+
+\definecolor{tgirnavy}{HTML}{17324D}
+\definecolor{tgirblue}{HTML}{2D6A9F}
+\definecolor{tgirlight}{HTML}{EAF1F7}
+\definecolor{tgirgreen}{HTML}{1F7A5A}
+\definecolor{tgirwarm}{HTML}{C9782B}
+\definecolor{tgirslate}{HTML}{38566E}
+
+\setbeamercolor{frametitle}{fg=tgirnavy}
+\setbeamercolor{normal text}{fg=tgirnavy}
+\setbeamertemplate{footline}{\hfill\scriptsize TG Investments and Research, LLC\quad\insertframenumber\hspace{0.45cm}\vspace{0.18cm}}
+
+\newcommand{\modelcard}[4]{%
+  \begin{tikzpicture}[baseline=(box.base)]
+    \node[fill=#1, rounded corners=2pt, inner sep=5.5pt, text width=#2] (box) {\color{white}\textbf{#3}\\[-0.1em]\scriptsize #4};
+  \end{tikzpicture}%
+}
+\newcommand{\inputtag}[1]{\tikz[baseline=(x.base)]\node[fill=tgirlight, text=tgirnavy, rounded corners=2pt, inner sep=3.5pt] (x) {\scriptsize\textbf{#1}};}
+
+\title{TGIR Model Overview}
+\author{TG Investments and Research, LLC}
+\date{September 2026}
+
+\begin{document}
+
+\begin{frame}{One-factor Hull--White: a transparent rates engine}
+  \vspace{-0.65em}
+  {\small\color{tgirslate}One calibrated interest-rate factor turns observable curve and volatility inputs into pricing and risk for vanilla and callable rates products.\par}
+  \vspace{0.65em}
+
+  \begin{columns}[T,onlytextwidth]
+    \column{0.31\textwidth}
+    {\color{tgirblue}\textbf{Market-data contract}\par}
+    \vspace{0.28em}
+    \inputtag{OIS curves: SOFR / €STR}\par\vspace{0.24em}
+    \inputtag{Swaption surface: expiry $\times$ tenor}\par\vspace{0.24em}
+    \inputtag{ATM normal vols}\par\vspace{0.24em}
+    \inputtag{Smile: strike or delta vol points}\par\vspace{0.42em}
+    {\scriptsize\color{tgirslate}Curve instruments anchor discounting and forwards. Volatility quotes calibrate optionality; the smile layer is available when the desk requires strike-aware pricing.\par}
+
+    \column{0.37\textwidth}
+    \centering
+    \begin{tikzpicture}[>=Latex, node distance=0.34cm]
+      \node[draw=tgirblue, fill=tgirlight, rounded corners=3pt, minimum width=4.0cm, minimum height=0.78cm, align=center] (curve) {\small\textbf{Curve fit}\\[-0.15em]\scriptsize $P(0,T)$ from OIS instruments};
+      \node[below=of curve, draw=tgirnavy, fill=tgirnavy, text=white, rounded corners=3pt, minimum width=4.0cm, minimum height=1.36cm, align=center] (model) {\small\textbf{Hull--White 1F}\\[-0.1em]\scriptsize $r_t=\phi(t)+x_t$\\[-0.1em]\scriptsize $\mathrm{d}x_t=-a x_t\,\mathrm{d}t+\sigma(t)\,\mathrm{d}W_t$};
+      \node[below=of model, draw=tgirgreen, fill=white, rounded corners=3pt, minimum width=4.0cm, minimum height=0.78cm, align=center] (vol) {\small\textbf{Volatility fit}\\[-0.15em]\scriptsize ATM surface, with smile extension};
+      \draw[->,thick,tgirblue] (curve) -- (model);
+      \draw[->,thick,tgirgreen] (vol) -- (model);
+    \end{tikzpicture}
+
+    \column{0.29\textwidth}
+    {\color{tgirgreen}\textbf{Trading-system value}\par}
+    \vspace{0.28em}
+    \modelcard{tgirnavy}{0.91\linewidth}{Price}{Swaps, European swaptions, Bermudan options}\par\vspace{0.3em}
+    \modelcard{tgirblue}{0.91\linewidth}{Risk}{Curve DV01, volatility vega, scenario comparisons}\par\vspace{0.3em}
+    \modelcard{tgirgreen}{0.91\linewidth}{Control}{Visible calibration and reproducible market snapshot}\par
+  \end{columns}
+
+  \vfill
+  \begin{beamercolorbox}[rounded=true,sep=0.55ex,wd=\textwidth]{block title}
+    \centering\footnotesize\textbf{Commercial message:} a fast, auditable rates core that lets a desk move from market quotes to a defensible price and risk view.
+  \end{beamercolorbox}
+\end{frame}
+
+\begin{frame}{Three-factor callable XCCY: two rate engines plus FX}
+  \vspace{-0.65em}
+  {\small\color{tgirslate}A connected USD--EUR--FX state model adds cross-currency cash flows and callable decisioning while retaining observable market-data inputs and explicit controls.\par}
+  \vspace{0.55em}
+
+  \begin{columns}[T,onlytextwidth]
+    \column{0.62\textwidth}
+    \resizebox{\linewidth}{!}{%
+    \begin{tikzpicture}[>=Latex, every node/.style={align=center}]
+      \node[draw=tgirblue, fill=tgirlight, rounded corners=3pt, text width=2.2cm, minimum height=1.22cm] (usd) at (0,0) {\small\textbf{USD rates}\\[-0.1em]\scriptsize SOFR curve +\\[-0.15em] swaptions\\[-0.1em]\scriptsize Hull--White 1F};
+      \node[draw=tgirgreen, fill=tgirlight, rounded corners=3pt, text width=2.2cm, minimum height=1.22cm] (eur) at (3.15,0) {\small\textbf{EUR rates}\\[-0.1em]\scriptsize €STR curve +\\[-0.15em] swaptions\\[-0.1em]\scriptsize Hull--White 1F};
+      \node[draw=tgirwarm, fill=tgirlight, rounded corners=3pt, text width=2.2cm, minimum height=1.22cm] (fx) at (6.30,0) {\small\textbf{EUR/USD}\\[-0.1em]\scriptsize FX: spot, forwards,\\[-0.15em] vols\\[-0.1em]\scriptsize Smile-aware input layer};
+      \node[fill=tgirnavy, text=white, rounded corners=3pt, minimum width=5.45cm, minimum height=1.23cm] (core) at (3.15,-2.05) {\small\textbf{Three-factor correlated market state}\\[-0.1em]\scriptsize $\rho_{\mathrm{USD,EUR}}$, $\rho_{\mathrm{USD,FX}}$, $\rho_{\mathrm{EUR,FX}}$ connect rate and FX shocks\\[-0.1em]\scriptsize Domestic-measure simulation with deterministic / calibrated volatility terms};
+      \node[draw=tgirgreen, fill=white, rounded corners=3pt, minimum width=5.45cm, minimum height=1.04cm] (trade) at (3.15,-3.73) {\small\textbf{Callable XCCY trade layer}\\[-0.1em]\scriptsize Cross-currency cash flows $\rightarrow$ USD value $\rightarrow$ cancellation decision $\rightarrow$ NPV and risk};
+      \draw[->,thick,tgirblue] (usd.south) -- (core.north west);
+      \draw[->,thick,tgirgreen] (eur.south) -- (core.north);
+      \draw[->,thick,tgirwarm] (fx.south) -- (core.north east);
+      \draw[->,thick,tgirnavy] (core) -- (trade);
+    \end{tikzpicture}
+    }
+
+    \column{0.35\textwidth}
+    {\color{tgirblue}\textbf{Market-data contract}\par}
+    \vspace{0.25em}
+    \inputtag{USD + EUR OIS curves}\par\vspace{0.2em}
+    \inputtag{USD + EUR swaption vol surfaces}\par\vspace{0.2em}
+    \inputtag{FX spot + forward curve}\par\vspace{0.2em}
+    \inputtag{FX vol smile: strikes / deltas}\par\vspace{0.2em}
+    \inputtag{Rate--rate--FX correlations}\par\vspace{0.47em}
+    {\color{tgirgreen}\textbf{Trading-system value}\par}
+    \vspace{0.18em}
+    {\scriptsize Price callable cross-currency economics in one consistent framework; expose the market inputs, exercise behavior, and directional risk a desk needs to benchmark a live deal.\par}
+  \end{columns}
+
+  \vfill
+  \begin{beamercolorbox}[rounded=true,sep=0.55ex,wd=\textwidth]{block title}
+    \centering\footnotesize\textbf{Commercial message:} a practical bridge from a proven rates engine to structured multi-currency optionality---transparent enough to challenge, flexible enough to extend.
+  \end{beamercolorbox}
+\end{frame}
+
+\end{document}

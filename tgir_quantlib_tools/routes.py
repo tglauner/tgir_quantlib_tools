@@ -35,6 +35,7 @@ from .xccy_page import (
     reprice_xccy_from_page,
     xccy_data_files,
 )
+from .xccy_portfolio import xccy_portfolio_manager
 
 
 workbench_bp = Blueprint("workbench", __name__)
@@ -163,6 +164,52 @@ def xccy_callable_json(dataset):
         mimetype="application/json",
         headers={"Content-Disposition": f'inline; filename="{path.name}"'},
     )
+
+
+@workbench_bp.get("/xccy-portfolio")
+@login_required
+def xccy_portfolio():
+    return render_template("xccy_portfolio.html")
+
+
+@workbench_bp.post("/api/xccy-portfolio/valuation")
+@login_required
+def xccy_portfolio_valuation():
+    data_files = xccy_data_files(current_app.config)
+    try:
+        from .xccy_page import _load_object
+        market, deal = _load_object(data_files["market"]), _load_object(data_files["deal"])
+        assert market is not None and deal is not None
+        job = xccy_portfolio_manager().start_valuation(market, deal)
+        return jsonify(job), 202
+    except Exception as exc:
+        current_app.logger.exception("XCCY portfolio valuation could not start")
+        return jsonify({"error": str(exc)}), 500
+
+
+@workbench_bp.post("/api/xccy-portfolio/risk")
+@login_required
+def xccy_portfolio_risk():
+    data_files = xccy_data_files(current_app.config)
+    try:
+        from .xccy_page import _load_object
+        market = _load_object(data_files["market"])
+        assert market is not None
+        return jsonify(xccy_portfolio_manager().start_risk(market)), 202
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 409
+    except Exception as exc:
+        current_app.logger.exception("XCCY factor risk could not start")
+        return jsonify({"error": str(exc)}), 500
+
+
+@workbench_bp.get("/api/xccy-portfolio/jobs/<job_id>")
+@login_required
+def xccy_portfolio_job(job_id):
+    try:
+        return jsonify(xccy_portfolio_manager().snapshot(job_id))
+    except KeyError:
+        abort(404)
 
 
 @workbench_bp.get("/curve-debug.csv")

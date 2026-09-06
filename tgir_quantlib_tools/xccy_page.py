@@ -4,10 +4,10 @@ import copy
 import json
 import math
 from pathlib import Path
-import threading
 from typing import Any, Mapping
 
 from standalone_xccy_pricer import price, write_result_json
+from .xccy_portfolio import PRICING_ENGINE_LOCK
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -21,7 +21,6 @@ XCCY_PATH_CONFIG_KEYS = {
     "deal": "XCCY_DEAL_JSON_PATH",
     "result": "XCCY_RESULT_JSON_PATH",
 }
-_WEB_PRICING_LOCK = threading.Lock()
 
 
 class XccyPageInputError(ValueError):
@@ -273,7 +272,7 @@ def reprice_xccy_from_page(
     assert deal is not None
     market_for_run = copy.deepcopy(market)
     market_for_run["correlation"] = correlation_values
-    with _WEB_PRICING_LOCK:
+    with PRICING_ENGINE_LOCK:
         result = price(market_for_run, deal)
         write_result_json(data_files["result"], result)
     return result

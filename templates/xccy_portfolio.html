@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}XCCY Validation Portfolio{% endblock %}
+{% block body_class %}xccy-portfolio{% endblock %}
+
+{% block extra_head %}
+<style>
+  body.xccy-portfolio { background: #d9dde2; color: #17212b; }
+  .xccy-portfolio .shell { width: min(1560px, calc(100vw - 18px)); }
+  .portfolio-terminal { border: 1px solid #78838d; background: #f3f5f6; box-shadow: 0 4px 14px rgba(0,0,0,.16); }
+  .portfolio-titlebar { display:flex; justify-content:space-between; gap:16px; align-items:center; padding:8px 12px; background:linear-gradient(#34424d,#202b33); color:#f5f7f9; border-bottom:1px solid #10161b; font-family:Menlo,Consolas,monospace; }
+  .portfolio-titlebar strong { font-size:.8rem; letter-spacing:.045em; }
+  .portfolio-titlebar span { font-size:.68rem; color:#b9c5cd; }
+  .portfolio-toolbar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:9px 12px; background:#e4e8eb; border-bottom:1px solid #aab4bc; }
+  .portfolio-toolbar .btn { min-height:30px; padding:6px 11px; border-radius:2px; font-size:.72rem; font-weight:700; box-shadow:none; }
+  .portfolio-toolbar .btn-primary { color:#fff; border-color:#1f638d; background:linear-gradient(#4384ad,#22638d); }
+  .portfolio-toolbar .btn-risk { color:#fff; border-color:#875e16; background:linear-gradient(#c28a2f,#95691c); }
+  .portfolio-toolbar .btn[disabled] { opacity:.55; cursor:not-allowed; }
+  .portfolio-status { margin-left:auto; padding:5px 8px; color:#293741; border:1px solid #a6b0b8; background:#fff; font:700 .68rem Menlo,Consolas,monospace; }
+  .portfolio-status.running { color:#08683c; border-color:#6ab68e; background:#e9f7ee; }
+  .portfolio-status.failed { color:#991f1f; border-color:#d69a9a; background:#fff0f0; }
+  .portfolio-grid { display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:10px; padding:10px; }
+  .portfolio-panel { min-width:0; border:1px solid #9ea8b0; background:#fff; }
+  .portfolio-panel-header { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:7px 9px; color:#17212b; border-bottom:1px solid #aeb7be; background:linear-gradient(#f9fafb,#dfe4e8); }
+  .portfolio-panel-header h2 { margin:0; font:700 .76rem Menlo,Consolas,monospace; letter-spacing:.03em; text-transform:uppercase; }
+  .portfolio-panel-header span { color:#596772; font:600 .65rem Menlo,Consolas,monospace; }
+  .portfolio-table-wrap { overflow:auto; max-height:510px; }
+  .portfolio-table { width:100%; border-collapse:collapse; font: .71rem Menlo,Consolas,monospace; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .portfolio-table th { position:sticky; top:0; z-index:1; padding:7px 8px; color:#36434c; border-right:1px solid #c8d0d5; border-bottom:1px solid #aab3bb; background:#e7ecef; text-align:left; }
+  .portfolio-table td { padding:7px 8px; border-right:1px solid #e0e5e8; border-bottom:1px solid #e0e5e8; }
+  .portfolio-table tbody tr:nth-child(even) { background:#f7f9fa; }
+  .portfolio-table tbody tr:hover { background:#fff2c9; }
+  .portfolio-table .numeric { text-align:right; }
+  .portfolio-table .ok { color:#08703e; font-weight:700; }
+  .portfolio-table .warn { color:#a12c1d; font-weight:700; }
+  .portfolio-empty { padding:28px; color:#66747d; font: .75rem Menlo,Consolas,monospace; text-align:center; }
+  .portfolio-side { display:grid; gap:10px; align-content:start; }
+  .portfolio-stat { padding:12px; border:1px solid #9ea8b0; background:#fff; }
+  .portfolio-stat label { display:block; color:#62717c; font:700 .62rem Menlo,Consolas,monospace; letter-spacing:.08em; text-transform:uppercase; }
+  .portfolio-stat strong { display:block; margin-top:6px; color:#142a39; font:700 1.06rem Menlo,Consolas,monospace; font-variant-numeric:tabular-nums; }
+  .portfolio-stat small { display:block; margin-top:7px; color:#61707a; font-size:.7rem; line-height:1.42; }
+  .risk-legend { display:grid; gap:7px; padding:10px; font-size:.72rem; line-height:1.38; }
+  .risk-legend b { color:#1d4b68; }
+  .portfolio-note { margin:0 10px 10px; padding:8px 10px; color:#52606a; border:1px solid #c9d0d5; background:#eef1f3; font-size:.72rem; line-height:1.4; }
+  @media (max-width: 980px) { .portfolio-grid { grid-template-columns:1fr; } .portfolio-status { margin-left:0; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<main class="portfolio-terminal" aria-label="Callable XCCY validation portfolio">
+  <header class="portfolio-titlebar"><strong>CALLABLE XCCY / VALIDATION PORTFOLIO MONITOR</strong><span>USD collateral · EURUSD · 20 synthetic benchmark trades · research only</span></header>
+  <div class="portfolio-toolbar">
+    <a class="btn btn-secondary" href="{{ url_for('workbench.xccy_callable') }}">← XCCY callable lab</a>
+    <button class="btn btn-primary" id="run-valuation" type="button">Run 20-trade valuation</button>
+    <button class="btn btn-risk" id="run-risk" type="button" disabled>Calculate factor DV01 / Vega</button>
+    <span class="portfolio-status" id="job-status" aria-live="polite">IDLE — waiting to start</span>
+  </div>
+  <section class="portfolio-grid">
+    <div class="portfolio-panel">
+      <header class="portfolio-panel-header"><h2>Valuation blotter</h2><span id="valuation-progress">0 / 20 trades</span></header>
+      <div class="portfolio-table-wrap"><table class="portfolio-table"><thead><tr><th>Trade</th><th>Maturity</th><th>NC</th><th class="numeric">USD notional</th><th class="numeric">USD fixed</th><th class="numeric">Callable NPV</th><th class="numeric">MC SE</th><th>Status</th></tr></thead><tbody id="valuation-body"><tr><td colspan="8" class="portfolio-empty">Starting the asynchronous 20-trade valuation job…</td></tr></tbody></table></div>
+    </div>
+    <aside class="portfolio-side">
+      <div class="portfolio-stat"><label>Portfolio callable NPV</label><strong id="portfolio-npv">—</strong><small>Sum of completed trade marks. It is shown only after all 20 trades complete.</small></div>
+      <div class="portfolio-stat"><label>Execution mode</label><strong>ASYNC / 1 WORKER</strong><small>Browser navigation remains available while the serialized worker protects QuantLib’s process-global evaluation date.</small></div>
+      <div class="portfolio-panel"><header class="portfolio-panel-header"><h2>Factor risk</h2><span id="risk-progress">not requested</span></header><div class="portfolio-table-wrap"><table class="portfolio-table"><thead><tr><th>Trade</th><th class="numeric">USD DV01</th><th class="numeric">EUR DV01</th><th class="numeric">USD Vega</th><th class="numeric">EUR Vega</th><th class="numeric">FX Δ</th><th class="numeric">FX Vega</th></tr></thead><tbody id="risk-body"><tr><td colspan="7" class="portfolio-empty">Complete valuations, then calculate factor risk.</td></tr></tbody></table></div></div>
+      <div class="portfolio-panel"><header class="portfolio-panel-header"><h2>Risk units</h2></header><div class="risk-legend"><div><b>USD / EUR DV01</b> — USD value for a parallel +1 bp OIS shift.</div><div><b>USD / EUR Vega</b> — USD value for a +1 bp normal-swaption-vol shift.</div><div><b>FX Δ</b> — USD value for a +1% EURUSD spot move.</div><div><b>FX Vega</b> — USD value for a +1 vol-point FX ATM shift.</div></div></div>
+    </aside>
+  </section>
+  <p class="portfolio-note">The portfolio uses 20 deterministic variations of the published EUR €STR-versus-USD-fixed callable trade. Each job uses independent training and pricing paths (512 / 1,024) for responsive, indicative validation monitoring. It is not a production risk run or an independent valuation.</p>
+</main>
+<script>
+(() => {
+  const urls = { valuation: "{{ url_for('workbench.xccy_portfolio_valuation') }}", risk: "{{ url_for('workbench.xccy_portfolio_risk') }}", jobBase: "{{ url_for('workbench.xccy_portfolio_job', job_id='JOB_ID') }}" };
+  const elements = { valuation: document.getElementById('run-valuation'), risk: document.getElementById('run-risk'), status: document.getElementById('job-status'), valuationBody: document.getElementById('valuation-body'), riskBody: document.getElementById('risk-body'), valuationProgress: document.getElementById('valuation-progress'), riskProgress: document.getElementById('risk-progress'), portfolioNpv: document.getElementById('portfolio-npv') };
+  const money = value => Number(value).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+  const number = value => Number(value).toLocaleString('en-US', { maximumFractionDigits: 0 });
+  let valuationJob = null, riskJob = null, polling = null;
+  function status(job) { elements.status.textContent = `${job.status} — ${job.completed} / ${job.total}${job.current_trade ? ` · ${job.current_trade}` : ''}`; elements.status.className = `portfolio-status ${job.status === 'RUNNING' || job.status === 'QUEUED' ? 'running' : job.status === 'FAILED' ? 'failed' : ''}`; }
+  function row(cells, className = '') { return `<tr class="${className}">${cells.map(cell => `<td${cell.numeric ? ' class="numeric"' : ''}>${cell.value}</td>`).join('')}</tr>`; }
+  function renderValuation(job) { elements.valuationProgress.textContent = `${job.completed} / ${job.total} trades`; if (!job.rows.length) return; elements.valuationBody.innerHTML = job.rows.map(item => row([{value:item.trade_id},{value:item.maturity},{value:item.non_call},{value:number(item.usd_notional),numeric:true},{value:`${(item.fixed_rate * 100).toFixed(3)}%`,numeric:true},{value:money(item.npv),numeric:true},{value:money(item.standard_error),numeric:true},{value:item.status}], item.status === 'OK' ? 'ok' : 'warn')).join(''); if (job.status === 'COMPLETED') { elements.portfolioNpv.textContent = money(job.summary.portfolio_npv); elements.risk.disabled = false; } }
+  function renderRisk(job) { elements.riskProgress.textContent = `${job.completed} / ${job.total} trades`; if (!job.rows.length) return; elements.riskBody.innerHTML = job.rows.map(item => row([{value:item.trade_id},{value:money(item.usd_hw_dv01),numeric:true},{value:money(item.eur_hw_dv01),numeric:true},{value:money(item.usd_hw_vega),numeric:true},{value:money(item.eur_hw_vega),numeric:true},{value:money(item.eurusd_delta),numeric:true},{value:money(item.eurusd_vega),numeric:true}])).join(''); }
+  async function poll() { const ids = [valuationJob, riskJob].filter(Boolean); if (!ids.length) return; let allDone = true; for (const id of ids) { const response = await fetch(urls.jobBase.replace('JOB_ID', id), { headers: { Accept: 'application/json' } }); if (!response.ok) continue; const job = await response.json(); status(job); if (job.type === 'XCCY_VALIDATION_PORTFOLIO') renderValuation(job); else renderRisk(job); if (!['COMPLETED','FAILED'].includes(job.status)) allDone = false; } if (allDone && polling) { clearInterval(polling); polling = null; } }
+  async function start(kind) { const response = await fetch(urls[kind], { method:'POST', headers:{Accept:'application/json'} }); const payload = await response.json(); if (!response.ok) { elements.status.textContent = `FAILED — ${payload.error || 'unable to start job'}`; elements.status.className = 'portfolio-status failed'; return; } if (kind === 'valuation') { valuationJob = payload.job_id; elements.valuation.disabled = true; } else { riskJob = payload.job_id; elements.risk.disabled = true; } status(payload); await poll(); if (!polling) polling = setInterval(poll, 1200); }
+  elements.valuation.addEventListener('click', () => start('valuation')); elements.risk.addEventListener('click', () => start('risk')); start('valuation');
+})();
+</script>
+{% endblock %}

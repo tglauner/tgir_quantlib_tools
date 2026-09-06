@@ -800,6 +800,46 @@
       .xccy-rms-definition { grid-template-columns: 1fr; }
     }
   </style>
+  <style>
+    /* TWS-inspired terminal override: dense hierarchy, chrome, and tabular data. */
+    body.xccy-lab { --xccy-navy:#1e2a33; --xccy-navy-soft:#2f3d47; --xccy-green:#197a48; --xccy-mint:#dcefe3; --xccy-copper:#aa5d24; background:#d9dde2; }
+    .xccy-lab .shell { width:min(1560px, calc(100vw - 18px)); }
+    .xccy-hero { grid-template-columns:minmax(0,1fr) minmax(280px,.48fr); gap:12px; margin-bottom:8px; padding:16px 18px; border:1px solid #111a21; border-radius:0; background:linear-gradient(#3c4b56,#202b33); box-shadow:0 3px 10px rgba(0,0,0,.22); }
+    .xccy-hero::after { display:none; }
+    .xccy-eyebrow { margin-bottom:7px; color:#b8d9c5; font:700 .64rem Menlo,Consolas,monospace; }
+    .xccy-hero h1 { max-width:none; font-family:Menlo,Consolas,monospace; font-size:clamp(1.48rem,3vw,2.55rem); font-weight:700; line-height:1.04; letter-spacing:-.045em; }
+    .xccy-hero h1 em { color:#d7e9df; font-style:normal; }
+    .xccy-hero-copy { max-width:920px; margin-top:10px; color:#d4dde2; font-size:.78rem; line-height:1.45; }
+    .xccy-hero-actions { gap:6px; margin-top:13px; }
+    .xccy-hero .btn, .xccy-pricing-control .btn { min-height:29px; padding:6px 10px; border-radius:2px; font:700 .7rem Menlo,Consolas,monospace; box-shadow:none; }
+    .xccy-hero .btn-primary-xccy { color:#fff; border:1px solid #185e88; background:linear-gradient(#478bb6,#22658f); }
+    .xccy-hero .btn-quiet-xccy { color:#f7f9fa; border-color:#7c8d99; background:#33434e; }
+    .xccy-snapshot-stamp { padding:10px 12px; border:1px solid #65747e; border-radius:0; background:#19242c; backdrop-filter:none; }
+    .xccy-stamp-line { padding:5px 0; font-size:.62rem; }
+    .xccy-section-nav { top:0; gap:0; margin-bottom:8px; padding:0; border:1px solid #87919a; border-radius:0; background:#edf0f2; box-shadow:none; backdrop-filter:none; }
+    .xccy-section-nav a { padding:8px 10px; border-right:1px solid #b3bcc3; border-radius:0; color:#34424b; font:.66rem Menlo,Consolas,monospace; }
+    .xccy-section-nav a:hover, .xccy-section-nav a:focus-visible { color:#fff; background:#2d6d97; }
+    .xccy-section { scroll-margin-top:44px; margin-bottom:8px; padding:14px; border:1px solid #9aa4ac; border-radius:0; background:#f7f8f9; box-shadow:none; }
+    .xccy-section-heading { gap:12px; margin-bottom:13px; padding-bottom:9px; border-bottom-color:#b6bec4; }
+    .xccy-section-index, .xccy-metric-label, .xccy-cell-label { color:#2b668d; font-family:Menlo,Consolas,monospace; }
+    .xccy-section h2 { font-family:Menlo,Consolas,monospace; font-size:clamp(1.08rem,2vw,1.5rem); font-weight:700; letter-spacing:-.04em; }
+    .xccy-section-heading p { font-size:.72rem; }
+    .xccy-metric-grid { gap:6px; }
+    .xccy-metric { padding:10px; border-color:#aeb7bf; border-radius:0; background:#fff; }
+    .xccy-metric.primary, .xccy-card.dark { border-color:#25333d; background:#25333d; }
+    .xccy-metric strong { margin-top:6px; font-size:1rem; }
+    .xccy-card { padding:13px; border-color:#aeb7bf; border-radius:0; background:#fff; }
+    .xccy-card h3 { font:700 .8rem Menlo,Consolas,monospace; }
+    .xccy-card > p { margin-bottom:10px; font-size:.72rem; }
+    .xccy-data-row { padding:6px 0; }
+    .xccy-data-row dt, .xccy-data-row dd { font-size:.68rem; }
+    .xccy-leg-band { margin-bottom:6px; padding:9px; border-radius:0; }
+    .xccy-leg-side { border-radius:1px; }
+    .xccy-table, .xccy-correlation { font-family:Menlo,Consolas,monospace; }
+    .xccy-table th, .xccy-table td, .xccy-correlation th, .xccy-correlation td { padding:6px 7px; }
+    .xccy-correlation-field input { border-radius:1px; font-family:Menlo,Consolas,monospace; }
+    .xccy-details, .xccy-callout { border-radius:0; }
+  </style>
 {% endblock %}
 
 {% block content %}
@@ -814,6 +854,7 @@
       </p>
       <div class="xccy-hero-actions">
         <a class="btn btn-primary-xccy" href="#valuation">Inspect valuation</a>
+        <a class="btn btn-primary-xccy" href="{{ url_for('workbench.xccy_portfolio') }}">Launch validation portfolio</a>
         <a class="btn btn-quiet-xccy" href="{{ url_for('workbench.xccy_callable_json', dataset='deal') }}" target="_blank" rel="noopener noreferrer">Deal JSON</a>
         <a class="btn btn-quiet-xccy" href="{{ url_for('workbench.xccy_callable_json', dataset='market') }}" target="_blank" rel="noopener noreferrer">Market JSON</a>
         {% if result_available %}
@@ -833,6 +874,7 @@
 
   <nav class="xccy-section-nav" aria-label="XCCY page sections">
     <a href="#valuation">Valuation</a>
+    <a href="{{ url_for('workbench.xccy_portfolio') }}">Portfolio</a>
     <a href="#economics">Economics</a>
     <a href="#model">Model</a>
     <a href="#calibration">Calibration</a>
